@@ -1,0 +1,216 @@
+import { afterEach, describe, expect, test } from "bun:test"
+import { recoverTypedDataAddress } from "viem"
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { createApiClient } from "../api/api"
+import { LogEvent, SessionStage, StreamStage } from "../log/enums"
+import { SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
+import { SignableRefusal } from "../signableRequest/enums"
+import { createFakeApi } from "../testing/fakeApi/fakeApi"
+import type { FakeApi } from "../testing/fakeApi/types"
+import { approvalRequest, fakeUserOf, logCollector, manualTimers, transferRequest } from "../testing/fixtures/fixtures"
+import { WalletKey } from "../wallets/wallets"
+import { FailedStep } from "./enums"
+import { createWalletSigner } from "./walletSigner"
+
+const AGENT = privateKeyToAccount(generatePrivateKey()).address
+const SUB = privateKeyToAccount(generatePrivateKey()).address
+const STRANGER = privateKeyToAccount(generatePrivateKey()).address
+
+const opened: FakeApi[] = []
+
+afterEach(async () => {
+  await Promise.all(opened.splice(0).map(api => api.stop()))
+})
+
+/** One Main wallet, a throwaway key, signed in to a fake service of its own. */
+function setUp({ label = "main", userId = "user-1" }: { label?: string; userId?: string } = {}) {
+  const key = generatePrivateKey()
+  const wallet = new WalletKey({ key, label })
+  const user = fakeUserOf({ id: userId, address: wallet.info.address, subAddress: SUB })
+  const api = createFakeApi({ users: [user] })
+  opened.push(api)
+  const logs = logCollector()
+  const timers = manualTimers()
+  const client = createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logs.log })
+  const signer = createWalletSigner({ wallet, client, chainId: null, log: logs.log, timers })
+  return { key, wallet, user, api, logs, timers, signer, mainId: `${userId}-main` }
+}
+
+describe("a waiting request", () => {
+  test("is signed with Main's key and sent, when the allowlist accepts it", async () => {
+    const ctx = setUp()
+    const request = approvalRequest({ id: "req-1", accountId: ctx.mainId, agent: AGENT })
+    ctx.api.addRequest({ userId: ctx.user.id, request })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-1"])
+    const payload = request.payload
+    if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+      throw new Error("typed data expected")
+    }
+    const signer = await recoverTypedDataAddress({
+      ...typedDataFromWire({ payload: payload.typedData }),
+      signature: ctx.api.submissions[0]?.signature ?? "0x",
+    })
+    expect(signer).toBe(ctx.wallet.info.address)
+    const signed = ctx.logs.read().filter(line => line.event === LogEvent.SIGNED)
+    expect(signed).toHaveLength(1)
+    expect(signed[0]).toMatchObject({
+      wallet: "main",
+      address: ctx.wallet.info.address,
+      requestId: "req-1",
+      kind: request.kind,
+      venue: "hyperliquid",
+    })
+  })
+
+  test("is never signed when the allowlist refuses it, and the refusal is told once", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-2", accountId: ctx.mainId, destination: STRANGER }) })
+    await ctx.signer.pass()
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.calls.filter(call => call.endsWith("/sign"))).toHaveLength(0)
+    const refused = ctx.logs.read().filter(line => line.event === LogEvent.REFUSED)
+    expect(refused).toHaveLength(1)
+    expect(refused[0]).toMatchObject({ requestId: "req-2", reason: SignableRefusal.NOT_YOUR_ACCOUNT })
+  })
+
+  test("to one of the user's own sub-accounts, read again from the service, is signed", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-3", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-3"])
+    expect(ctx.api.calls).toContain("GET /api/v1/accounts")
+  })
+
+  test("left for later by the user, or expired, waits", async () => {
+    const ctx = setUp()
+    const deferred = { ...approvalRequest({ id: "req-4", accountId: ctx.mainId, agent: AGENT }), state: SignatureRequestState.DEFERRED }
+    const askedAt = Date.now() - 2 * 60 * 60 * 1000
+    const expired = {
+      ...approvalRequest({ id: "req-5", accountId: ctx.mainId, agent: AGENT, askedAt }),
+      expiresAt: new Date(askedAt + 1000).toISOString(),
+    }
+    ctx.api.addRequest({ userId: ctx.user.id, request: deferred })
+    ctx.api.addRequest({ userId: ctx.user.id, request: expired })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+  })
+
+  test("is sent again after the service or its venue failed, then given up on a refusal", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-6", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.api.failNextSign({ status: 502, error: "Hyperliquid didn't answer" })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.logs.read().find(line => line.event === LogEvent.FAILED)).toMatchObject({ step: FailedStep.SEND, status: 502, retry: true })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-6"])
+
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-7", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.api.failNextSign({ status: 422, error: "Hyperliquid refused the approval" })
+    await ctx.signer.pass()
+    await ctx.signer.pass()
+    expect(ctx.api.calls.filter(call => call === "POST /api/v1/signature-requests/req-7/sign")).toHaveLength(1)
+    expect(
+      ctx.logs
+        .read()
+        .filter(line => line.event === LogEvent.FAILED)
+        .at(-1),
+    ).toMatchObject({ status: 422, retry: false })
+  })
+})
+
+describe("the session", () => {
+  test("is opened again when the service ends it (401), and the pass goes on", async () => {
+    const ctx = setUp()
+    await ctx.signer.pass()
+    ctx.api.expireSessions()
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-8", accountId: ctx.mainId, agent: AGENT }) })
+    await ctx.signer.pass()
+    expect(ctx.api.signIns).toHaveLength(2)
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-8"])
+    expect(
+      ctx.logs
+        .read()
+        .filter(line => line.event === LogEvent.SESSION)
+        .map(line => line.stage),
+    ).toEqual([SessionStage.SIGNED_IN, SessionStage.RENEWED])
+  })
+})
+
+describe("the event stream", () => {
+  test("starts a pass when the service tells a request was asked", async () => {
+    const ctx = setUp()
+    ctx.signer.start()
+    await ctx.logs.waitFor({ event: LogEvent.STREAM, stage: StreamStage.CONNECTED })
+    // The pass the stream starts as it opens, for what was asked while it was down: done before the request is.
+    await ctx.signer.pass()
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-9", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.api.push({ userId: ctx.user.id })
+    const submission = await ctx.api.submitted({ requestId: "req-9" })
+    expect(submission.address).toBe(ctx.wallet.info.address)
+    await ctx.signer.stop()
+  })
+
+  test("polling reads the requests while the stream is down", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-10", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.timers.tick()
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-10"])
+  })
+})
+
+describe("several wallets", () => {
+  test("each signs its own requests, under its own session, and the logs name it", async () => {
+    const keys = [generatePrivateKey(), generatePrivateKey()]
+    const wallets = keys.map((key, index) => new WalletKey({ key, label: `wallet-${index + 1}` }))
+    const users = wallets.map((wallet, index) => fakeUserOf({ id: `user-${index + 1}`, address: wallet.info.address, subAddress: SUB }))
+    const api = createFakeApi({ users })
+    opened.push(api)
+    const logs = logCollector()
+    const signers = wallets.map(wallet =>
+      createWalletSigner({
+        wallet,
+        client: createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logs.log }),
+        chainId: null,
+        log: logs.log,
+        timers: manualTimers(),
+      }),
+    )
+    users.forEach((user, index) => {
+      api.addRequest({ userId: user.id, request: approvalRequest({ id: `req-w${index + 1}`, accountId: `${user.id}-main`, agent: AGENT }) })
+    })
+    await Promise.all(signers.map(signer => signer.pass()))
+    expect(api.submissions.map(own => [own.requestId, own.address]).sort()).toEqual([
+      ["req-w1", wallets[0]?.info.address ?? ""],
+      ["req-w2", wallets[1]?.info.address ?? ""],
+    ])
+    expect(
+      logs
+        .read()
+        .filter(line => line.event === LogEvent.SIGNED)
+        .map(line => [line.wallet, line.requestId])
+        .sort(),
+    ).toEqual([
+      ["wallet-1", "req-w1"],
+      ["wallet-2", "req-w2"],
+    ])
+  })
+})
+
+describe("the logs", () => {
+  test("hold no key and no signature", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-11", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-12", accountId: ctx.mainId, destination: STRANGER }) })
+    await ctx.signer.pass()
+    const text = ctx.logs.lines.join("\n").toLowerCase()
+    expect(text).not.toContain(ctx.key.slice(2).toLowerCase())
+    for (const submission of ctx.api.submissions) {
+      expect(text).not.toContain(submission.signature.slice(2).toLowerCase())
+    }
+    expect(ctx.api.submissions).toHaveLength(1)
+  })
+})

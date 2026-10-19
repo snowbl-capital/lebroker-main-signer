@@ -1,0 +1,50 @@
+/** The parameters of Aster's query strings the policy knows. */
+enum AsterParam {
+  USER = "user",
+  NONCE = "nonce",
+  AGENT_NAME = "agentName",
+  AGENT_ADDRESS = "agentAddress",
+  EXPIRED = "expired",
+  SIGNATURE_CHAIN_ID = "signatureChainId",
+  CAN_SPOT_TRADE = "canSpotTrade",
+  CAN_PERP_TRADE = "canPerpTrade",
+  CAN_WITHDRAW = "canWithdraw",
+  ASSET = "asset",
+  AMOUNT = "amount",
+  TO_ADDRESS = "toAddress",
+  CLIENT_TRAN_ID = "clientTranId",
+  IP_WHITELIST = "ipWhitelist",
+  CHAIN_ID = "chainId",
+  FEE = "fee",
+  RECEIVER = "receiver",
+  USER_NONCE = "userNonce",
+  USER_SIGNATURE = "userSignature",
+  SIGNER = "signer",
+  SYMBOL = "symbol",
+  SIDE = "side",
+  TYPE = "type",
+  TIME_IN_FORCE = "timeInForce",
+  QUANTITY = "quantity",
+  PRICE = "price",
+  NEW_ORDER_RESP_TYPE = "newOrderRespType",
+  REDUCE_ONLY = "reduceOnly",
+  NEW_CLIENT_ORDER_ID = "newClientOrderId",
+  ORDER_ID = "orderId",
+  ORIG_CLIENT_ORDER_ID = "origClientOrderId",
+  LEVERAGE = "leverage",
+  MARGIN_TYPE = "marginType",
+  KIND_TYPE = "kindType",
+  MULTI_ASSETS_MARGIN = "multiAssetsMargin",
+  START_TIME = "startTime",
+  END_TIME = "endTime",
+  LIMIT = "limit",
+  INCOME_TYPE = "incomeType",
+}
+
+/** Aster's query strings write booleans as words. */
+enum AsterBoolean {
+  TRUE = "true",
+  FALSE = "false",
+}
+
+export { AsterBoolean, AsterParam }

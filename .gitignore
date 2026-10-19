@@ -1,0 +1,11 @@
+node_modules/
+*.tsbuildinfo
+
+# Keys never live in this repository: MAIN_KEYS_DIR points outside it.
+*.key
+.env
+.env.*
+
+# Logs the signer's output was redirected to.
+*.log
+logs/
