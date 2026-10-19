@@ -14,6 +14,7 @@ enum SignableRefusal {
   OPAQUE = "This request can't be read before it's signed, so the browser won't sign it.",
   LAMARGE_CHECK = "LaMarge's checks refused this request:",
   NO_TAKE = "This transfer pays someone else, and names no LaMarge take whose maker it pays.",
+  NOT_TAKE_ACCOUNTS = "This Lighter transfer goes between other accounts than Main's and the maker's its LaMarge take names.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
@@ -29,6 +30,7 @@ enum SignSummaryText {
   LAMARGE_PAYMENT = "Pay a LaMarge move into its escrow",
   LAMARGE_REFUND = "Take back a LaMarge payment",
   LAMARGE_ASTER_TAKE = "Pay a LaMarge take inside Aster: the maker who fills it, from Main's Aster account",
+  LAMARGE_LIGHTER_TAKE = "Pay a LaMarge take inside Lighter: the maker who fills it, from Main's Lighter account",
   LAMARGE_ASTER_AGENT = "Approve LaMarge's Aster agent to move Main's margin to Spot, never to withdraw",
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
@@ -47,6 +49,8 @@ enum SignSummaryLabel {
   SPENDER = "Spender",
   PAYMENTS = "Payments",
   MAKER = "Maker's Aster account",
+  MAKER_LIGHTER = "Maker's Lighter account",
+  LIGHTER_FEE = "Lighter's fee",
   STARTED_BY = "Started by",
 }
 
@@ -61,6 +65,8 @@ enum LaMargeWord {
   PERMIT = "permit",
   ASTER = "aster",
   ASTER_TRANSFER = "aster_transfer",
+  LIGHTER = "lighter",
+  LIGHTER_TRANSFER = "lighter_transfer",
   PERMIT_TYPE = "Permit",
   PAY_TAKE_TYPE = "PayTake",
   REFUND_TYPE = "RefundPayment",

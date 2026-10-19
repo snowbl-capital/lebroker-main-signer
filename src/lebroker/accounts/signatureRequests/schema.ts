@@ -37,11 +37,12 @@ const laMargeTake = z.object({
       delivery_to: z.string().nullable().optional(),
     }),
   ),
+  lighter: z.object({ from_account_index: z.number().int().nonnegative(), to_account_index: z.number().int().nonnegative() }).optional(),
 })
 
 const signaturePayload = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal(SignaturePayloadKind.TYPED_DATA), typedData: typedDataPayload, take: laMargeTake.optional() }),
-  z.object({ kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE), message: z.string() }),
+  z.object({ kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE), message: z.string(), take: laMargeTake.optional() }),
 ])
 
 export { laMargeTake, signaturePayload, typedDataPayload }

@@ -33,14 +33,21 @@ type LaMargeTakeFill = {
 }
 
 /**
- * The LaMarge take a payment inside a venue settles, as LaMarge's API answered it: what the signature is checked
- * against, the maker's recipient it pays among it. Only a take's payment carries it.
+ * The Lighter accounts a take's payment inside Lighter goes between, by index, as LaMarge's request named them: the
+ * payer's, and the fill's maker recipient's, which the executor's SDK read on Lighter's public API before asking Main.
  */
-type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[] }
+type LaMargeLighterAccounts = { from_account_index: number; to_account_index: number }
+
+/**
+ * The LaMarge take a payment inside a venue settles, as LaMarge's API answered it: what the signature is checked
+ * against, the maker's recipient it pays among it; `lighter`, for a payment inside Lighter, the accounts it goes
+ * between. Only a take's payment carries it.
+ */
+type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[]; lighter?: LaMargeLighterAccounts | undefined }
 
 /** What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays. */
 type SignaturePayload =
   | { kind: SignaturePayloadKind.TYPED_DATA; typedData: TypedDataPayload; take?: LaMargeTake | undefined }
-  | { kind: SignaturePayloadKind.PERSONAL_MESSAGE; message: string }
+  | { kind: SignaturePayloadKind.PERSONAL_MESSAGE; message: string; take?: LaMargeTake | undefined }
 
-export type { LaMargeTake, LaMargeTakeFill, LaMargeTakeInput, SignaturePayload, TypedDataPayload }
+export type { LaMargeLighterAccounts, LaMargeTake, LaMargeTakeFill, LaMargeTakeInput, SignaturePayload, TypedDataPayload }

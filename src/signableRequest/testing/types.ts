@@ -14,7 +14,7 @@ type RequestOfProps = {
   accountId?: string
   walletChainId?: number | null
   reason?: SignatureRequestReason
-  /** The LaMarge take the request names, beside its typed data. */
+  /** The LaMarge take the request names, beside its typed data or its message. */
   take?: LaMargeTake
   /** When it was asked, in ms. */
   askedAt?: number

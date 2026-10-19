@@ -146,6 +146,100 @@ function asterTakeRequest({
   })
 }
 
+// A LaMarge take paid inside Lighter, as LaMarge's web test of paying from Lighter writes it (`lighter-pay.test.ts`): its
+// owner's address, and the owner message for the transfer from its account 42 to the maker's 731033, 2.0013 USDC under
+// the fill's id, at nonce 7, with no fee.
+const LIGHTER_MAIN = "0x7564105E977516C53bE337314c7E53838967bDaC"
+const LIGHTER_FILL_ID = "018f8d98-f485-7f48-9630-e0b7368fe28f"
+const LIGHTER_TAKE_MESSAGE =
+  "Transfer\n\nnonce: 0x0000000000000007\nfrom: 0x000000000000002a (route 0x0000000000000000)\napi key: 0x00000000000000fe\nto: 0x00000000000b2799 (route 0x0000000000000000)\nasset: 0x0000000000000003\namount: 0x00000000001e8994\nfee: 0x0000000000000000\nchainId: 0x0000000000000130\nmemo: 018f8d98f4857f489630e0b7368fe28f00000000000000000000000000000000\nOnly sign this message for a trusted client!"
+
+/** Lighter's owner message for a take's transfer, as LaMarge's SDK writes it: the one above unless said. */
+function lighterTransferText({
+  to = 731_033,
+  amount = 2_001_300n,
+  fee = 0n,
+  apiKey = TAKER_API_KEY,
+  asset = USDC_ASSET,
+  fromRoute = COLLATERAL_ROUTE,
+  chainId,
+  fill = LIGHTER_FILL_ID,
+}: {
+  to?: number
+  amount?: bigint
+  fee?: bigint
+  apiKey?: number
+  asset?: number
+  fromRoute?: number
+  chainId?: number
+  fill?: string
+} = {}): string {
+  const transfer = {
+    from: 42,
+    apiKey,
+    to,
+    asset,
+    fromRoute,
+    toRoute: COLLATERAL_ROUTE,
+    amount,
+    fee,
+    memo: fromHex(fillMemo(fill)),
+    expiredAt: 0,
+    nonce: 7,
+  }
+  return chainId === undefined ? transferMessage(transfer) : transferMessage(transfer, chainId)
+}
+
+/** The take as LaMarge's API answered it, the accounts beside it as Lighter answered the executor: one fill to Hyperliquid. */
+function lighterTake({
+  fill = {},
+  lighter = { from_account_index: 42, to_account_index: 731_033 },
+}: { fill?: Partial<LaMargeTake["fills"][number]>; lighter?: LaMargeTake["lighter"] | null } = {}): LaMargeTake {
+  return {
+    input: { from: "lighter", to: "hyperliquid", amount_in: "2001300", min_out: "2000000" },
+    fills: [
+      {
+        id: LIGHTER_FILL_ID,
+        order_id: "0x00000000000000000000000000000000000000000000000000000000000000aa",
+        sequence: 4,
+        role: "taker",
+        from_venue: "lighter",
+        to_venue: "hyperliquid",
+        amount_in: "2001300",
+        amount_out: "2000500",
+        payer: LIGHTER_MAIN,
+        maker_recipient: TAKE_MAKER,
+        taker_recipient: LIGHTER_MAIN,
+        swap_id: "0x00000000000000000000000000000000000000000000000000000000000000bb",
+        hashlock: "0x00000000000000000000000000000000000000000000000000000000000000cc",
+        pay_by: new Date(ASKED_AT + 60_000).toISOString(),
+        t1: new Date(ASKED_AT + 120_000).toISOString(),
+        t2: new Date(ASKED_AT + 600_000).toISOString(),
+        delivery_to: null,
+        ...fill,
+      },
+    ],
+    ...(lighter === null ? {} : { lighter }),
+  }
+}
+
+/** A LaMarge move's request for the take's payment inside Lighter: Lighter's owner message, and the take beside it. */
+function lighterTakeRequest({
+  message = LIGHTER_TAKE_MESSAGE,
+  take = lighterTake(),
+  kind = SignatureRequestKind.LAMARGE_MOVE,
+  reason = SignatureRequestReason.MOVE,
+}: { message?: string; take?: LaMargeTake | null; kind?: SignatureRequestKind; reason?: SignatureRequestReason } = {}) {
+  return requestOf({
+    kind,
+    venue: kind === SignatureRequestKind.LAMARGE_MOVE ? null : VenueId.LIGHTER,
+    message,
+    ...(take === null ? {} : { take }),
+    reason,
+    main: LIGHTER_MAIN,
+  })
+}
+
 function sendAsset({ destination, signatureChainId = 42161 }: { destination: Address; signatureChainId?: number }) {
   return hyperliquidSendAssetRequest({
     destination,
@@ -437,23 +531,91 @@ describe("a LaMarge move", () => {
     )
   })
 
-  test("refuses a take paid inside Lighter: Main's wallet can't tell whose account its transfer pays", () => {
-    const pay = transferMessage({
-      from: 42,
-      apiKey: TAKER_API_KEY,
-      to: 731_033,
-      asset: USDC_ASSET,
-      fromRoute: COLLATERAL_ROUTE,
-      toRoute: COLLATERAL_ROUTE,
-      amount: 2_000_000n,
-      fee: 0n,
-      memo: fromHex(fillMemo(TAKE_FILL_ID)),
-      expiredAt: 0,
-      nonce: 7,
+  test("pays a take inside Lighter to the maker's account the take names, and says what it signs and who started the move", () => {
+    // LaMarge's SDK writes the message the request carries, byte for byte.
+    expect(lighterTransferText()).toBe(LIGHTER_TAKE_MESSAGE)
+    const read = signableRequest(lighterTakeRequest())
+    expect(read.ok && read.summary).toEqual({
+      action: SignSummaryText.LAMARGE_LIGHTER_TAKE,
+      lines: [
+        { label: SignSummaryLabel.AMOUNT, value: "2.0013" },
+        { label: SignSummaryLabel.LIGHTER_FEE, value: "0" },
+        { label: SignSummaryLabel.MAKER_LIGHTER, value: "731033" },
+        { label: SignSummaryLabel.STARTED_BY, value: SignStarter.USER },
+      ],
+      chainId: null,
     })
-    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: pay, askedAt: TAKE_ASKED_AT }))).toBe(
-      SignableRefusal.OPAQUE,
+    const keeper = signableRequest(lighterTakeRequest({ reason: SignatureRequestReason.MARGIN_KEEPER }))
+    expect(keeper.ok && keeper.summary.lines.at(-1)).toEqual({ label: SignSummaryLabel.STARTED_BY, value: SignStarter.MARGIN_KEEPER })
+    // Lighter's fee, up to its 1 USDC cap, is said beside it.
+    const fee = signableRequest(lighterTakeRequest({ message: lighterTransferText({ fee: 1_000_000n }) }))
+    expect(fee.ok && fee.summary.lines[1]).toEqual({ label: SignSummaryLabel.LIGHTER_FEE, value: "1" })
+  })
+
+  test("refuses a payment inside Lighter that names no take, or a take without the accounts it goes between", () => {
+    expect(refusalOf(lighterTakeRequest({ take: null }))).toBe(SignableRefusal.NO_TAKE)
+    expect(refusalOf(lighterTakeRequest({ take: lighterTake({ lighter: null }) }))).toBe(SignableRefusal.NOT_TAKE_ACCOUNTS)
+  })
+
+  test("refuses a payment inside Lighter to another account than the take's maker's, or from another than Main's", () => {
+    for (const to of [731_034, 42, 0]) {
+      expect(refusalOf(lighterTakeRequest({ message: lighterTransferText({ to }) }))).toBe(SignableRefusal.NOT_TAKE_ACCOUNTS)
+    }
+    for (const lighter of [
+      { from_account_index: 42, to_account_index: 7 },
+      { from_account_index: 43, to_account_index: 731_033 },
+    ]) {
+      expect(refusalOf(lighterTakeRequest({ take: lighterTake({ lighter }) }))).toBe(SignableRefusal.NOT_TAKE_ACCOUNTS)
+    }
+  })
+
+  test("refuses a payment inside Lighter that differs from the take's fill: its amount, its id, its fee, its payer, its taker", () => {
+    const refused = [
+      lighterTakeRequest({ message: lighterTransferText({ amount: 2_001_301n }) }),
+      lighterTakeRequest({ message: lighterTransferText({ amount: 2_001_299n }) }),
+      lighterTakeRequest({ message: lighterTransferText({ fill: TAKE_FILL_ID }) }),
+      lighterTakeRequest({ message: lighterTransferText({ fee: 1_000_001n }) }),
+      lighterTakeRequest({ take: lighterTake({ fill: { payer: STRANGER } }) }),
+      lighterTakeRequest({ take: lighterTake({ fill: { taker_recipient: STRANGER } }) }),
+      lighterTakeRequest({ take: lighterTake({ fill: { pay_by: new Date(ASKED_AT - 1000).toISOString() } }) }),
+      lighterTakeRequest({ take: lighterTake({ fill: { from_venue: "aster" } }) }),
+    ]
+    for (const request of refused) {
+      expect(refusalOf(request)).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    }
+    const twice = lighterTake()
+    expect(refusalOf(lighterTakeRequest({ take: { ...twice, fills: [...twice.fills, ...twice.fills] } }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
     )
+    // Main's wallet is the take's payer and taker, never another's.
+    expect(refusalOf({ ...lighterTakeRequest(), user: { id: USER_ID, address: MAIN } })).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses another Lighter message than LaMarge's for a take: another key, asset, route or chain, or written otherwise", () => {
+    const pinned = [
+      lighterTransferText({ apiKey: 4 }),
+      lighterTransferText({ asset: 1 }),
+      lighterTransferText({ fromRoute: 1 }),
+      lighterTransferText({ chainId: 300 }),
+    ]
+    for (const message of pinned) {
+      expect(refusalOf(lighterTakeRequest({ message }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    }
+    const unread = [
+      LIGHTER_TAKE_MESSAGE.toUpperCase(),
+      LIGHTER_TAKE_MESSAGE.replace("0x00000000001e8994", "0x1e8994"),
+      `${LIGHTER_TAKE_MESSAGE}\n`,
+      LIGHTER_TAKE_MESSAGE.replace("Only sign this message for a trusted client!", ""),
+    ]
+    for (const message of unread) {
+      expect(refusalOf(lighterTakeRequest({ message }))).toBe(SignableRefusal.OPAQUE)
+    }
+  })
+
+  test("refuses Lighter's message for a take asked as anything but a LaMarge move: a transfer, a withdrawal, a setup", () => {
+    expect(refusalOf(lighterTakeRequest({ kind: SignatureRequestKind.TRANSFER }))).toBe(SignableRefusal.OPAQUE)
+    expect(refusalOf(lighterTakeRequest({ kind: SignatureRequestKind.WITHDRAWAL }))).toBe(SignableRefusal.OPAQUE)
+    expect(refusalOf(lighterTakeRequest({ kind: SignatureRequestKind.VENUE_SETUP }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
   })
 
   test("signs in on LaMarge's app and registers LaMarge's Lighter key, and nothing else in words", () => {

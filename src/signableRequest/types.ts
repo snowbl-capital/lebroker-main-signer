@@ -74,6 +74,15 @@ type ToAccountProps = { account: SignableAccount }
 /** Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked against. */
 type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null }
 
+/** A message for a LaMarge move, and the take its request names, null for none. */
+type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null }
+
+/** Lighter's owner message for a transfer, as `LIGHTER_TRANSFER_MESSAGE` read it. */
+type LighterTakeProps = LaMargeMessageRuleProps & { read: RegExpExecArray }
+
+/** A field of a Lighter message, written in hex: an index or a nonce. */
+type HexIndexProps = { hex: string | undefined }
+
 /** Typed data for a LaMarge move, as its SDK checks it. */
 type LaMargeTypedProps = LaMargeTypedRuleProps & { typed: Typed }
 
@@ -96,9 +105,12 @@ export type {
   DelegateProps,
   ExpectedDomainProps,
   ExpectedTypesProps,
+  HexIndexProps,
   LaMargeCheckProps,
+  LaMargeMessageRuleProps,
   LaMargeTypedProps,
   LaMargeTypedRuleProps,
+  LighterTakeProps,
   MessageRuleProps,
   NotSignableProps,
   OwnAccountProps,

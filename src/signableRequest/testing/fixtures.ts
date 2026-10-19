@@ -65,7 +65,7 @@ function requestOf({
       payload:
         message === undefined
           ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...(take === undefined ? {} : { take }) }
-          : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message },
+          : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...(take === undefined ? {} : { take }) },
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
