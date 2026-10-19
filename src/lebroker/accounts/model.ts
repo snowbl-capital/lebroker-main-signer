@@ -11,6 +11,6 @@ export {
   WalletKind,
 } from "./enums"
 export { isLighterKeyIndex } from "./lighterKeyIndex/lighterKeyIndex"
-export { signaturePayload, typedDataPayload } from "./signatureRequests/schema"
+export { laMargeTake, signaturePayload, typedDataPayload } from "./signatureRequests/schema"
 export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"
-export type { SignaturePayload, TypedDataPayload } from "./types"
+export type { LaMargeTake, LaMargeTakeFill, LaMargeTakeInput, SignaturePayload, TypedDataPayload } from "./types"

@@ -13,6 +13,7 @@ enum SignableRefusal {
   TOO_LONG = "This request lasts longer than lebroker ever asks.",
   OPAQUE = "This request can't be read before it's signed, so the browser won't sign it.",
   LAMARGE_CHECK = "LaMarge's checks refused this request:",
+  NO_TAKE = "This transfer pays someone else, and names no LaMarge take whose maker it pays.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
@@ -27,7 +28,7 @@ enum SignSummaryText {
   LAMARGE_PERMIT = "Let LaMarge's escrow take this token from Main when Main signs a move",
   LAMARGE_PAYMENT = "Pay a LaMarge move into its escrow",
   LAMARGE_REFUND = "Take back a LaMarge payment",
-  LAMARGE_ASTER_PAYMENT = "Pay a LaMarge move into LaMarge's Aster vault",
+  LAMARGE_ASTER_TAKE = "Pay a LaMarge take inside Aster: the maker who fills it, from Main's Aster account",
   LAMARGE_ASTER_AGENT = "Approve LaMarge's Aster agent to move Main's margin to Spot, never to withdraw",
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
@@ -45,12 +46,21 @@ enum SignSummaryLabel {
   TOKEN = "Token",
   SPENDER = "Spender",
   PAYMENTS = "Payments",
+  MAKER = "Maker's Aster account",
+  STARTED_BY = "Started by",
+}
+
+/** Who started the move a request signs for, as the request says it. */
+enum SignStarter {
+  USER = "You",
+  MARGIN_KEEPER = "The margin keeper",
 }
 
 /** LaMarge's own words, as its SDK and its API write them. */
 enum LaMargeWord {
   PERMIT = "permit",
   ASTER = "aster",
+  ASTER_TRANSFER = "aster_transfer",
   PERMIT_TYPE = "Permit",
   PAY_TAKE_TYPE = "PayTake",
   REFUND_TYPE = "RefundPayment",
@@ -63,4 +73,4 @@ enum LaMargeWord {
   EXPIRES_PREFIX = "Expiration Time: ",
 }
 
-export { LaMargeWord, SignSummaryLabel, SignSummaryText, SignableRefusal }
+export { LaMargeWord, SignStarter, SignSummaryLabel, SignSummaryText, SignableRefusal }

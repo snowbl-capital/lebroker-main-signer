@@ -1,4 +1,11 @@
-import { AccountKind, AccountState, SignatureRequestKind, SignaturePayloadKind, typedDataPayload } from "../../lebroker/accounts/model"
+import {
+  AccountKind,
+  AccountState,
+  SignatureRequestKind,
+  SignatureRequestReason,
+  SignaturePayloadKind,
+  typedDataPayload,
+} from "../../lebroker/accounts/model"
 import type { Address } from "viem"
 import type { SignableRequestProps } from "../types"
 import type { RegistrationMessageProps, RequestOfProps, WiredTypedData, WireProps } from "./types"
@@ -43,19 +50,24 @@ function requestOf({
   message,
   accountId = MAIN_ACCOUNT_ID,
   walletChainId = 42161,
+  reason = SignatureRequestReason.MOVE,
+  take,
+  askedAt = ASKED_AT,
+  main = MAIN,
 }: RequestOfProps): SignableRequestProps {
   return {
     request: {
       kind: kind ?? SignatureRequestKind.VENUE_SETUP,
+      reason,
       venue,
       accountId,
-      createdAt: new Date(ASKED_AT).toISOString(),
+      createdAt: new Date(askedAt).toISOString(),
       payload:
         message === undefined
-          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }) }
+          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...(take === undefined ? {} : { take }) }
           : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message },
     },
-    user: { id: USER_ID, address: MAIN },
+    user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
     walletChainId,
   }

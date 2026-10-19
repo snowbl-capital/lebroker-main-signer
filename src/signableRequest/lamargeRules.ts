@@ -3,6 +3,7 @@ import {
   TAKER_API_KEY,
   asterTransfer,
   checkAsterApproval,
+  checkAsterTakeIntent,
   checkEscrowTyped,
   checkLoginChallenge,
   checkPermit,
@@ -13,12 +14,23 @@ import {
   withdrawalCost,
   type Typed,
 } from "@lamarge/sdk/protocol"
+import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { LIGHTER_REGISTRATION_MESSAGE } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
 import { EIP712_DOMAIN_FIELDS, LAMARGE_APP_ORIGINS, LAMARGE_PERMIT_SECONDS } from "./constants"
-import { LaMargeWord, SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
-import type { ChainOfProps, LaMargeTypedProps, MessageRuleProps, SignSummary, TypedRuleProps, UnitsProps, VenueOfProps } from "./types"
+import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
+import type {
+  ChainOfProps,
+  LaMargeTypedProps,
+  LaMargeTypedRuleProps,
+  MessageRuleProps,
+  SignSummary,
+  StartedByProps,
+  SummaryLine,
+  UnitsProps,
+  VenueOfProps,
+} from "./types"
 import { chainOf, isAddress, laMargeCheck, refuse, text } from "./utils"
 
 /**
@@ -127,34 +139,67 @@ function withdrawal({ typed, user, askedAt }: LaMargeTypedProps): SignSummary {
   }
 }
 
-/** Aster: a payment into LaMarge's pinned Aster vault, or the approval of LaMarge's agent, which never withdraws. */
-function asterMessage({ typed, user, askedAt }: LaMargeTypedProps): SignSummary {
-  const aster = CHAINS[LaMargeWord.ASTER] ?? refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
-  if (typed.domain.chainId === aster.id) {
-    const message = text({ value: typed.message.msg })
-    const nonce = new URLSearchParams(message).get("nonce") ?? ""
-    laMargeCheck({ check: () => checkAsterApproval({ message, nonce, expires_at: "", typed_data: typed }, user.address, askedAt) })
-    return { action: SignSummaryText.LAMARGE_ASTER_AGENT, lines: [], chainId: typed.domain.chainId }
-  }
-  const transfer = laMargeCheck({ check: () => asterTransfer(typed) })
-  if (!isAddress({ address: transfer.user, other: user.address })) {
-    refuse({ refusal: SignableRefusal.OTHER_MAIN })
-  }
-  if (!isAddress({ address: transfer.to, other: aster.escrow })) {
-    refuse({ refusal: SignableRefusal.NOT_YOUR_ACCOUNT })
-  }
-  return {
-    action: SignSummaryText.LAMARGE_ASTER_PAYMENT,
-    lines: [{ label: SignSummaryLabel.AMOUNT, value: units({ value: transfer.amount, venue: LaMargeWord.ASTER }) }],
-    chainId: typed.domain.chainId,
+/** Who started the move, as the request says it: the margin keeper, or the user; nothing for a reason of another kind. */
+function startedBy({ reason }: StartedByProps): SummaryLine[] {
+  switch (reason) {
+    case SignatureRequestReason.MARGIN_KEEPER:
+      return [{ label: SignSummaryLabel.STARTED_BY, value: SignStarter.MARGIN_KEEPER }]
+    case SignatureRequestReason.MOVE:
+      return [{ label: SignSummaryLabel.STARTED_BY, value: SignStarter.USER }]
+    case SignatureRequestReason.SETUP:
+    case SignatureRequestReason.RENEWAL:
+    default:
+      return []
   }
 }
 
 /**
- * What Main signs for a LaMarge move (D2, D20): only what LaMarge's own SDK checks against its pinned deployment, and
- * whose funds go to its pinned escrow or vault, or back to Main.
+ * A LaMarge take paid inside Aster: the one case where Main pays an address that isn't one of the user's accounts, the
+ * maker who fills the take, peer to peer, before LaMarge releases what Main receives (D20). Only a transfer of exactly
+ * the take's one fill, from Main, to that fill's maker recipient, under its id, with Main its taker and receiver, within
+ * its windows, as LaMarge's SDK checks a take's payment (`checkAsterTakeIntent`). The take is the request's, as
+ * LaMarge's API answered it: no maker's signature binds its recipient, so the summary names it.
  */
-function laMargeTyped(props: TypedRuleProps): SignSummary {
+function asterTake({ typed, user, take, askedAt, request }: LaMargeTypedProps): SignSummary {
+  const transfer = laMargeCheck({ check: () => asterTransfer(typed) })
+  if (!isAddress({ address: transfer.user, other: user.address })) {
+    refuse({ refusal: SignableRefusal.OTHER_MAIN })
+  }
+  if (take === null) {
+    return refuse({ refusal: SignableRefusal.NO_TAKE })
+  }
+  const item = { kind: LaMargeWord.ASTER_TRANSFER, signer: user.address, fill_id: take.fills[0]?.id, typed_data: typed }
+  laMargeCheck({ check: () => checkAsterTakeIntent([item], take.fills, take.input, user.address, user.address, askedAt / 1000) })
+  return {
+    action: SignSummaryText.LAMARGE_ASTER_TAKE,
+    lines: [
+      { label: SignSummaryLabel.AMOUNT, value: units({ value: transfer.amount, venue: LaMargeWord.ASTER }) },
+      { label: SignSummaryLabel.MAKER, value: shortAddress({ address: transfer.to }) },
+      ...startedBy({ reason: request.reason }),
+    ],
+    chainId: typed.domain.chainId,
+  }
+}
+
+/** Aster: a take's payment to its maker, or the approval of LaMarge's agent, which never withdraws. */
+function asterMessage(props: LaMargeTypedProps): SignSummary {
+  const aster = CHAINS[LaMargeWord.ASTER] ?? refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
+  if (props.typed.domain.chainId !== aster.id) {
+    return asterTake(props)
+  }
+  const message = text({ value: props.typed.message.msg })
+  const nonce = new URLSearchParams(message).get("nonce") ?? ""
+  laMargeCheck({
+    check: () => checkAsterApproval({ message, nonce, expires_at: "", typed_data: props.typed }, props.user.address, props.askedAt),
+  })
+  return { action: SignSummaryText.LAMARGE_ASTER_AGENT, lines: [], chainId: props.typed.domain.chainId }
+}
+
+/**
+ * What Main signs for a LaMarge move (D2, D20): only what LaMarge's own SDK checks against its pinned deployment, and
+ * whose funds go to its pinned escrow, back to Main, or, for a take paid inside Aster, to the maker who fills it.
+ */
+function laMargeTyped(props: LaMargeTypedRuleProps): SignSummary {
   const typed = sdkTyped(props)
   switch (typed.primaryType) {
     case LaMargeWord.PERMIT_TYPE:

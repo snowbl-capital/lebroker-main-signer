@@ -1,7 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { CHAINS, ESCROW, TAKER_API_KEY, UNLIMITED_ALLOWANCE } from "@lamarge/sdk/protocol"
+import {
+  CHAINS,
+  COLLATERAL_ROUTE,
+  ESCROW,
+  TAKER_API_KEY,
+  UNLIMITED_ALLOWANCE,
+  USDC_ASSET,
+  fillMemo,
+  fromHex,
+  transferMessage,
+} from "@lamarge/sdk/protocol"
 import type { Address } from "viem"
-import { LIGHTER_KEY_INDEX, SignatureRequestKind } from "../lebroker/accounts/model"
+import { LIGHTER_KEY_INDEX, SignatureRequestKind, SignatureRequestReason, type LaMargeTake } from "../lebroker/accounts/model"
 import { Network, VenueId } from "../lebroker/core/model"
 import { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import {
@@ -20,7 +30,7 @@ import {
   polymarketCreateProxyTypedData,
 } from "./testing/builders/builders"
 import { AsterAgentKind } from "./testing/builders/enums"
-import { SignableRefusal, SignSummaryLabel } from "./enums"
+import { SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import { signableRequest } from "./signableRequest"
 import {
   AGENT,
@@ -78,6 +88,62 @@ function asterTransfer({ to, user = MAIN }: { to: string; user?: string }) {
     ["user", user],
   ]).toString()
   return asterMessage({ msg, chainId: ASTER_SIGN_CHAIN_IDS[Network.MAINNET] })
+}
+
+// A LaMarge take paid inside Aster, as dev asked Main to sign it on 19 October 2026 at 20:27 UTC: the transfer pays the
+// maker's Aster account, under the fill's id with its dashes left out, from Main.
+const TAKE_MAIN = "0x6e20eB5e456E65BcE071cF42228c10EC5018fd53"
+const TAKE_MAKER = "0x651f38C5fC75C9Dd3FD4663011D17514dEF55C09"
+const TAKE_FILL_ID = "01a155d9-0319-7226-b6c3-b6e3fa577c93"
+const TAKE_MESSAGE = `asset=USDT&amount=62.13&toAddress=${TAKE_MAKER}&clientTranId=01a155d903197226b6c3b6e3fa577c93&nonce=1792441703543980&user=${TAKE_MAIN}`
+/** When dev asked for it: 53.5 s before the transfer's nonce, which LaMarge sets 20 to 70 s ahead. */
+const TAKE_ASKED_AT = Date.UTC(2026, 9, 19, 20, 27, 30)
+
+/** The take as LaMarge's API answered it: one fill from Main's Aster to its Hyperliquid, 62.13 USDT to the maker. */
+function asterTake({ fill = {} }: { fill?: Partial<LaMargeTake["fills"][number]> } = {}): LaMargeTake {
+  return {
+    input: { from: "aster", to: "hyperliquid", amount_in: "62130000000000000000", min_out: "62000000" },
+    fills: [
+      {
+        id: TAKE_FILL_ID,
+        order_id: "0x00000000000000000000000000000000000000000000000000000000000000aa",
+        sequence: 3,
+        role: "taker",
+        from_venue: "aster",
+        to_venue: "hyperliquid",
+        amount_in: "62130000000000000000",
+        amount_out: "62050000",
+        payer: TAKE_MAIN,
+        maker_recipient: TAKE_MAKER,
+        taker_recipient: TAKE_MAIN,
+        swap_id: "0x00000000000000000000000000000000000000000000000000000000000000bb",
+        hashlock: "0x00000000000000000000000000000000000000000000000000000000000000cc",
+        pay_by: new Date(TAKE_ASKED_AT + 60_000).toISOString(),
+        t1: new Date(TAKE_ASKED_AT + 120_000).toISOString(),
+        t2: new Date(TAKE_ASKED_AT + 600_000).toISOString(),
+        delivery_to: null,
+        ...fill,
+      },
+    ],
+  }
+}
+
+/** A LaMarge move's request for the take's payment inside Aster, as dev sent it, with `msg` in place of its message. */
+function asterTakeRequest({
+  msg = TAKE_MESSAGE,
+  take = asterTake(),
+  kind = SignatureRequestKind.LAMARGE_MOVE,
+  reason = SignatureRequestReason.MOVE,
+}: { msg?: string; take?: LaMargeTake | null; kind?: SignatureRequestKind; reason?: SignatureRequestReason } = {}) {
+  return requestOf({
+    kind,
+    venue: kind === SignatureRequestKind.TRANSFER ? VenueId.ASTER : null,
+    typedData: asterMessage({ msg, chainId: ASTER_SIGN_CHAIN_IDS[Network.MAINNET] }),
+    ...(take === null ? {} : { take }),
+    reason,
+    askedAt: TAKE_ASKED_AT,
+    main: TAKE_MAIN,
+  })
 }
 
 function sendAsset({ destination, signatureChainId = 42161 }: { destination: Address; signatureChainId?: number }) {
@@ -238,6 +304,12 @@ describe("a transfer from Main", () => {
     expect(refusalOf(aster)).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
   })
 
+  test("refuses a third party even with a LaMarge take beside it: only a LaMarge move pays a maker", () => {
+    expect(refusalOf(asterTakeRequest({ kind: SignatureRequestKind.TRANSFER }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    const withdrawal = asterTakeRequest({ kind: SignatureRequestKind.WITHDRAWAL })
+    expect(refusalOf({ ...withdrawal, request: { ...withdrawal.request, venue: VenueId.ASTER } })).toBe(SignableRefusal.UNKNOWN_SHAPE)
+  })
+
   test("refuses another action than the transfer: a withdrawal, a message, Polymarket's hashed command", () => {
     const withdraw = hyperliquidWithdrawRequest({
       destination: SUB,
@@ -312,11 +384,75 @@ describe("a LaMarge move", () => {
     ).toStartWith(SignableRefusal.LAMARGE_CHECK)
   })
 
-  test("pays into LaMarge's Aster vault, never elsewhere", () => {
-    const vault = CHAINS.aster?.escrow ?? ""
-    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: asterTransfer({ to: vault }) })).ok).toBe(true)
-    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: asterTransfer({ to: SUB }) }))).toBe(
-      SignableRefusal.NOT_YOUR_ACCOUNT,
+  test("pays a take inside Aster to the maker the take names, and says what it signs and who started the move", () => {
+    const read = signableRequest(asterTakeRequest())
+    expect(read.ok && read.summary).toEqual({
+      action: SignSummaryText.LAMARGE_ASTER_TAKE,
+      lines: [
+        { label: SignSummaryLabel.AMOUNT, value: "62.13" },
+        { label: SignSummaryLabel.MAKER, value: "0x651f…5C09" },
+        { label: SignSummaryLabel.STARTED_BY, value: SignStarter.USER },
+      ],
+      chainId: ASTER_SIGN_CHAIN_IDS[Network.MAINNET],
+    })
+    const keeper = signableRequest(asterTakeRequest({ reason: SignatureRequestReason.MARGIN_KEEPER }))
+    expect(keeper.ok && keeper.summary.lines.at(-1)).toEqual({ label: SignSummaryLabel.STARTED_BY, value: SignStarter.MARGIN_KEEPER })
+  })
+
+  test("refuses a payment inside Aster that names no take, LaMarge's Aster vault included", () => {
+    expect(refusalOf(asterTakeRequest({ take: null }))).toBe(SignableRefusal.NO_TAKE)
+    const vault = TAKE_MESSAGE.replace(TAKE_MAKER, CHAINS.aster?.escrow ?? "")
+    expect(refusalOf(asterTakeRequest({ msg: vault, take: null }))).toBe(SignableRefusal.NO_TAKE)
+  })
+
+  test("refuses a payment inside Aster to another address than the take's maker recipient", () => {
+    for (const to of [STRANGER, CHAINS.aster?.escrow ?? "", TAKE_MAIN]) {
+      expect(refusalOf(asterTakeRequest({ msg: TAKE_MESSAGE.replace(TAKE_MAKER, to) }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    }
+    // A take that names another maker than the one the transfer pays.
+    expect(refusalOf(asterTakeRequest({ take: asterTake({ fill: { maker_recipient: STRANGER } }) }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+  })
+
+  test("refuses a payment inside Aster that differs from the take's fill: its amount, its id, its payer, its taker", () => {
+    expect(refusalOf(asterTakeRequest({ msg: TAKE_MESSAGE.replace("amount=62.13", "amount=62.14") }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+    expect(refusalOf(asterTakeRequest({ msg: TAKE_MESSAGE.replace("clientTranId=01a155d9", "clientTranId=11a155d9") }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+    expect(refusalOf(asterTakeRequest({ msg: TAKE_MESSAGE.replace(`user=${TAKE_MAIN}`, `user=${STRANGER}`) }))).toBe(
+      SignableRefusal.OTHER_MAIN,
+    )
+    expect(refusalOf(asterTakeRequest({ take: asterTake({ fill: { taker_recipient: STRANGER } }) }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+    expect(
+      refusalOf(asterTakeRequest({ take: asterTake({ fill: { pay_by: new Date(TAKE_ASKED_AT - 1000).toISOString() } }) })),
+    ).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    const twice = asterTake()
+    expect(refusalOf(asterTakeRequest({ take: { ...twice, fills: [...twice.fills, ...twice.fills] } }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+  })
+
+  test("refuses a take paid inside Lighter: Main's wallet can't tell whose account its transfer pays", () => {
+    const pay = transferMessage({
+      from: 42,
+      apiKey: TAKER_API_KEY,
+      to: 731_033,
+      asset: USDC_ASSET,
+      fromRoute: COLLATERAL_ROUTE,
+      toRoute: COLLATERAL_ROUTE,
+      amount: 2_000_000n,
+      fee: 0n,
+      memo: fromHex(fillMemo(TAKE_FILL_ID)),
+      expiredAt: 0,
+      nonce: 7,
+    })
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: pay, askedAt: TAKE_ASKED_AT }))).toBe(
+      SignableRefusal.OPAQUE,
     )
   })
 

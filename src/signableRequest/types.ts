@@ -1,5 +1,5 @@
 import type { Typed } from "@lamarge/sdk/protocol"
-import type { TypedDataPayload } from "../lebroker/accounts/model"
+import type { LaMargeTake, SignatureRequestReason, TypedDataPayload } from "../lebroker/accounts/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SessionUser } from "../lebroker/web/types"
 import type { SignableRefusal } from "./enums"
@@ -7,7 +7,7 @@ import type { SignableRefusal } from "./enums"
 type SignableAccount = Pick<AccountView, "id" | "name" | "kind" | "state" | "address">
 
 type SignableRequestProps = {
-  request: Pick<SignatureRequestView, "kind" | "venue" | "accountId" | "createdAt" | "payload">
+  request: Pick<SignatureRequestView, "kind" | "reason" | "venue" | "accountId" | "createdAt" | "payload">
   /** Main: the signed-in user, whose wallet signs. */
   user: Pick<SessionUser, "id" | "address">
   /** The user's own accounts, as the service lists them: where a transfer may send funds. */
@@ -71,10 +71,16 @@ type AmountProps = { value: unknown; symbol: string }
 
 type ToAccountProps = { account: SignableAccount }
 
+/** Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked against. */
+type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null }
+
 /** Typed data for a LaMarge move, as its SDK checks it. */
-type LaMargeTypedProps = TypedRuleProps & { typed: Typed }
+type LaMargeTypedProps = LaMargeTypedRuleProps & { typed: Typed }
 
 type VenueOfProps = { typed: Typed }
+
+/** Why the request is asked, as it says it. */
+type StartedByProps = { reason: SignatureRequestReason }
 
 /** An amount in a LaMarge venue's token's base units. */
 type UnitsProps = { value: bigint; venue: string }
@@ -92,6 +98,7 @@ export type {
   ExpectedTypesProps,
   LaMargeCheckProps,
   LaMargeTypedProps,
+  LaMargeTypedRuleProps,
   MessageRuleProps,
   NotSignableProps,
   OwnAccountProps,
@@ -104,6 +111,7 @@ export type {
   SignableAccount,
   SignableRequestProps,
   SignSummary,
+  StartedByProps,
   SummaryLine,
   ToAccountProps,
   TypedRuleProps,

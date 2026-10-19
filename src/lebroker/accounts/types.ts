@@ -8,8 +8,39 @@ type TypedDataPayload = {
   message: Record<string, unknown>
 }
 
-/** What Main's wallet signs for a request. */
-type SignaturePayload =
-  { kind: SignaturePayloadKind.TYPED_DATA; typedData: TypedDataPayload } | { kind: SignaturePayloadKind.PERSONAL_MESSAGE; message: string }
+/** A take's terms as LaMarge's API answered them, in its own field names: what its SDK checks a take's payment against. */
+type LaMargeTakeInput = { from: string; to: string; amount_in: string; min_out: string }
 
-export type { SignaturePayload, TypedDataPayload }
+/** One fill of a take as LaMarge's API answered it: its maker's recipient, what it pays and delivers, and its windows. */
+type LaMargeTakeFill = {
+  id: string
+  order_id: string
+  sequence: number
+  role: string
+  from_venue: string
+  to_venue: string
+  amount_in: string
+  amount_out: string
+  payer: string
+  maker_recipient: string
+  taker_recipient: string
+  swap_id: string
+  hashlock: string
+  pay_by: string
+  t1: string
+  t2: string
+  delivery_to?: string | null | undefined
+}
+
+/**
+ * The LaMarge take a payment inside a venue settles, as LaMarge's API answered it: what the signature is checked
+ * against, the maker's recipient it pays among it. Only a take's payment carries it.
+ */
+type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[] }
+
+/** What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays. */
+type SignaturePayload =
+  | { kind: SignaturePayloadKind.TYPED_DATA; typedData: TypedDataPayload; take?: LaMargeTake | undefined }
+  | { kind: SignaturePayloadKind.PERSONAL_MESSAGE; message: string }
+
+export type { LaMargeTake, LaMargeTakeFill, LaMargeTakeInput, SignaturePayload, TypedDataPayload }

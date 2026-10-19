@@ -77,7 +77,7 @@ function withdrawalSummary(props: RuleProps): SignSummary {
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
   return payload.kind === SignaturePayloadKind.TYPED_DATA
-    ? laMargeTyped({ ...props, typedData: payload.typedData })
+    ? laMargeTyped({ ...props, typedData: payload.typedData, take: payload.take ?? null })
     : laMargeMessage({ ...props, message: payload.message })
 }
 
