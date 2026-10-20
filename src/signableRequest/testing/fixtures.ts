@@ -57,6 +57,7 @@ function requestOf({
   take,
   lamarge = LAMARGE_PRODUCTION,
   askedAt = ASKED_AT,
+  now = askedAt,
   main = MAIN,
 }: RequestOfProps): SignableRequestProps {
   const named = { ...(take === undefined ? {} : { take }), ...(lamarge === null ? {} : { lamarge }) }
@@ -75,6 +76,7 @@ function requestOf({
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
     walletChainId,
+    now,
   }
 }
 

@@ -528,6 +528,19 @@ describe("a LaMarge move", () => {
     expect(keeper.ok && keeper.summary.lines.at(-1)).toEqual({ label: SignSummaryLabel.STARTED_BY, value: SignStarter.MARGIN_KEEPER })
   })
 
+  test("reads a take's windows, a permit's deadline and a sign-in's expiry at the time it's read, not when it was asked", () => {
+    expect(signableRequest({ ...asterTakeRequest(), now: TAKE_ASKED_AT + 30_000 }).ok).toBe(true)
+    expect(refusalOf({ ...asterTakeRequest(), now: TAKE_ASKED_AT + 10 * 60_000 })).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    const late = ASKED_AT + 10 * 60_000
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), now: late }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+    const signInMessage = signIn({ host: "app.lamarge.trade" })
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: signInMessage, now: late }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+  })
+
   test("refuses a payment inside Aster that names no take, LaMarge's Aster vault included", () => {
     expect(refusalOf(asterTakeRequest({ take: null }))).toBe(SignableRefusal.NO_TAKE)
     const vault = TAKE_MESSAGE.replace(TAKE_MAKER, CHAINS.aster?.escrow ?? "")

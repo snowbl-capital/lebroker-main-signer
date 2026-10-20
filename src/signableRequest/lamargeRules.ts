@@ -92,7 +92,7 @@ function units({ value, venue }: UnitsProps): string {
 }
 
 /** The permit LaMarge's escrow takes Main's token with, only on moves Main signs: its pinned token and escrow (D20). */
-function permit({ typed, user, askedAt }: LaMargeTypedProps): SignSummary {
+function permit({ typed, user, now }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
   laMargeCheck({
     check: () =>
@@ -101,7 +101,7 @@ function permit({ typed, user, askedAt }: LaMargeTypedProps): SignSummary {
         venue,
         user.address,
         LAMARGE_PERMIT_SECONDS,
-        askedAt / 1000,
+        now / 1000,
       ),
   })
   return {
@@ -147,10 +147,10 @@ function refund({ typed, user }: LaMargeTypedProps): SignSummary {
 }
 
 /** A venue's withdrawal LaMarge relays: to Main's own wallet only, as the SDK's checks pin it, for what it says. */
-function withdrawal({ typed, user, askedAt }: LaMargeTypedProps): SignSummary {
+function withdrawal({ typed, user, now }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
   const cost = laMargeCheck({ check: () => withdrawalCost(venue, typed) })
-  laMargeCheck({ check: () => checkWithdrawal(typed, venue, user.address, user.address, cost, askedAt / 1000) })
+  laMargeCheck({ check: () => checkWithdrawal(typed, venue, user.address, user.address, cost, now / 1000) })
   return {
     action: SignSummaryText.WITHDRAW_TO_MAIN,
     lines: [{ label: SignSummaryLabel.AMOUNT, value: units({ value: cost, venue }) }],
@@ -179,7 +179,7 @@ function startedBy({ reason }: StartedByProps): SummaryLine[] {
  * its windows, as LaMarge's SDK checks a take's payment (`checkAsterTakeIntent`). The take is the request's, as
  * LaMarge's API answered it: no maker's signature binds its recipient, so the summary names it.
  */
-function asterTake({ typed, user, take, askedAt, request }: LaMargeTypedProps): SignSummary {
+function asterTake({ typed, user, take, now, request }: LaMargeTypedProps): SignSummary {
   const transfer = laMargeCheck({ check: () => asterTransfer(typed) })
   if (!isAddress({ address: transfer.user, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
@@ -188,7 +188,7 @@ function asterTake({ typed, user, take, askedAt, request }: LaMargeTypedProps): 
     return refuse({ refusal: SignableRefusal.NO_TAKE })
   }
   const item = { kind: LaMargeWord.ASTER_TRANSFER, signer: user.address, fill_id: take.fills[0]?.id, typed_data: typed }
-  laMargeCheck({ check: () => checkAsterTakeIntent([item], take.fills, take.input, user.address, user.address, askedAt / 1000) })
+  laMargeCheck({ check: () => checkAsterTakeIntent([item], take.fills, take.input, user.address, user.address, now / 1000) })
   return {
     action: SignSummaryText.LAMARGE_ASTER_TAKE,
     lines: [
@@ -216,7 +216,7 @@ function hexIndex({ hex }: HexIndexProps): number {
  * take and its accounts are the request's, as LaMarge's API and Lighter's answered the executor: Main's wallet can't
  * read Lighter, so the summary names the maker's account.
  */
-function lighterTake({ read, message, user, take, askedAt, request }: LighterTakeProps): SignSummary {
+function lighterTake({ read, message, user, take, now, request }: LighterTakeProps): SignSummary {
   const transfer = {
     from: hexIndex({ hex: read[2] }),
     apiKey: TAKER_API_KEY,
@@ -249,7 +249,7 @@ function lighterTake({ read, message, user, take, askedAt, request }: LighterTak
   const item = { kind: LaMargeWord.LIGHTER_TRANSFER, signer: user.address, fill_id: take.fills[0]?.id, typed_data: terms }
   laMargeCheck({
     check: () =>
-      checkLighterTakeIntent([item], take.fills, take.input, user.address, user.address, accounts.from_account_index, askedAt / 1000),
+      checkLighterTakeIntent([item], take.fills, take.input, user.address, user.address, accounts.from_account_index, now / 1000),
   })
   return {
     action: SignSummaryText.LAMARGE_LIGHTER_TAKE,
@@ -274,8 +274,7 @@ function asterMessage(props: LaMargeTypedProps): SignSummary {
   // The agent's name the request's deployment goes by: approving the other's would revoke that deployment's agent.
   const agentName = deploymentOf({ lamarge: props.lamarge }).asterAgentName
   laMargeCheck({
-    check: () =>
-      checkAsterApproval({ message, nonce, expires_at: "", typed_data: props.typed }, props.user.address, props.askedAt, agentName),
+    check: () => checkAsterApproval({ message, nonce, expires_at: "", typed_data: props.typed }, props.user.address, props.now, agentName),
   })
   return { action: SignSummaryText.LAMARGE_ASTER_AGENT, lines: [], chainId: props.typed.domain.chainId }
 }
@@ -349,7 +348,7 @@ function laMargeMessage(props: LaMargeMessageRuleProps): SignSummary {
     nonce: lines[8]?.slice(LaMargeWord.NONCE_PREFIX.length) ?? "",
     expires_at: lines[10]?.slice(LaMargeWord.EXPIRES_PREFIX.length) ?? "",
   }
-  laMargeCheck({ check: () => checkLoginChallenge(challenge, origin, props.askedAt) })
+  laMargeCheck({ check: () => checkLoginChallenge(challenge, origin, props.now) })
   return { action: SignSummaryText.LAMARGE_SIGN_IN, lines: [], chainId: null }
 }
 

@@ -14,6 +14,8 @@ type SignableRequestProps = {
   accounts: readonly SignableAccount[]
   /** The chain the wallet shows; null when it says none. */
   walletChainId: number | null
+  /** When it's read, in ms: now, unless said. */
+  now?: number
 }
 
 type SummaryLine = { label: string; value: string }
@@ -30,8 +32,12 @@ type Signable = { ok: true; summary: SignSummary } | { ok: false; refusal: strin
 /** Its words: a refusal of the browser's, or LaMarge's check's after it. */
 type NotSignableProps = { refusal: string }
 
-/** What every rule reads: the request, Main, the user's accounts, the wallet's chain, and when it was asked, in ms. */
-type RuleProps = SignableRequestProps & { askedAt: number }
+/**
+ * What every rule reads: the request, Main, the user's accounts, the wallet's chain, when it was asked and when it's
+ * read, in ms. `askedAt` bounds what lebroker asks for a fixed time after it asks; `now` checks the windows the
+ * request's contents name, which may close before the request leaves the banner.
+ */
+type RuleProps = Omit<SignableRequestProps, "now"> & { askedAt: number; now: number }
 
 type TypedRuleProps = RuleProps & { typedData: TypedDataPayload }
 

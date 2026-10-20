@@ -109,7 +109,7 @@ function summaryOf(props: RuleProps): SignSummary {
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {
-    const summary = summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt) })
+    const summary = summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt), now: props.now ?? Date.now() })
     // Signed on the chain the wallet shows, or on one the wallet can be switched to: never another.
     if (summary.chainId !== null && summary.chainId !== props.walletChainId && !SIGNATURE_CHAIN_IDS.has(summary.chainId)) {
       refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })

@@ -26,6 +26,8 @@ type RequestOfProps = {
   lamarge?: LaMargeRequestContext | null
   /** When it was asked, in ms. */
   askedAt?: number
+  /** When it's read, in ms: when it was asked, unless said. */
+  now?: number
   /** Main's address, the signed-in user's. */
   main?: string
 }
