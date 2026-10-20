@@ -8,7 +8,7 @@ import {
   ASTER_WITHDRAWAL_DOMAIN,
   ASTER_WITHDRAWAL_TYPES,
   HYPERLIQUID_SEND_ASSET_TYPES,
-  HYPERLIQUID_SEND_DEX,
+  HYPERLIQUID_SEND_DEXES,
   HYPERLIQUID_USDC,
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_WITHDRAW_TYPES,
@@ -40,13 +40,16 @@ function hyperliquidChain({ typedData, walletChainId }: TypedRuleProps): number 
   return chainId
 }
 
-/** Hyperliquid's `sendAsset` of USDC, spot to spot, from Main to one of the user's own sub-accounts (D19). */
+/**
+ * Hyperliquid's `sendAsset` of USDC from Main to one of the user's own sub-accounts (D19), between the balances where
+ * each account's mode keeps its collateral: spot, or the main dex's perps.
+ */
 function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
   const chainId = hyperliquidChain(props)
   expectTypes({ typedData: props.typedData, types: HYPERLIQUID_SEND_ASSET_TYPES, primaryType: "HyperliquidTransaction:SendAsset" })
   if (
-    props.typedData.message.sourceDex !== HYPERLIQUID_SEND_DEX ||
-    props.typedData.message.destinationDex !== HYPERLIQUID_SEND_DEX ||
+    !HYPERLIQUID_SEND_DEXES.includes(text({ value: props.typedData.message.sourceDex })) ||
+    !HYPERLIQUID_SEND_DEXES.includes(text({ value: props.typedData.message.destinationDex })) ||
     props.typedData.message.token !== HYPERLIQUID_USDC ||
     props.typedData.message.fromSubAccount !== ""
   ) {

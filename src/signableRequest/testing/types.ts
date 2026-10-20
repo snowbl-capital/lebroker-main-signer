@@ -1,4 +1,10 @@
-import type { LaMargeTake, SignaturePayloadKind, SignatureRequestKind, SignatureRequestReason } from "../../lebroker/accounts/model"
+import type {
+  LaMargeRequestContext,
+  LaMargeTake,
+  SignaturePayloadKind,
+  SignatureRequestKind,
+  SignatureRequestReason,
+} from "../../lebroker/accounts/model"
 import type { SignableRequestProps } from "../types"
 
 /** Typed data of any shape, bigints and all, as a venue's builder makes it. */
@@ -16,6 +22,8 @@ type RequestOfProps = {
   reason?: SignatureRequestReason
   /** The LaMarge take the request names, beside its typed data or its message. */
   take?: LaMargeTake
+  /** The LaMarge deployment the request says it's for: production's by default, none when null. */
+  lamarge?: LaMargeRequestContext | null
   /** When it was asked, in ms. */
   askedAt?: number
   /** Main's address, the signed-in user's. */

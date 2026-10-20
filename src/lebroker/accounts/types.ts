@@ -45,9 +45,37 @@ type LaMargeLighterAccounts = { from_account_index: number; to_account_index: nu
  */
 type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[]; lighter?: LaMargeLighterAccounts | undefined }
 
-/** What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays. */
-type SignaturePayload =
-  | { kind: SignaturePayloadKind.TYPED_DATA; typedData: TypedDataPayload; take?: LaMargeTake | undefined }
-  | { kind: SignaturePayloadKind.PERSONAL_MESSAGE; message: string; take?: LaMargeTake | undefined }
+/**
+ * The LaMarge deployment a request is for, as the executor's mover works with it: its app's origin, which Main's
+ * sign-in must name and whose Aster agent name an approval must carry; and, for the registration of LaMarge's key on
+ * Lighter, Main's master account index as the executor read it on Lighter for Main's address.
+ */
+type LaMargeRequestContext = { appOrigin: string; lighterAccountIndex?: number | undefined }
 
-export type { LaMargeLighterAccounts, LaMargeTake, LaMargeTakeFill, LaMargeTakeInput, SignaturePayload, TypedDataPayload }
+/**
+ * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
+ * `lamarge`, for a LaMarge request, the deployment it's for.
+ */
+type SignaturePayload =
+  | {
+      kind: SignaturePayloadKind.TYPED_DATA
+      typedData: TypedDataPayload
+      take?: LaMargeTake | undefined
+      lamarge?: LaMargeRequestContext | undefined
+    }
+  | {
+      kind: SignaturePayloadKind.PERSONAL_MESSAGE
+      message: string
+      take?: LaMargeTake | undefined
+      lamarge?: LaMargeRequestContext | undefined
+    }
+
+export type {
+  LaMargeLighterAccounts,
+  LaMargeRequestContext,
+  LaMargeTake,
+  LaMargeTakeFill,
+  LaMargeTakeInput,
+  SignaturePayload,
+  TypedDataPayload,
+}

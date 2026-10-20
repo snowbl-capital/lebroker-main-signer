@@ -43,6 +43,18 @@ const SEND_ASSET_DEX = "spot"
 
 const SEND_ASSET_USDC = "USDC:0x6d1e7cde53ba9467b783cb7c530ce054"
 
+/**
+ * The main dex has no name. HIP-3 dexes, deployed by others on Hyperliquid, name their markets `dex:COIN`: xyz:AAPL,
+ * xyz:GOLD. Requests about one of their markets name it so; requests about a whole dex add `dex`.
+ */
+const MAIN_DEX = ""
+
+/**
+ * The balances `sendAsset` moves between: the spot balance, where a unified or portfolio-margin account holds its
+ * collateral, or the main dex's perps, where a standard account holds its own.
+ */
+const SEND_ASSET_DEXES: readonly string[] = [SEND_ASSET_DEX, MAIN_DEX]
+
 const APPROVE_AGENT_TYPES = {
   "HyperliquidTransaction:ApproveAgent": [
     { name: "hyperliquidChain", type: "string" },
@@ -55,7 +67,9 @@ const APPROVE_AGENT_TYPES = {
 export {
   APPROVE_AGENT_TYPES,
   HYPERLIQUID_CHAINS,
+  MAIN_DEX,
   SEND_ASSET_DEX,
+  SEND_ASSET_DEXES,
   SEND_ASSET_TYPES,
   SEND_ASSET_USDC,
   SIGNATURE_CHAIN_ID,

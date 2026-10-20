@@ -1,7 +1,30 @@
-import { AsterParam } from "../lebroker/signer/model"
+import { ASTER_TRANSFER_CHAIN_ID, CHAINS } from "@lamarge/sdk/protocol"
+import { Network } from "../lebroker/core/model"
+import { AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
+import { ASTER_APPROVAL_CHAIN_ID, ASTER_SIGN_CHAIN_IDS, ASTER_WITHDRAWAL_DOMAIN, POLYMARKET_SIGN_DOMAIN } from "../lebroker/venues/model"
+import { LaMargeWord } from "./enums"
+import type { LaMargeDeploymentPins } from "./types"
 
 /** Hyperliquid's own chain for its user-signed actions, which lebroker names when the wallet shows none (Arbitrum). */
 const HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID = 42161
+
+/**
+ * Every chain the rules let a request be signed on, besides the one the wallet shows: the chains each rule names, as
+ * they name them. LaMarge's venues sign on their chains but Lighter, whose payments are messages. A request whose
+ * chain isn't here is refused, and the wallet can switch to each one (`WALLET_CHAINS`, `SIGNING_NETWORKS`).
+ */
+const SIGNATURE_CHAIN_IDS: ReadonlySet<number> = new Set([
+  HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID,
+  ASTER_APPROVAL_CHAIN_ID,
+  ASTER_SIGN_CHAIN_IDS[Network.MAINNET],
+  ASTER_WITHDRAWAL_DOMAIN.chainId,
+  POLYMARKET_SIGN_DOMAIN.chainId,
+  SUB_ACCOUNT_PROOF_DOMAIN.chainId,
+  ASTER_TRANSFER_CHAIN_ID,
+  ...Object.entries(CHAINS)
+    .filter(entry => entry[0] !== LaMargeWord.LIGHTER)
+    .map(entry => entry[1].id),
+])
 
 /** What the host's clock may run ahead of the browser's when it sets an end: an approval never lasts longer than this beyond its term. */
 const CLOCK_SLACK_MS = 60 * 60 * 1000
@@ -37,8 +60,15 @@ const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
   { name: "verifyingContract", type: "address" },
 ]
 
-/** LaMarge's apps Main signs in to, as LaMarge's SDK checks the sign-in: production's, and the dev deployment's. */
-const LAMARGE_APP_ORIGINS: readonly string[] = ["https://app.lamarge.trade", "https://app.dev.lamarge.trade"]
+/**
+ * LaMarge's deployments Main signs for: production's and the dev one's, each by its app, which Main's sign-in names as
+ * LaMarge's SDK checks it, and its Aster agent's name. Aster keeps one agent per name: approving the other deployment's
+ * name would revoke that deployment's agent, so a request is held to the deployment it says it's for.
+ */
+const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = [
+  { appOrigin: "https://app.lamarge.trade", asterAgentName: "LaMarge" },
+  { appOrigin: "https://app.dev.lamarge.trade", asterAgentName: "LaMargeDev" },
+]
 
 /**
  * Lighter's owner message for a transfer, as LaMarge's SDK writes it (`transferMessage`): its nonce, the accounts it
@@ -64,8 +94,9 @@ export {
   EIP712_DOMAIN_FIELDS,
   HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID,
   HYPERLIQUID_MAINNET,
-  LAMARGE_APP_ORIGINS,
+  LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
   LIGHTER_TRANSFER_MESSAGE,
+  SIGNATURE_CHAIN_IDS,
   USDC,
 }

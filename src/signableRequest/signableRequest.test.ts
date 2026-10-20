@@ -11,7 +11,13 @@ import {
   transferMessage,
 } from "@lamarge/sdk/protocol"
 import type { Address } from "viem"
-import { LIGHTER_KEY_INDEX, SignatureRequestKind, SignatureRequestReason, type LaMargeTake } from "../lebroker/accounts/model"
+import {
+  LIGHTER_KEY_INDEX,
+  SignatureRequestKind,
+  SignatureRequestReason,
+  type LaMargeRequestContext,
+  type LaMargeTake,
+} from "../lebroker/accounts/model"
 import { Network, VenueId } from "../lebroker/core/model"
 import { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import {
@@ -36,6 +42,7 @@ import {
   AGENT,
   ASKED_AT,
   CLOSED_SUB,
+  LAMARGE_PRODUCTION,
   MAIN,
   MAIN_ACCOUNT_ID,
   STRANGER,
@@ -46,6 +53,9 @@ import {
 } from "./testing/fixtures"
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** LaMarge's dev deployment, as the executor names it in a request. */
+const LAMARGE_DEV = { appOrigin: "https://app.dev.lamarge.trade" }
 
 function refusalOf(props: ReturnType<typeof requestOf>): string | null {
   const read = signableRequest(props)
@@ -240,11 +250,21 @@ function lighterTakeRequest({
   })
 }
 
-function sendAsset({ destination, signatureChainId = 42161 }: { destination: Address; signatureChainId?: number }) {
+function sendAsset({
+  destination,
+  signatureChainId = 42161,
+  sourceDex = HYPERLIQUID_SEND_DEX,
+  destinationDex = HYPERLIQUID_SEND_DEX,
+}: {
+  destination: Address
+  signatureChainId?: number
+  sourceDex?: string
+  destinationDex?: string
+}) {
   return hyperliquidSendAssetRequest({
     destination,
-    sourceDex: HYPERLIQUID_SEND_DEX,
-    destinationDex: HYPERLIQUID_SEND_DEX,
+    sourceDex,
+    destinationDex,
     token: HYPERLIQUID_USDC,
     amount: 25,
     nonce: ASKED_AT,
@@ -387,6 +407,21 @@ describe("a transfer from Main", () => {
     expect(
       signableRequest(requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.ASTER, typedData: asterTransfer({ to: SUB }) })).ok,
     ).toBe(true)
+  })
+
+  test("sends between the balances each account's mode keeps its collateral in, spot or the main dex's perps, and no other", () => {
+    for (const dexes of [
+      { sourceDex: "spot", destinationDex: "" },
+      { sourceDex: "", destinationDex: "spot" },
+      { sourceDex: "", destinationDex: "" },
+    ]) {
+      const typedData = sendAsset({ destination: SUB, ...dexes })
+      expect(signableRequest(requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData })).ok).toBe(true)
+    }
+    const hip3 = sendAsset({ destination: SUB, destinationDex: "xyz" })
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData: hip3 }))).toBe(
+      SignableRefusal.UNKNOWN_SHAPE,
+    )
   })
 
   test("refuses a destination that isn't one of the user's open sub-accounts", () => {
@@ -626,7 +661,52 @@ describe("a LaMarge move", () => {
       SignableRefusal.OPAQUE,
     )
     const key = registrationMessage({ accountIndex: 42, apiKeyIndex: TAKER_API_KEY })
-    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: key })).ok).toBe(true)
+    const main = { ...LAMARGE_PRODUCTION, lighterAccountIndex: 42 }
+    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: key, lamarge: main })).ok).toBe(true)
+  })
+
+  test("signs in only on the app of the LaMarge the request is for, never another deployment's", () => {
+    const signInTo = ({ host, lamarge }: { host: string; lamarge: LaMargeRequestContext | null }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: signIn({ host }), lamarge })
+    expect(signableRequest(signInTo({ host: "app.dev.lamarge.trade", lamarge: LAMARGE_DEV })).ok).toBe(true)
+    expect(refusalOf(signInTo({ host: "app.lamarge.trade", lamarge: LAMARGE_DEV }))).toBe(SignableRefusal.UNKNOWN_DEPLOYMENT)
+    expect(refusalOf(signInTo({ host: "app.dev.lamarge.trade", lamarge: LAMARGE_PRODUCTION }))).toBe(SignableRefusal.UNKNOWN_DEPLOYMENT)
+    expect(refusalOf(signInTo({ host: "app.lamarge.trade", lamarge: null }))).toBe(SignableRefusal.UNKNOWN_DEPLOYMENT)
+    expect(refusalOf(signInTo({ host: "app.lamarge.trade", lamarge: { appOrigin: "https://app.evil.example" } }))).toBe(
+      SignableRefusal.UNKNOWN_DEPLOYMENT,
+    )
+  })
+
+  test("registers LaMarge's Lighter key on Main's own Lighter account only, as the executor read it", () => {
+    const key = registrationMessage({ accountIndex: 42, apiKeyIndex: TAKER_API_KEY })
+    const keyFor = ({ lamarge }: { lamarge: LaMargeRequestContext | null }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: key, lamarge })
+    expect(refusalOf(keyFor({ lamarge: { ...LAMARGE_PRODUCTION, lighterAccountIndex: 43 } }))).toBe(
+      SignableRefusal.NOT_MAIN_LIGHTER_ACCOUNT,
+    )
+    expect(refusalOf(keyFor({ lamarge: LAMARGE_PRODUCTION }))).toBe(SignableRefusal.NOT_MAIN_LIGHTER_ACCOUNT)
+    expect(refusalOf(keyFor({ lamarge: null }))).toBe(SignableRefusal.NOT_MAIN_LIGHTER_ACCOUNT)
+  })
+
+  test("approves LaMarge's Aster agent under the name of the deployment the request is for only", () => {
+    const nonce = String(ASKED_AT * 1000)
+    const expired = String(ASKED_AT + 365 * DAY_MS)
+    const approve = ({ name, lamarge }: { name: string; lamarge: LaMargeRequestContext | null }) =>
+      requestOf({
+        kind: SignatureRequestKind.LAMARGE_MOVE,
+        typedData: asterMessage({
+          msg: `user=${MAIN}&nonce=${nonce}&agentName=${name}&agentAddress=${AGENT}&expired=${expired}&signatureChainId=56&canSpotTrade=false&canPerpTrade=true&canWithdraw=false`,
+          chainId: 56,
+        }),
+        lamarge,
+      })
+    const production = signableRequest(approve({ name: "LaMarge", lamarge: LAMARGE_PRODUCTION }))
+    expect(production.ok && production.summary.action).toBe(SignSummaryText.LAMARGE_ASTER_AGENT)
+    expect(signableRequest(approve({ name: "LaMargeDev", lamarge: LAMARGE_DEV })).ok).toBe(true)
+    // The other deployment's name would revoke that deployment's agent.
+    expect(refusalOf(approve({ name: "LaMargeDev", lamarge: LAMARGE_PRODUCTION }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(approve({ name: "LaMarge", lamarge: LAMARGE_DEV }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(approve({ name: "LaMarge", lamarge: null }))).toBe(SignableRefusal.UNKNOWN_DEPLOYMENT)
   })
 
   test("refuses typed data on a domain LaMarge doesn't pin, as a Permit2 approval", () => {

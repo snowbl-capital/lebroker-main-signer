@@ -40,9 +40,25 @@ const laMargeTake = z.object({
   lighter: z.object({ from_account_index: z.number().int().nonnegative(), to_account_index: z.number().int().nonnegative() }).optional(),
 })
 
+/** The LaMarge deployment a request is for (`LaMargeRequestContext`). */
+const laMargeRequestContext = z.object({
+  appOrigin: z.string(),
+  lighterAccountIndex: z.number().int().nonnegative().optional(),
+})
+
 const signaturePayload = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal(SignaturePayloadKind.TYPED_DATA), typedData: typedDataPayload, take: laMargeTake.optional() }),
-  z.object({ kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE), message: z.string(), take: laMargeTake.optional() }),
+  z.object({
+    kind: z.literal(SignaturePayloadKind.TYPED_DATA),
+    typedData: typedDataPayload,
+    take: laMargeTake.optional(),
+    lamarge: laMargeRequestContext.optional(),
+  }),
+  z.object({
+    kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),
+    message: z.string(),
+    take: laMargeTake.optional(),
+    lamarge: laMargeRequestContext.optional(),
+  }),
 ])
 
-export { laMargeTake, signaturePayload, typedDataPayload }
+export { laMargeRequestContext, laMargeTake, signaturePayload, typedDataPayload }

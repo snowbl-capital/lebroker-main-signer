@@ -18,6 +18,9 @@ const AGENT: Address = "0x5555555555555555555555555555555555555555"
 const USER_ID = "user-1"
 const MAIN_ACCOUNT_ID = "account-main"
 
+/** LaMarge's production, as the executor names the deployment a LaMarge request is for. */
+const LAMARGE_PRODUCTION = { appOrigin: "https://app.lamarge.trade" }
+
 /** When the requests were asked: 19 October 2026, noon UTC. */
 const ASKED_AT = Date.UTC(2026, 9, 19, 12)
 
@@ -52,9 +55,11 @@ function requestOf({
   walletChainId = 42161,
   reason = SignatureRequestReason.MOVE,
   take,
+  lamarge = LAMARGE_PRODUCTION,
   askedAt = ASKED_AT,
   main = MAIN,
 }: RequestOfProps): SignableRequestProps {
+  const named = { ...(take === undefined ? {} : { take }), ...(lamarge === null ? {} : { lamarge }) }
   return {
     request: {
       kind: kind ?? SignatureRequestKind.VENUE_SETUP,
@@ -64,8 +69,8 @@ function requestOf({
       createdAt: new Date(askedAt).toISOString(),
       payload:
         message === undefined
-          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...(take === undefined ? {} : { take }) }
-          : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...(take === undefined ? {} : { take }) },
+          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...named }
+          : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
@@ -79,4 +84,17 @@ function registrationMessage({ accountIndex, apiKeyIndex }: RegistrationMessageP
   return `Register Lighter Account\n\npubkey: 0x${"ab".repeat(40)}\nnonce: ${hex(7)}\naccount index: ${hex(accountIndex)}\napi key index: ${hex(apiKeyIndex)}\nOnly sign this message for a trusted client!`
 }
 
-export { AGENT, ASKED_AT, CLOSED_SUB, MAIN, MAIN_ACCOUNT_ID, STRANGER, SUB, USER_ID, registrationMessage, requestOf, wire }
+export {
+  AGENT,
+  ASKED_AT,
+  CLOSED_SUB,
+  LAMARGE_PRODUCTION,
+  MAIN,
+  MAIN_ACCOUNT_ID,
+  STRANGER,
+  SUB,
+  USER_ID,
+  registrationMessage,
+  requestOf,
+  wire,
+}

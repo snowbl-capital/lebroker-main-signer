@@ -1,5 +1,5 @@
 import type { Typed } from "@lamarge/sdk/protocol"
-import type { LaMargeTake, SignatureRequestReason, TypedDataPayload } from "../lebroker/accounts/model"
+import type { LaMargeRequestContext, LaMargeTake, SignatureRequestReason, TypedDataPayload } from "../lebroker/accounts/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SessionUser } from "../lebroker/web/types"
 import type { SignableRefusal } from "./enums"
@@ -72,10 +72,16 @@ type AmountProps = { value: unknown; symbol: string }
 type ToAccountProps = { account: SignableAccount }
 
 /** Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked against. */
-type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null }
+type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
 
 /** A message for a LaMarge move, and the take its request names, null for none. */
-type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null }
+type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
+
+/** A LaMarge deployment Main signs for: its app's origin, and the name its Aster agent goes by. */
+type LaMargeDeploymentPins = { appOrigin: string; asterAgentName: string }
+
+/** The LaMarge deployment a request says it's for, null when it says none. */
+type DeploymentOfProps = { lamarge: LaMargeRequestContext | null }
 
 /** Lighter's owner message for a transfer, as `LIGHTER_TRANSFER_MESSAGE` read it. */
 type LighterTakeProps = LaMargeMessageRuleProps & { read: RegExpExecArray }
@@ -98,6 +104,8 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  DeploymentOfProps,
+  LaMargeDeploymentPins,
   AllowedChainProps,
   AmountProps,
   AtMostProps,

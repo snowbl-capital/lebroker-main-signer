@@ -1,5 +1,6 @@
 import { AccountKind, SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
+import { SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
@@ -77,8 +78,8 @@ function withdrawalSummary(props: RuleProps): SignSummary {
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
   return payload.kind === SignaturePayloadKind.TYPED_DATA
-    ? laMargeTyped({ ...props, typedData: payload.typedData, take: payload.take ?? null })
-    : laMargeMessage({ ...props, message: payload.message, take: payload.take ?? null })
+    ? laMargeTyped({ ...props, typedData: payload.typedData, take: payload.take ?? null, lamarge: payload.lamarge ?? null })
+    : laMargeMessage({ ...props, message: payload.message, take: payload.take ?? null, lamarge: payload.lamarge ?? null })
 }
 
 function summaryOf(props: RuleProps): SignSummary {
@@ -103,12 +104,17 @@ function summaryOf(props: RuleProps): SignSummary {
 /**
  * Whether Main's wallet may sign a request, read from the request alone (D2): a strict allowlist of what lebroker asks
  * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, and the one
- * chain it may be signed on. A request the service built otherwise, as a compromised host would, is refused before the
+ * chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as a compromised host would, is refused before the
  * wallet opens, and the summary says what is signed in place of the service's words.
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {
-    return { ok: true, summary: summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt) }) }
+    const summary = summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt) })
+    // Signed on the chain the wallet shows, or on one the wallet can be switched to: never another.
+    if (summary.chainId !== null && summary.chainId !== props.walletChainId && !SIGNATURE_CHAIN_IDS.has(summary.chainId)) {
+      refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
+    }
+    return { ok: true, summary }
   } catch (error) {
     return { ok: false, refusal: error instanceof NotSignable ? error.message : SignableRefusal.UNKNOWN_SHAPE }
   }

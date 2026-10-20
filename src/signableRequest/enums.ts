@@ -15,6 +15,8 @@ enum SignableRefusal {
   LAMARGE_CHECK = "LaMarge's checks refused this request:",
   NO_TAKE = "This transfer pays someone else, and names no LaMarge take whose maker it pays.",
   NOT_TAKE_ACCOUNTS = "This Lighter transfer goes between other accounts than Main's and the maker's its LaMarge take names.",
+  UNKNOWN_DEPLOYMENT = "This request doesn't say which LaMarge it's for, or names one lebroker doesn't sign for.",
+  NOT_MAIN_LIGHTER_ACCOUNT = "This request registers LaMarge's key on another Lighter account than Main's.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */

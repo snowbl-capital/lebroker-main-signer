@@ -24,10 +24,12 @@ import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { LIGHTER_REGISTRATION_MESSAGE } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { EIP712_DOMAIN_FIELDS, LAMARGE_APP_ORIGINS, LAMARGE_PERMIT_SECONDS, LIGHTER_TRANSFER_MESSAGE } from "./constants"
+import { EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, LIGHTER_TRANSFER_MESSAGE } from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,
+  DeploymentOfProps,
+  LaMargeDeploymentPins,
   HexIndexProps,
   LaMargeMessageRuleProps,
   LaMargeTypedProps,
@@ -68,6 +70,15 @@ function sdkTyped({ typedData }: ChainOfProps): Typed {
     },
     message: typedData.message,
   }
+}
+
+/**
+ * The LaMarge deployment the request says it's for, among those Main signs for: what Main's sign-in and an Aster
+ * agent's approval are held to, never another deployment's.
+ */
+function deploymentOf({ lamarge }: DeploymentOfProps): LaMargeDeploymentPins {
+  const own = LAMARGE_DEPLOYMENTS.find(known => known.appOrigin === lamarge?.appOrigin)
+  return own ?? refuse({ refusal: SignableRefusal.UNKNOWN_DEPLOYMENT })
 }
 
 /** The LaMarge venue whose chain the domain names: its escrow's, its token's, or its withdrawal's. */
@@ -260,8 +271,11 @@ function asterMessage(props: LaMargeTypedProps): SignSummary {
   }
   const message = text({ value: props.typed.message.msg })
   const nonce = new URLSearchParams(message).get("nonce") ?? ""
+  // The agent's name the request's deployment goes by: approving the other's would revoke that deployment's agent.
+  const agentName = deploymentOf({ lamarge: props.lamarge }).asterAgentName
   laMargeCheck({
-    check: () => checkAsterApproval({ message, nonce, expires_at: "", typed_data: props.typed }, props.user.address, props.askedAt),
+    check: () =>
+      checkAsterApproval({ message, nonce, expires_at: "", typed_data: props.typed }, props.user.address, props.askedAt, agentName),
   })
   return { action: SignSummaryText.LAMARGE_ASTER_AGENT, lines: [], chainId: props.typed.domain.chainId }
 }
@@ -306,19 +320,28 @@ function laMargeMessage(props: LaMargeMessageRuleProps): SignSummary {
     if (Number.parseInt(registration[3] ?? "", 16) !== TAKER_API_KEY) {
       refuse({ refusal: SignableRefusal.NOT_LEBROKER_KEY })
     }
+    // Main's master account, as the executor read it on Lighter for Main's address before asking: never another's.
+    const account = Number.parseInt(registration[2] ?? "", 16)
+    if (props.lamarge?.lighterAccountIndex === undefined || account !== props.lamarge.lighterAccountIndex) {
+      refuse({ refusal: SignableRefusal.NOT_MAIN_LIGHTER_ACCOUNT })
+    }
     return {
       action: SignSummaryText.LAMARGE_LIGHTER_KEY,
       lines: [
-        { label: SignSummaryLabel.ACCOUNT_INDEX, value: String(Number.parseInt(registration[2] ?? "", 16)) },
+        { label: SignSummaryLabel.ACCOUNT_INDEX, value: String(account) },
         { label: SignSummaryLabel.KEY_INDEX, value: String(TAKER_API_KEY) },
       ],
       chainId: null,
     }
   }
   const lines = message.split("\n")
-  const origin = LAMARGE_APP_ORIGINS.find(own => lines[0] === `${new URL(own).host}${LaMargeWord.SIGN_IN_LINE}`)
+  const origin = LAMARGE_DEPLOYMENTS.find(own => lines[0] === `${new URL(own.appOrigin).host}${LaMargeWord.SIGN_IN_LINE}`)?.appOrigin
   if (origin === undefined) {
     return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
+  // Signed in on the app of the deployment the request is for, never another's.
+  if (origin !== deploymentOf({ lamarge: props.lamarge }).appOrigin) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_DEPLOYMENT })
   }
   const challenge = {
     message,
