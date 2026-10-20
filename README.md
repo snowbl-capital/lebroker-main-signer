@@ -77,7 +77,7 @@ A log line never holds a key, a signature or a request's payload. The keys stay 
 
 ## Kept in sync with lebroker
 
-The allowlist and the shapes around it are copied from lebroker, at commit `d70518770125ab4c6cadc8ab8c2831d8641ab253` (branch `fix/lamarge-contract-compliance`, 20 October 2026). Each copied declaration reads word for word as its source's; only the imports differ, rewritten to this repository's paths. A file copied whole keeps every declaration of its source; another keeps only those the signer needs.
+The allowlist and the shapes around it are copied from lebroker, at commit `72f6a8419800029e539f63d056c765279f8a47e1` (branch `fix/lamarge-contract-compliance`, 20 October 2026). Each copied declaration reads word for word as its source's; only the imports differ, rewritten to this repository's paths. A file copied whole keeps every declaration of its source; another keeps only those the signer needs.
 
 `bun run mirror:check <path to a lebroker checkout>` compares them all with that checkout and lists every difference. Run it whenever lebroker's allowlist changes, and copy the change here.
 
