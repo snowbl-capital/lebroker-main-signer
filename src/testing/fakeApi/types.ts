@@ -12,7 +12,10 @@ type FakeApiProps = { users: FakeUser[] }
 type Submission = { requestId: string; address: Address; signature: Hex }
 
 /** A sign-in the fake accepted, as its message read. */
-type SignIn = { address: Address; domain: string; uri: string; statement: string | null; chainId: number }
+type SignIn = { address: Address; domain: string; uri: string; statement: string | null; chainId: number; resources: string[] }
+
+/** A refusal the signer told the fake. */
+type Decline = { requestId: string; reason: string }
 
 type AddRequestProps = { userId: string; request: SignatureRequestView }
 
@@ -26,6 +29,7 @@ type FakeApi = {
   url: URL
   submissions: Submission[]
   signIns: SignIn[]
+  declines: Decline[]
   /** Every call the fake answered, `METHOD path`, in order. */
   calls: string[]
   addRequest: (props: AddRequestProps) => void
@@ -54,6 +58,7 @@ type SessionBodyProps = { user: FakeUser }
 
 export type {
   AddRequestProps,
+  Decline,
   FailSignProps,
   FakeApi,
   FakeApiProps,

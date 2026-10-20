@@ -10,6 +10,8 @@ enum ApiRoute {
 /** A signature request's action route: `/api/v1/signature-requests/<id>/<action>`. */
 enum RequestAction {
   SIGN = "sign",
+  /** The signer won't sign the request, and says why: the user's pages offer it in the browser. */
+  DECLINE = "decline",
 }
 
 enum HttpMethod {

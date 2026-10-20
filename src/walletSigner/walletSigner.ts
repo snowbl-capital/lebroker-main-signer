@@ -5,6 +5,7 @@ import { SignatureRequestState } from "../lebroker/accounts/model"
 import { signableRequest } from "../signableRequest/signableRequest"
 import { signPayload } from "../signPayload/signPayload"
 import {
+  MAX_DECLINE_REASON,
   MAX_SEND_ATTEMPTS,
   POLL_MS,
   SAFETY_POLL_MS,
@@ -14,14 +15,14 @@ import {
   STREAM_RETRY_MAX_MS,
 } from "./constants"
 import { FailedStep, ReadSubject } from "./enums"
-import type { CreateWalletSignerProps, HandleProps, WalletSigner } from "./types"
+import type { CreateWalletSignerProps, DeclineProps, HandleProps, WalletSigner } from "./types"
 import { errorText, runtimeTimers } from "./utils"
 
 /**
  * Signs one Main wallet's signature requests as they wait (D2, D37), and only those lebroker's allowlist accepts (D43):
  * the very rules the web app runs before its wallet opens, against the user's accounts read again from the service. A
- * request the allowlist refuses is never signed: it's logged once and left for the user, in the browser. Deferred
- * requests (Later) are the user's choice and wait too.
+ * request the allowlist refuses is never signed: it's logged once, told to lebroker, and left for the user, in the
+ * browser. Deferred requests (Later) are the user's choice and wait too.
  */
 function createWalletSigner({
   wallet,
@@ -36,6 +37,8 @@ function createWalletSigner({
   const done = new Set<string>()
   // Requests refused and logged: checked again on each pass, in case the user's accounts change, but told once.
   const refused = new Set<string>()
+  // Refusals told to lebroker since the stream last opened: told again after, as lebroker keeps them in memory only.
+  const declined = new Set<string>()
   const attempts = new Map<string, number>()
   let running: Promise<void> | null = null
   let again = false
@@ -52,6 +55,7 @@ function createWalletSigner({
         refused.add(request.id)
         log({ event: LogEvent.REFUSED, wallet: wallet.info, request: logged, fields: { reason: signable.refusal } })
       }
+      await decline({ id: request.id, reason: signable.refusal, logged })
       return
     }
     let signature
@@ -84,6 +88,28 @@ function createWalletSigner({
         wallet: wallet.info,
         request: logged,
         fields: { step: FailedStep.SEND, error: errorText({ error }), status, attempt, retry },
+      })
+    }
+  }
+
+  /**
+   * Tells lebroker the allowlist refused a request, once per stream: the user's pages then offer it in the browser at
+   * once, and their channels hear it, rather than waiting on this signer.
+   */
+  async function decline({ id, reason, logged }: DeclineProps): Promise<void> {
+    if (declined.has(id)) {
+      return
+    }
+    declined.add(id)
+    try {
+      await client.decline({ id, reason: reason.slice(0, MAX_DECLINE_REASON) })
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : null
+      log({
+        event: LogEvent.FAILED,
+        wallet: wallet.info,
+        request: logged,
+        fields: { step: FailedStep.DECLINE, error: errorText({ error }), status },
       })
     }
   }
@@ -146,6 +172,8 @@ function createWalletSigner({
         if (response.body !== null) {
           streamUp = true
           wait = STREAM_RETRY_FIRST_MS
+          // A new stream may be a restarted service's, which forgot what this signer refused.
+          declined.clear()
           log({ event: LogEvent.STREAM, wallet: wallet.info, fields: { stage: StreamStage.CONNECTED } })
           // What was asked while it was down.
           void pass()

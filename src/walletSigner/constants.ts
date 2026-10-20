@@ -20,7 +20,11 @@ const MAX_SEND_ATTEMPTS = 3
 /** The status from which a refusal is the service's or its venue's trouble, not the signature's. */
 const SERVER_ERROR_STATUS = 500
 
+/** The longest refusal lebroker takes, in characters: the rest of a longer one is cut. */
+const MAX_DECLINE_REASON = 300
+
 export {
+  MAX_DECLINE_REASON,
   MAX_SEND_ATTEMPTS,
   POLL_MS,
   SAFETY_POLL_MS,

@@ -12,4 +12,11 @@ const LIGHTER_KEY_INDEX = 200
 /** The last API key index lebroker's key may take, 253: the one below LaMarge's key, which lebroker never takes. */
 const LIGHTER_LAST_KEY_INDEX = TAKER_API_KEY - 1
 
-export { LIGHTER_KEY_INDEX, LIGHTER_LAST_KEY_INDEX }
+/**
+ * The resource a Main signer's sign-in message names: the session it opens is the signer's (`SessionClient`), and the
+ * service knows the signer is connected while that session's event stream is open. Signed by the wallet with the rest
+ * of the message, it can't be added to a browser's session afterwards.
+ */
+const MAIN_SIGNER_RESOURCE = "urn:lebroker:main-signer"
+
+export { LIGHTER_KEY_INDEX, LIGHTER_LAST_KEY_INDEX, MAIN_SIGNER_RESOURCE }

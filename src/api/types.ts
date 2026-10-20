@@ -31,6 +31,9 @@ type CreateApiClientProps = {
 
 type SignProps = { id: string; signature: Hex }
 
+/** `reason`: the allowlist's refusal, in its words. */
+type DeclineProps = { id: string; reason: string }
+
 type EventsProps = { signal: AbortSignal }
 
 /** One wallet's calls to lebroker, under its own session: signed in on first use, and again when it ends (401). */
@@ -41,6 +44,8 @@ type ApiClient = {
   signatureRequests: () => Promise<SignatureRequestsList>
   accounts: () => Promise<AccountsList>
   sign: (props: SignProps) => Promise<RequestAnswer>
+  /** Tells lebroker this signer won't sign the request, and why: the user is offered it in the browser. */
+  decline: (props: DeclineProps) => Promise<RequestAnswer>
   /** The event stream's open response, its body still to read. */
   events: (props: EventsProps) => Promise<Response>
 }
@@ -67,6 +72,7 @@ export type {
   ApiErrorProps,
   CallProps,
   CreateApiClientProps,
+  DeclineProps,
   EventsProps,
   ReadProps,
   RequestAnswer,

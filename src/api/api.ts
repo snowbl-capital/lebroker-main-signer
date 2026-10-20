@@ -1,5 +1,6 @@
 import { createSiweMessage } from "viem/siwe"
 import { LogEvent, SessionStage } from "../log/enums"
+import { MAIN_SIGNER_RESOURCE } from "../lebroker/accounts/constants"
 import { accountsList } from "../lebroker/web/hooks/accounts/useAccountsQueryList/schema"
 import { issuedNonce } from "../lebroker/web/hooks/session/useSessionMutationSignIn/schema"
 import { SIGN_IN_STATEMENT, SIGN_IN_TTL_MS } from "../lebroker/web/hooks/session/useSessionMutationSignIn/constants"
@@ -63,6 +64,9 @@ function createApiClient({ baseUrl, wallet, chainId, log, fetch = globalThis.fet
       version: SIWE_VERSION,
       nonce: issued.nonce,
       statement: SIGN_IN_STATEMENT,
+      // Says, in what the wallet signs, that the session is this signer's: lebroker then counts it as connected while its
+      // event stream is open, and leaves the requests it signs to it rather than to the browser.
+      resources: [MAIN_SIGNER_RESOURCE],
       issuedAt,
       expirationTime: new Date(issuedAt.getTime() + SIGN_IN_TTL_MS),
     })
@@ -126,6 +130,16 @@ function createApiClient({ baseUrl, wallet, chainId, log, fetch = globalThis.fet
           route: ApiRoute.SIGNATURE_REQUESTS,
           suffix: `/${encodeURIComponent(id)}/${RequestAction.SIGN}`,
           body: { signature },
+        }),
+        schema: requestAnswer,
+      }),
+    decline: async ({ id, reason }) =>
+      readAnswer({
+        response: await authed({
+          method: HttpMethod.POST,
+          route: ApiRoute.SIGNATURE_REQUESTS,
+          suffix: `/${encodeURIComponent(id)}/${RequestAction.DECLINE}`,
+          body: { reason },
         }),
         schema: requestAnswer,
       }),

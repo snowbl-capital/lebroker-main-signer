@@ -2,6 +2,8 @@
 enum FailedStep {
   SIGN = "sign",
   SEND = "send",
+  /** Telling lebroker the allowlist refused the request. */
+  DECLINE = "decline",
 }
 
 /** What a failed read was reading, as its log line says. */

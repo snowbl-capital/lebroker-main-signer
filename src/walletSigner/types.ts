@@ -1,5 +1,5 @@
 import type { ApiClient, Session } from "../api/types"
-import type { Logger } from "../log/types"
+import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView } from "../lebroker/web/types"
 import type { WalletKey } from "../wallets/wallets"
@@ -37,6 +37,9 @@ type WalletSigner = {
 
 type HandleProps = { request: SignatureRequestView; accounts: readonly AccountView[]; session: Session }
 
+/** `reason`: the allowlist's refusal. `logged`: the request as the logs name it. */
+type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
+
 type ErrorTextProps = { error: unknown }
 
-export type { CreateWalletSignerProps, ErrorTextProps, EveryProps, HandleProps, SleepProps, Timers, WalletSigner }
+export type { CreateWalletSignerProps, DeclineProps, ErrorTextProps, EveryProps, HandleProps, SleepProps, Timers, WalletSigner }

@@ -76,6 +76,7 @@ function requestOf({
     createdAt: new Date(createdAt).toISOString(),
     state,
     deferredUntil: null,
+    signerDeclined: null,
     payload:
       message === undefined
         ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }) }

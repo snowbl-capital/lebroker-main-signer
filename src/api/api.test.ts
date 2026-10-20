@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { MAIN_SIGNER_RESOURCE } from "../lebroker/accounts/constants"
 import { SIGN_IN_STATEMENT } from "../lebroker/web/hooks/session/useSessionMutationSignIn/constants"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
@@ -25,7 +26,15 @@ describe("signing in", () => {
     expect(session.user).toMatchObject({ id: "user-1", address: wallet.info.address })
     expect(session.accountId).toBe("user-1-main")
     expect(api.signIns).toEqual([
-      { address: wallet.info.address, domain: api.url.host, uri: api.url.origin, statement: SIGN_IN_STATEMENT, chainId: 42161 },
+      {
+        address: wallet.info.address,
+        domain: api.url.host,
+        uri: api.url.origin,
+        statement: SIGN_IN_STATEMENT,
+        chainId: 42161,
+        // What makes the session the signer's, in what the wallet signs: lebroker counts it as connected.
+        resources: [MAIN_SIGNER_RESOURCE],
+      },
     ])
     expect(api.calls.slice(0, 2)).toEqual(["POST /api/v1/session/nonce", "POST /api/v1/session"])
     await client.accounts()

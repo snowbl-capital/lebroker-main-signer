@@ -63,7 +63,7 @@ describe("a waiting request", () => {
     })
   })
 
-  test("is never signed when the allowlist refuses it, and the refusal is told once", async () => {
+  test("is never signed when the allowlist refuses it, and the refusal is told once, to the logs and to lebroker", async () => {
     const ctx = setUp()
     ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-2", accountId: ctx.mainId, destination: STRANGER }) })
     await ctx.signer.pass()
@@ -73,6 +73,20 @@ describe("a waiting request", () => {
     const refused = ctx.logs.read().filter(line => line.event === LogEvent.REFUSED)
     expect(refused).toHaveLength(1)
     expect(refused[0]).toMatchObject({ requestId: "req-2", reason: SignableRefusal.NOT_YOUR_ACCOUNT })
+    expect(ctx.api.declines).toEqual([{ requestId: "req-2", reason: SignableRefusal.NOT_YOUR_ACCOUNT }])
+  })
+
+  test("refused, is told to lebroker again once its stream opens again, as a restarted service forgot it", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-13", accountId: ctx.mainId, destination: STRANGER }) })
+    await ctx.signer.pass()
+    expect(ctx.api.declines).toHaveLength(1)
+    ctx.signer.start()
+    await ctx.logs.waitFor({ event: LogEvent.STREAM, stage: StreamStage.CONNECTED })
+    await ctx.signer.pass()
+    expect(ctx.api.declines.map(own => own.requestId)).toEqual(["req-13", "req-13"])
+    expect(ctx.logs.read().filter(line => line.event === LogEvent.REFUSED)).toHaveLength(1)
+    await ctx.signer.stop()
   })
 
   test("to one of the user's own sub-accounts, read again from the service, is signed", async () => {

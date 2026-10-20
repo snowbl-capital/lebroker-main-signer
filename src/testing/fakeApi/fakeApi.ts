@@ -6,9 +6,10 @@ import { parseSiweMessage } from "viem/siwe"
 import { ApiRoute, HttpMethod } from "../../api/enums"
 import { SignatureRequestState, SignaturePayloadKind, typedDataFromWire, UserAccess, WalletKind } from "../../lebroker/accounts/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
-import { SESSION_COOKIE, SESSION_TTL_MS, SIGN_ROUTE, SIGNATURE_REQUESTS_FRAME } from "./constants"
-import { signBody, signInBody } from "./schema"
+import { DECLINE_ROUTE, SESSION_COOKIE, SESSION_TTL_MS, SIGN_ROUTE, SIGNATURE_REQUESTS_FRAME } from "./constants"
+import { declineBody, signBody, signInBody } from "./schema"
 import type {
+  Decline,
   FailSignProps,
   FakeApi,
   FakeApiProps,
@@ -57,6 +58,7 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
   const waiters = new Map<string, (submission: Submission) => void>()
   const submissions: Submission[] = []
   const signIns: SignIn[] = []
+  const declines: Decline[] = []
   const calls: string[] = []
   const encoder = new TextEncoder()
   let failure: FailSignProps | null = null
@@ -85,6 +87,7 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
       uri: fields.uri ?? "",
       statement: fields.statement ?? null,
       chainId: fields.chainId ?? 0,
+      resources: fields.resources ?? [],
     })
     const token = randomUUID()
     sessions.set(token, user)
@@ -137,6 +140,17 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
     return json({ body: { request: found } })
   }
 
+  async function decline({ request, user, id }: SignRouteProps): Promise<Response> {
+    const body = declineBody.parse(await request.json())
+    const found = (requests.get(user.id) ?? []).find(own => own.id === id)
+    if (found === undefined) {
+      return json({ body: { error: "This signature request isn't yours, or it's gone" }, status: 404 })
+    }
+    found.signerDeclined = body.reason
+    declines.push({ requestId: id, reason: body.reason })
+    return json({ body: { request: found } })
+  }
+
   async function route({ request }: RequestProps): Promise<Response> {
     const url = new URL(request.url)
     const key = `${request.method} ${url.pathname}`
@@ -165,7 +179,13 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
         const open = (requests.get(user.id) ?? []).filter(
           own => own.state === SignatureRequestState.WAITING || own.state === SignatureRequestState.DEFERRED,
         )
-        return json({ body: { requests: open, waiting: open.filter(own => own.state === SignatureRequestState.WAITING).length } })
+        return json({
+          body: {
+            requests: open,
+            waiting: open.filter(own => own.state === SignatureRequestState.WAITING).length,
+            mainSigner: { connected: (streams.get(user.id)?.size ?? 0) > 0, since: null },
+          },
+        })
       }
       case `${HttpMethod.GET} ${ApiRoute.EVENTS}`:
         return events({ request, user })
@@ -176,6 +196,10 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
     if (request.method === HttpMethod.POST && action !== null) {
       return sign({ request, user, id: action[1] ?? "" })
     }
+    const declining = DECLINE_ROUTE.exec(url.pathname)
+    if (request.method === HttpMethod.POST && declining !== null) {
+      return decline({ request, user, id: declining[1] ?? "" })
+    }
     return json({ body: { error: "Not found" }, status: 404 })
   }
 
@@ -185,6 +209,7 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
     url: new URL(`http://127.0.0.1:${server.port}`),
     submissions,
     signIns,
+    declines,
     calls,
     addRequest: ({ userId, request }) => {
       requests.set(userId, [...(requests.get(userId) ?? []), request])
