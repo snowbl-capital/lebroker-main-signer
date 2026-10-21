@@ -329,8 +329,8 @@ describe("a venue's setup", () => {
     expect(onWallet.ok && onWallet.summary.chainId).toBe(10)
   })
 
-  test("refuses a chain neither the wallet shows nor Hyperliquid's own: the wallet is never switched to it", () => {
-    const props = requestOf({ venue: VenueId.HYPERLIQUID, typedData: hyperliquidApproval({ signatureChainId: 56 }), walletChainId: 1 })
+  test("refuses a chain neither the wallet shows nor one lebroker signs on: the wallet is never switched to it", () => {
+    const props = requestOf({ venue: VenueId.HYPERLIQUID, typedData: hyperliquidApproval({ signatureChainId: 8453 }), walletChainId: 1 })
     expect(refusalOf(props)).toBe(SignableRefusal.UNKNOWN_CHAIN)
   })
 
@@ -408,6 +408,14 @@ describe("a transfer from Main", () => {
     expect(
       signableRequest(requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.ASTER, typedData: asterTransfer({ to: SUB }) })).ok,
     ).toBe(true)
+  })
+
+  test("is signed on the chain the move was confirmed on, though an earlier step left the wallet on another lebroker signs on", () => {
+    const typedData = sendAsset({ destination: SUB, signatureChainId: 1 })
+    const read = signableRequest(
+      requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData, walletChainId: 999 }),
+    )
+    expect(read.ok && read.summary.chainId).toBe(1)
   })
 
   test("sends between the balances each account's mode keeps its collateral in, spot or the main dex's perps, and no other", () => {
@@ -797,7 +805,7 @@ describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
     expect(refusalOf(paying({ typedData: gasPayment({ token: "HYPE:0x0d01dc56dcaaca66ad901c959b4011ec" }) }))).toBe(
       SignableRefusal.UNKNOWN_SHAPE,
     )
-    expect(refusalOf(paying({ typedData: gasPayment({ signatureChainId: 1 }) }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+    expect(refusalOf(paying({ typedData: gasPayment({ signatureChainId: 10 }) }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
     expect(signableRequest(paying({ typedData: gasPayment({ signatureChainId: 8453 }), walletChainId: 8453 })).ok).toBe(true)
     const withdraw = hyperliquidWithdrawRequest({
       destination: DEV_GAS_RESERVE,

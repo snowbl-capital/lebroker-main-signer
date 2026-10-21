@@ -14,13 +14,7 @@ import {
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_WITHDRAW_TYPES,
 } from "../lebroker/venues/model"
-import {
-  ASTER_TRANSFER_FIELDS,
-  GAS_RESERVE_PAYMENT_MAX_USD,
-  HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID,
-  HYPERLIQUID_MAINNET,
-  USDC,
-} from "./constants"
+import { ASTER_TRANSFER_FIELDS, GAS_RESERVE_PAYMENT_MAX_USD, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS, USDC } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
 import type { GasPaymentRuleProps, SignSummary, TypedRuleProps } from "./types"
 import {
@@ -38,9 +32,13 @@ import {
   toAccount,
 } from "./utils"
 
-/** Hyperliquid's user-signed actions: signed on the chain the wallet shows, or on Arbitrum, Hyperliquid's own; on mainnet. */
+/**
+ * Hyperliquid's user-signed actions, on mainnet: signed on the chain the wallet shows, or on any chain lebroker signs on,
+ * which the wallet is switched to. A move's earlier step may leave the wallet on another chain than the one it was
+ * confirmed on, and Hyperliquid takes any.
+ */
 function hyperliquidChain({ typedData, walletChainId }: TypedRuleProps): number {
-  const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID] })
+  const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, ...SIGNATURE_CHAIN_IDS] })
   expectDomain({ typedData, domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId } })
   if (typedData.message.hyperliquidChain !== HYPERLIQUID_MAINNET) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
