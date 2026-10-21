@@ -39,6 +39,11 @@ enum SignatureRequestKind {
   /** A transfer from Main to another account inside a venue (D19). */
   TRANSFER = "transfer",
   WITHDRAWAL = "withdrawal",
+  /**
+   * Main's payment to lebroker's gas reserve, from its own Hyperliquid account, for gas the reserve then sends to its
+   * wallet (D51, phase 6).
+   */
+  GAS_PURCHASE = "gas-purchase",
 }
 
 /** Why it's asked (D37). */

@@ -21,6 +21,12 @@ const MAIN_ACCOUNT_ID = "account-main"
 /** LaMarge's production, as the executor names the deployment a LaMarge request is for. */
 const LAMARGE_PRODUCTION = { appOrigin: "https://app.lamarge.trade" }
 
+/** lebroker's dev deployment, whose gas reserve the allowlist pins (D51, phase 6): the page the requests are signed on. */
+const LEBROKER_DEV = "https://lebroker.dev.lamarge.trade"
+
+/** lebroker's dev gas reserve, as its account process logged it. */
+const DEV_GAS_RESERVE: Address = "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F"
+
 /** When the requests were asked: 19 October 2026, noon UTC. */
 const ASKED_AT = Date.UTC(2026, 9, 19, 12)
 
@@ -56,9 +62,11 @@ function requestOf({
   reason = SignatureRequestReason.MOVE,
   take,
   lamarge = LAMARGE_PRODUCTION,
+  gas = null,
   askedAt = ASKED_AT,
   now = askedAt,
   main = MAIN,
+  appOrigin = LEBROKER_DEV,
 }: RequestOfProps): SignableRequestProps {
   const named = { ...(take === undefined ? {} : { take }), ...(lamarge === null ? {} : { lamarge }) }
   return {
@@ -70,12 +78,13 @@ function requestOf({
       createdAt: new Date(askedAt).toISOString(),
       payload:
         message === undefined
-          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...named }
+          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...named, ...(gas === null ? {} : { gas }) }
           : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
     walletChainId,
+    appOrigin,
     now,
   }
 }
@@ -90,7 +99,9 @@ export {
   AGENT,
   ASKED_AT,
   CLOSED_SUB,
+  DEV_GAS_RESERVE,
   LAMARGE_PRODUCTION,
+  LEBROKER_DEV,
   MAIN,
   MAIN_ACCOUNT_ID,
   STRANGER,

@@ -16,6 +16,7 @@ async function main(): Promise<void> {
       wallet,
       client: createApiClient({ baseUrl: config.lebrokerUrl, wallet, chainId: config.chainId, log }),
       chainId: config.chainId,
+      appOrigin: config.lebrokerUrl.origin,
       log,
     }),
   )

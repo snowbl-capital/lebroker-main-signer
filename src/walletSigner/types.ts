@@ -21,6 +21,11 @@ type CreateWalletSignerProps = {
   client: ApiClient
   /** MAIN_CHAIN_ID: the chain the allowlist reads as the wallet's own; null for none. */
   chainId: number | null
+  /**
+   * The origin of the lebroker deployment it signs for, LEBROKER_URL's, never a request's word: the allowlist reads it
+   * as the web reads its page's own, for the gas reserve that deployment pins (D51).
+   */
+  appOrigin: string
   log: Logger
   timers?: Timers
   now?: () => number

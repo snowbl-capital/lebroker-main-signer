@@ -1,5 +1,5 @@
 import type { Address } from "viem"
-import type { SignatureRequestKind } from "../../lebroker/accounts/model"
+import type { GasPurchaseContext, SignatureRequestKind } from "../../lebroker/accounts/model"
 import type { SignatureRequestState } from "../../lebroker/accounts/model"
 import type { LogEvent } from "../../log/enums"
 import type { Logger } from "../../log/types"
@@ -16,6 +16,8 @@ type RequestProps = {
   /** The typed data asked, as a venue's builder makes it; or a personal message. */
   typedData?: unknown
   message?: string
+  /** What a payment to the gas reserve says it buys, beside its typed data; none by default. */
+  gas?: GasPurchaseContext
   state?: SignatureRequestState
   /** When it was asked, in ms; now by default. */
   createdAt?: number
@@ -26,6 +28,8 @@ type RequestProps = {
 type ApprovalProps = { id: string; accountId: string; agent: Address; askedAt?: number }
 
 type TransferProps = { id: string; accountId: string; destination: Address; askedAt?: number }
+
+type GasPaymentProps = { id: string; accountId: string; askedAt?: number }
 
 /** A log line as JSON, read back. */
 type LoggedLine = Record<string, unknown>
@@ -49,6 +53,7 @@ type ManualTimers = Timers & { tick: () => void }
 export type {
   ApprovalProps,
   FakeUserOfProps,
+  GasPaymentProps,
   LogCollector,
   LoggedLine,
   ManualTimers,

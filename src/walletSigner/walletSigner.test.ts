@@ -4,10 +4,11 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createApiClient } from "../api/api"
 import { LogEvent, SessionStage, StreamStage } from "../log/enums"
 import { SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
-import { SignableRefusal } from "../signableRequest/enums"
+import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
+import { LEBROKER_DEV } from "../signableRequest/testing/fixtures"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
-import { approvalRequest, fakeUserOf, logCollector, manualTimers, transferRequest } from "../testing/fixtures/fixtures"
+import { approvalRequest, fakeUserOf, gasPaymentRequest, logCollector, manualTimers, transferRequest } from "../testing/fixtures/fixtures"
 import { WalletKey } from "../wallets/wallets"
 import { FailedStep } from "./enums"
 import { createWalletSigner } from "./walletSigner"
@@ -22,8 +23,11 @@ afterEach(async () => {
   await Promise.all(opened.splice(0).map(api => api.stop()))
 })
 
-/** One Main wallet, a throwaway key, signed in to a fake service of its own. */
-function setUp({ label = "main", userId = "user-1" }: { label?: string; userId?: string } = {}) {
+/**
+ * One Main wallet, a throwaway key, signed in to a fake service of its own; `appOrigin`, the deployment it signs for,
+ * the fake service's own origin unless said, as `LEBROKER_URL`'s is.
+ */
+function setUp({ label = "main", userId = "user-1", appOrigin }: { label?: string; userId?: string; appOrigin?: string } = {}) {
   const key = generatePrivateKey()
   const wallet = new WalletKey({ key, label })
   const user = fakeUserOf({ id: userId, address: wallet.info.address, subAddress: SUB })
@@ -32,7 +36,7 @@ function setUp({ label = "main", userId = "user-1" }: { label?: string; userId?:
   const logs = logCollector()
   const timers = manualTimers()
   const client = createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logs.log })
-  const signer = createWalletSigner({ wallet, client, chainId: null, log: logs.log, timers })
+  const signer = createWalletSigner({ wallet, client, chainId: null, appOrigin: appOrigin ?? api.url.origin, log: logs.log, timers })
   return { key, wallet, user, api, logs, timers, signer, mainId: `${userId}-main` }
 }
 
@@ -135,6 +139,30 @@ describe("a waiting request", () => {
   })
 })
 
+describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
+  test("is signed for the deployment that pins the reserve, LEBROKER_URL's, and logged as what it pays", async () => {
+    const ctx = setUp({ appOrigin: LEBROKER_DEV })
+    ctx.api.addRequest({ userId: ctx.user.id, request: gasPaymentRequest({ id: "req-g1", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g1"])
+    expect(ctx.logs.read().find(line => line.event === LogEvent.SIGNED)).toMatchObject({
+      requestId: "req-g1",
+      kind: "gas-purchase",
+      action: `${SignSummaryText.PAY_GAS_RESERVE} $0.15 ${SignSummaryText.FOR_GAS_ON} Arbitrum`,
+      chainId: 42161,
+    })
+  })
+
+  test("is refused, and told to lebroker, for a deployment that pins none, such as a local stack", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: gasPaymentRequest({ id: "req-g2", accountId: ctx.mainId }) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-g3", accountId: ctx.mainId, agent: AGENT }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g3"])
+    expect(ctx.api.declines).toEqual([{ requestId: "req-g2", reason: SignableRefusal.NO_GAS_RESERVE }])
+  })
+})
+
 describe("the session", () => {
   test("is opened again when the service ends it (401), and the pass goes on", async () => {
     const ctx = setUp()
@@ -189,6 +217,7 @@ describe("several wallets", () => {
         wallet,
         client: createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logs.log }),
         chainId: null,
+        appOrigin: api.url.origin,
         log: logs.log,
         timers: manualTimers(),
       }),

@@ -2,11 +2,13 @@ import { AccountKind, AccountState } from "../lebroker/accounts/model"
 import { isRecord, shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
+import { GAS_RESERVE_DEPLOYMENTS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import type {
   AllowedChainProps,
   AmountProps,
+  AppOriginProps,
   AtMostProps,
   ChainOfProps,
   ExpectedDomainProps,
@@ -145,6 +147,11 @@ function toAccount({ account }: ToAccountProps): string {
   return account.address === null ? account.name : `${account.name} (${shortAddress({ address: account.address })})`
 }
 
+/** lebroker's gas reserve the deployment at this origin pins (D51, phase 6); null where it pins none. */
+function pinnedGasReserve({ appOrigin }: AppOriginProps): string | null {
+  return GAS_RESERVE_DEPLOYMENTS.find(pin => pin.appOrigin === appOrigin)?.reserve ?? null
+}
+
 /** Runs one of LaMarge's SDK checks: what it refuses is refused here, in its words after ours. */
 function laMargeCheck<T>({ check }: LaMargeCheckProps<T>): T {
   try {
@@ -164,6 +171,7 @@ export {
   isAddress,
   laMargeCheck,
   ownSubAccount,
+  pinnedGasReserve,
   queryFields,
   recordOf,
   refuse,
