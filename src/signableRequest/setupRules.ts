@@ -22,7 +22,7 @@ import {
   POLYMARKET_PROXY_TTL_MS,
   POLYMARKET_SIGN_DOMAIN,
 } from "../lebroker/venues/model"
-import { ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID, HYPERLIQUID_MAINNET } from "./constants"
+import { ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
 import type { DelegateProps, MessageRuleProps, SignSummary, TypedRuleProps } from "./types"
 import { allowedChain, atMost, chainOf, expectDomain, expectTypes, isAddress, queryFields, refuse, text, until, wholeNumber } from "./utils"
@@ -36,11 +36,11 @@ function delegate({ address, main }: DelegateProps): string {
 }
 
 /**
- * Hyperliquid: Main approves lebroker's named agent for 180 days at most, on the chain its wallet shows or Hyperliquid's
- * own, Arbitrum (D2, D38).
+ * Hyperliquid: Main approves lebroker's named agent for 180 days at most, on the chain its wallet shows or one lebroker
+ * signs on, which the wallet is switched to (D2, D38).
  */
 function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedRuleProps): SignSummary {
-  const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID] })
+  const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, ...SIGNATURE_CHAIN_IDS] })
   expectDomain({ typedData, domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId } })
   expectTypes({ typedData, types: HYPERLIQUID_APPROVE_AGENT_TYPES, primaryType: "HyperliquidTransaction:ApproveAgent" })
   if (typedData.message.hyperliquidChain !== HYPERLIQUID_MAINNET) {
