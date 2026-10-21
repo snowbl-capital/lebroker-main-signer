@@ -28,6 +28,7 @@ function createWalletSigner({
   wallet,
   client,
   chainId,
+  appOrigin,
   log,
   timers = runtimeTimers,
   now = Date.now,
@@ -49,7 +50,7 @@ function createWalletSigner({
 
   async function handle({ request, accounts, session }: HandleProps): Promise<void> {
     const logged = { id: request.id, kind: request.kind, venue: request.venue }
-    const signable = signableRequest({ request, user: session.user, accounts, walletChainId: chainId })
+    const signable = signableRequest({ request, user: session.user, accounts, walletChainId: chainId, appOrigin })
     if (!signable.ok) {
       if (!refused.has(request.id)) {
         refused.add(request.id)

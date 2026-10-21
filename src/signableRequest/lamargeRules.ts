@@ -22,9 +22,9 @@ import {
 } from "@lamarge/sdk/protocol"
 import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
-import { LIGHTER_REGISTRATION_MESSAGE } from "../lebroker/signer/model"
+import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, LIGHTER_TRANSFER_MESSAGE } from "./constants"
+import { EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS } from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,

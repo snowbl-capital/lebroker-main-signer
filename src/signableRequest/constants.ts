@@ -3,7 +3,7 @@ import { Network } from "../lebroker/core/model"
 import { AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import { ASTER_APPROVAL_CHAIN_ID, ASTER_SIGN_CHAIN_IDS, ASTER_WITHDRAWAL_DOMAIN, POLYMARKET_SIGN_DOMAIN } from "../lebroker/venues/model"
 import { LaMargeWord } from "./enums"
-import type { LaMargeDeploymentPins } from "./types"
+import type { GasReservePin, LaMargeDeploymentPins } from "./types"
 
 /** Hyperliquid's own chain for its user-signed actions, which lebroker names when the wallet shows none (Arbitrum). */
 const HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID = 42161
@@ -70,16 +70,25 @@ const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = [
   { appOrigin: "https://app.dev.lamarge.trade", asterAgentName: "LaMargeDev" },
 ]
 
-/**
- * Lighter's owner message for a transfer, as LaMarge's SDK writes it (`transferMessage`): its nonce, the accounts it
- * goes from and to, its amount, fee and memo, each read; the routes, the key that signs it, its asset and Lighter's
- * chain only matched, then pinned by writing the message again.
- */
-const LIGHTER_TRANSFER_MESSAGE =
-  /^Transfer\n\nnonce: 0x([0-9a-f]{16})\nfrom: 0x([0-9a-f]{16}) \(route 0x[0-9a-f]{16}\)\napi key: 0x[0-9a-f]{16}\nto: 0x([0-9a-f]{16}) \(route 0x[0-9a-f]{16}\)\nasset: 0x[0-9a-f]{16}\namount: 0x([0-9a-f]{16})\nfee: 0x([0-9a-f]{16})\nchainId: 0x[0-9a-f]{16}\nmemo: ([0-9a-f]{64})\nOnly sign this message for a trusted client!$/
-
 /** How long a LaMarge permit's deadline may run, in seconds, as lebroker's mover allows it. */
 const LAMARGE_PERMIT_SECONDS = 600
+
+/**
+ * lebroker's gas reserve on each deployment, by the origin its app is served from (D51, phase 6): the one address
+ * Main's payment for gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`),
+ * never a request's word. Null until the deployment's reserve exists: Main buys no gas there, and no screen offers it.
+ * A deployment not listed, a local stack's included, pins none.
+ */
+const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
+  { appOrigin: "https://lebroker.dev.lamarge.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
+  { appOrigin: "https://lebroker.lamarge.trade", reserve: null },
+]
+
+/**
+ * The most Main pays the gas reserve at once, in USDC: the signer's hard cap on a gas purchase's payment
+ * (`GAS_PURCHASE_MAX_USD`), which its settings sit under.
+ */
+const GAS_RESERVE_PAYMENT_MAX_USD = 20
 
 /** Hyperliquid names its network in every user-signed action: lebroker runs on mainnet only (D9). */
 const HYPERLIQUID_MAINNET = "Mainnet"
@@ -92,11 +101,12 @@ export {
   ASTER_TRANSFER_FIELDS,
   CLOCK_SLACK_MS,
   EIP712_DOMAIN_FIELDS,
+  GAS_RESERVE_DEPLOYMENTS,
+  GAS_RESERVE_PAYMENT_MAX_USD,
   HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID,
   HYPERLIQUID_MAINNET,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
-  LIGHTER_TRANSFER_MESSAGE,
   SIGNATURE_CHAIN_IDS,
   USDC,
 }

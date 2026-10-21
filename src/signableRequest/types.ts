@@ -1,5 +1,11 @@
 import type { Typed } from "@lamarge/sdk/protocol"
-import type { LaMargeRequestContext, LaMargeTake, SignatureRequestReason, TypedDataPayload } from "../lebroker/accounts/model"
+import type {
+  GasPurchaseContext,
+  LaMargeRequestContext,
+  LaMargeTake,
+  SignatureRequestReason,
+  TypedDataPayload,
+} from "../lebroker/accounts/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SessionUser } from "../lebroker/web/types"
 import type { SignableRefusal } from "./enums"
@@ -14,6 +20,11 @@ type SignableRequestProps = {
   accounts: readonly SignableAccount[]
   /** The chain the wallet shows; null when it says none. */
   walletChainId: number | null
+  /**
+   * The origin of the lebroker deployment that asks, as the signing side knows it, never the request's word: the
+   * page's own, or the service the Main signer signs for. Which gas reserve a payment for gas may go to (D51).
+   */
+  appOrigin: string
   /** When it's read, in ms: now, unless said. */
   now?: number
 }
@@ -86,6 +97,15 @@ type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null; la
 /** A LaMarge deployment Main signs for: its app's origin, and the name its Aster agent goes by. */
 type LaMargeDeploymentPins = { appOrigin: string; asterAgentName: string }
 
+/** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet (D51, phase 6). */
+type GasReservePin = { appOrigin: string; reserve: string | null }
+
+/** A lebroker deployment, by its app's origin. */
+type AppOriginProps = { appOrigin: string }
+
+/** Main's payment to the gas reserve, and what the service says it buys, null when it says nothing. */
+type GasPaymentRuleProps = TypedRuleProps & { gas: GasPurchaseContext | null }
+
 /** The LaMarge deployment a request says it's for, null when it says none. */
 type DeploymentOfProps = { lamarge: LaMargeRequestContext | null }
 
@@ -110,7 +130,10 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  AppOriginProps,
   DeploymentOfProps,
+  GasPaymentRuleProps,
+  GasReservePin,
   LaMargeDeploymentPins,
   AllowedChainProps,
   AmountProps,

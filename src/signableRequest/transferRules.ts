@@ -1,4 +1,5 @@
-import { Network } from "../lebroker/core/model"
+import { Network, chainInfo, shortAddress } from "../lebroker/core/model"
+import { formatUsd } from "../helpers/formatUsd/formatUsd"
 import {
   ASTER_MARGIN_ASSET,
   ASTER_MESSAGE_TYPES,
@@ -13,9 +14,15 @@ import {
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_WITHDRAW_TYPES,
 } from "../lebroker/venues/model"
-import { ASTER_TRANSFER_FIELDS, HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID, HYPERLIQUID_MAINNET, USDC } from "./constants"
+import {
+  ASTER_TRANSFER_FIELDS,
+  GAS_RESERVE_PAYMENT_MAX_USD,
+  HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID,
+  HYPERLIQUID_MAINNET,
+  USDC,
+} from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
-import type { SignSummary, TypedRuleProps } from "./types"
+import type { GasPaymentRuleProps, SignSummary, TypedRuleProps } from "./types"
 import {
   allowedChain,
   amount,
@@ -24,6 +31,7 @@ import {
   expectTypes,
   isAddress,
   ownSubAccount,
+  pinnedGasReserve,
   queryFields,
   refuse,
   text,
@@ -61,6 +69,47 @@ function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
     lines: [
       { label: SignSummaryLabel.AMOUNT, value: amount({ value: props.typedData.message.amount, symbol: USDC }) },
       { label: SignSummaryLabel.TO, value: toAccount({ account: to }) },
+      { label: SignSummaryLabel.CHAIN, value: String(chainId) },
+    ],
+    chainId,
+  }
+}
+
+/**
+ * Main's payment to lebroker's gas reserve for gas sent to its wallet (D51, phase 6): Hyperliquid's `sendAsset` of USDC
+ * from Main's own balances, on mainnet, to the reserve this deployment pins only, never an address the request names
+ * alone, and at most the signer's hard cap on a payment. The chain it buys gas on is the service's word, said as such:
+ * the payment is what's signed.
+ */
+function hyperliquidGasPayment(props: GasPaymentRuleProps): SignSummary {
+  const chainId = hyperliquidChain(props)
+  const message = props.typedData.message
+  expectTypes({ typedData: props.typedData, types: HYPERLIQUID_SEND_ASSET_TYPES, primaryType: "HyperliquidTransaction:SendAsset" })
+  if (
+    !HYPERLIQUID_SEND_DEXES.includes(text({ value: message.sourceDex })) ||
+    !HYPERLIQUID_SEND_DEXES.includes(text({ value: message.destinationDex })) ||
+    message.token !== HYPERLIQUID_USDC ||
+    message.fromSubAccount !== ""
+  ) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+  }
+  const reserve = pinnedGasReserve({ appOrigin: props.appOrigin }) ?? refuse({ refusal: SignableRefusal.NO_GAS_RESERVE })
+  if (!isAddress({ address: message.destination, other: reserve })) {
+    refuse({ refusal: SignableRefusal.NOT_GAS_RESERVE })
+  }
+  const paid = amount({ value: message.amount, symbol: USDC })
+  const usd = Number(message.amount)
+  if (usd > GAS_RESERVE_PAYMENT_MAX_USD) {
+    refuse({ refusal: SignableRefusal.GAS_OVER_CAP })
+  }
+  const gasChain = props.gas === null ? null : (chainInfo({ chainId: props.gas.chainId })?.name ?? String(props.gas.chainId))
+  const price = `${SignSummaryText.PAY_GAS_RESERVE} ${formatUsd({ value: usd })}`
+  return {
+    action: gasChain === null ? price : `${price} ${SignSummaryText.FOR_GAS_ON} ${gasChain}`,
+    lines: [
+      { label: SignSummaryLabel.AMOUNT, value: paid },
+      { label: SignSummaryLabel.TO, value: `${SignSummaryText.GAS_RESERVE} (${shortAddress({ address: reserve })})` },
+      ...(gasChain === null ? [] : [{ label: SignSummaryLabel.GAS_ON, value: gasChain }]),
       { label: SignSummaryLabel.CHAIN, value: String(chainId) },
     ],
     chainId,
@@ -126,4 +175,4 @@ function asterWithdrawal({ typedData, user }: TypedRuleProps): SignSummary {
   }
 }
 
-export { asterTransfer, asterWithdrawal, hyperliquidTransfer, hyperliquidWithdrawal }
+export { asterTransfer, asterWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal }

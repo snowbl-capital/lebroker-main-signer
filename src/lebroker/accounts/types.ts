@@ -53,8 +53,14 @@ type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[]; lighter?
 type LaMargeRequestContext = { appOrigin: string; lighterAccountIndex?: number | undefined }
 
 /**
+ * What a payment to lebroker's gas reserve buys (D51, phase 6): gas on this chain, sent to Main's own wallet once
+ * paid. The service's word, for the summary: what's signed is the payment alone.
+ */
+type GasPurchaseContext = { chainId: number }
+
+/**
  * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
- * `lamarge`, for a LaMarge request, the deployment it's for.
+ * `lamarge`, for a LaMarge request, the deployment it's for; `gas`, for a payment to lebroker's gas reserve, what it buys.
  */
 type SignaturePayload =
   | {
@@ -62,6 +68,7 @@ type SignaturePayload =
       typedData: TypedDataPayload
       take?: LaMargeTake | undefined
       lamarge?: LaMargeRequestContext | undefined
+      gas?: GasPurchaseContext | undefined
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE
@@ -71,6 +78,7 @@ type SignaturePayload =
     }
 
 export type {
+  GasPurchaseContext,
   LaMargeLighterAccounts,
   LaMargeRequestContext,
   LaMargeTake,

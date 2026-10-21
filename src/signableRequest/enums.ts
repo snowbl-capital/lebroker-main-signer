@@ -17,6 +17,9 @@ enum SignableRefusal {
   NOT_TAKE_ACCOUNTS = "This Lighter transfer goes between other accounts than Main's and the maker's its LaMarge take names.",
   UNKNOWN_DEPLOYMENT = "This request doesn't say which LaMarge it's for, or names one lebroker doesn't sign for.",
   NOT_MAIN_LIGHTER_ACCOUNT = "This request registers LaMarge's key on another Lighter account than Main's.",
+  NO_GAS_RESERVE = "lebroker has no gas reserve pinned for this deployment: Main buys no gas here.",
+  NOT_GAS_RESERVE = "This payment goes to an address that isn't lebroker's gas reserve for this deployment.",
+  GAS_OVER_CAP = "This payment is more than lebroker's gas reserve is ever paid at once.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
@@ -36,6 +39,11 @@ enum SignSummaryText {
   LAMARGE_ASTER_AGENT = "Approve LaMarge's Aster agent to move Main's margin to Spot, never to withdraw",
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
+  /** Followed by the amount, then what it buys: "Pay lebroker's gas reserve $0.15 for gas on Arbitrum". */
+  PAY_GAS_RESERVE = "Pay lebroker's gas reserve",
+  FOR_GAS_ON = "for gas on",
+  /** lebroker's gas reserve as a payment's destination, followed by its short address. */
+  GAS_RESERVE = "lebroker's gas reserve",
 }
 
 enum SignSummaryLabel {
@@ -54,6 +62,8 @@ enum SignSummaryLabel {
   MAKER_LIGHTER = "Maker's Lighter account",
   LIGHTER_FEE = "Lighter's fee",
   STARTED_BY = "Started by",
+  /** The chain the gas a payment buys is sent on, to Main's wallet. */
+  GAS_ON = "Gas on",
 }
 
 /** Who started the move a request signs for, as the request says it. */

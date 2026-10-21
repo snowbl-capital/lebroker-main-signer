@@ -5,7 +5,7 @@ import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
 import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval } from "./setupRules"
-import { asterTransfer, asterWithdrawal, hyperliquidTransfer, hyperliquidWithdrawal } from "./transferRules"
+import { asterTransfer, asterWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal } from "./transferRules"
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
 import { refuse } from "./utils"
 
@@ -74,6 +74,21 @@ function withdrawalSummary(props: RuleProps): SignSummary {
   }
 }
 
+/**
+ * Main's payment to lebroker's gas reserve for gas sent to its wallet (D51, phase 6): from Main's Hyperliquid account,
+ * readable before it's signed, to the reserve this deployment pins only.
+ */
+function gasPurchaseSummary(props: RuleProps): SignSummary {
+  const payload = props.request.payload
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
+  if (props.request.venue !== VenueId.HYPERLIQUID) {
+    return refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
+  }
+  return hyperliquidGasPayment({ ...props, typedData: payload.typedData, gas: payload.gas ?? null })
+}
+
 /** A LaMarge move out of one of Main's venues (D2, D20). */
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -96,6 +111,8 @@ function summaryOf(props: RuleProps): SignSummary {
       return withdrawalSummary(props)
     case SignatureRequestKind.LAMARGE_MOVE:
       return laMargeSummary(props)
+    case SignatureRequestKind.GAS_PURCHASE:
+      return gasPurchaseSummary(props)
     default:
       return refuse({ refusal: SignableRefusal.UNKNOWN_KIND })
   }
@@ -103,7 +120,8 @@ function summaryOf(props: RuleProps): SignSummary {
 
 /**
  * Whether Main's wallet may sign a request, read from the request alone (D2): a strict allowlist of what lebroker asks
- * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, and the one
+ * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, or the gas
+ * reserve the asking deployment pins (D51), and the one
  * chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as a compromised host would, is refused before the
  * wallet opens, and the summary says what is signed in place of the service's words.
  */

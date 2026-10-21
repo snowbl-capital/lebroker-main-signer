@@ -42,6 +42,7 @@ import {
   AGENT,
   ASKED_AT,
   CLOSED_SUB,
+  DEV_GAS_RESERVE,
   LAMARGE_PRODUCTION,
   MAIN,
   MAIN_ACCOUNT_ID,
@@ -728,6 +729,92 @@ describe("a LaMarge move", () => {
       domain: { name: "Permit2", chainId: 1, verifyingContract: "0x000000000022D473030F116dDEE9F6B43aC78BA3" },
     }
     expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit2 }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+  })
+})
+
+describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
+  /** Main's `sendAsset` of USDC, as the executor's gas purchase asks it. */
+  function gasPayment({
+    destination = DEV_GAS_RESERVE,
+    amount = 0.15,
+    network = Network.MAINNET,
+    token = HYPERLIQUID_USDC,
+    signatureChainId = 42161,
+  }: { destination?: Address; amount?: number; network?: Network; token?: string; signatureChainId?: number } = {}) {
+    return hyperliquidSendAssetRequest({
+      destination,
+      sourceDex: HYPERLIQUID_SEND_DEX,
+      destinationDex: HYPERLIQUID_SEND_DEX,
+      token,
+      amount,
+      nonce: ASKED_AT,
+      network,
+      signatureChainId,
+    }).typedData
+  }
+
+  function paying({ typedData = gasPayment(), ...rest }: Partial<Parameters<typeof requestOf>[0]> = {}) {
+    return requestOf({ kind: SignatureRequestKind.GAS_PURCHASE, venue: VenueId.HYPERLIQUID, typedData, gas: { chainId: 42161 }, ...rest })
+  }
+
+  test("pays the reserve this deployment pins, and says how much and what for, decoded from what's signed", () => {
+    const read = signableRequest(paying())
+    expect(read).toEqual({
+      ok: true,
+      summary: {
+        action: `${SignSummaryText.PAY_GAS_RESERVE} $0.15 ${SignSummaryText.FOR_GAS_ON} Arbitrum`,
+        lines: [
+          { label: SignSummaryLabel.AMOUNT, value: "0.15 USDC" },
+          { label: SignSummaryLabel.TO, value: `${SignSummaryText.GAS_RESERVE} (0x4453…7A1F)` },
+          { label: SignSummaryLabel.GAS_ON, value: "Arbitrum" },
+          { label: SignSummaryLabel.CHAIN, value: "42161" },
+        ],
+        chainId: 42161,
+      },
+    })
+    // What it buys is the service's word: without it, the payment alone.
+    const bare = signableRequest(paying({ gas: null }))
+    expect(bare.ok && bare.summary.action).toBe(`${SignSummaryText.PAY_GAS_RESERVE} $0.15`)
+  })
+
+  test("pays at most the signer's hard cap on a payment", () => {
+    expect(signableRequest(paying({ typedData: gasPayment({ amount: 20 }) })).ok).toBe(true)
+    expect(refusalOf(paying({ typedData: gasPayment({ amount: 20.01 }) }))).toBe(SignableRefusal.GAS_OVER_CAP)
+  })
+
+  test("pays no other address, the user's own accounts included, and nothing on a deployment that pins no reserve", () => {
+    for (const destination of [STRANGER, SUB, MAIN, AGENT]) {
+      expect(refusalOf(paying({ typedData: gasPayment({ destination }) }))).toBe(SignableRefusal.NOT_GAS_RESERVE)
+    }
+    // Production has no reserve yet, and a local stack's is none of the pinned ones.
+    for (const appOrigin of ["https://lebroker.lamarge.trade", "http://127.0.0.1:8190", "https://lebroker.dev.lamarge.trade.evil"]) {
+      expect(refusalOf(paying({ appOrigin }))).toBe(SignableRefusal.NO_GAS_RESERVE)
+    }
+  })
+
+  test("is USDC from Main's own balances, on mainnet, signed on Arbitrum or the wallet's chain, and readable before it's signed", () => {
+    expect(refusalOf(paying({ typedData: gasPayment({ network: Network.TESTNET }) }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(refusalOf(paying({ typedData: gasPayment({ token: "HYPE:0x0d01dc56dcaaca66ad901c959b4011ec" }) }))).toBe(
+      SignableRefusal.UNKNOWN_SHAPE,
+    )
+    expect(refusalOf(paying({ typedData: gasPayment({ signatureChainId: 1 }) }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+    expect(signableRequest(paying({ typedData: gasPayment({ signatureChainId: 8453 }), walletChainId: 8453 })).ok).toBe(true)
+    const withdraw = hyperliquidWithdrawRequest({
+      destination: DEV_GAS_RESERVE,
+      amount: 0.15,
+      time: ASKED_AT,
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    expect(refusalOf(paying({ typedData: withdraw }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(refusalOf(paying({ message: "pay" }))).toBe(SignableRefusal.OPAQUE)
+    expect(refusalOf(paying({ venue: VenueId.ASTER }))).toBe(SignableRefusal.UNKNOWN_VENUE)
+    expect(refusalOf(paying({ accountId: "account-sub-1" }))).toBe(SignableRefusal.OTHER_ACCOUNT)
+  })
+
+  test("is no transfer to the user's accounts: a transfer to the reserve stays refused", () => {
+    const transfer = requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData: gasPayment() })
+    expect(refusalOf(transfer)).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
   })
 })
 

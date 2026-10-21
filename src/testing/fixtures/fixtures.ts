@@ -12,12 +12,13 @@ import { Network, VenueId } from "../../lebroker/core/model"
 import { HYPERLIQUID_AGENT_NAME, HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC } from "../../lebroker/venues/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { createLogger } from "../../log/log"
-import { wire } from "../../signableRequest/testing/fixtures"
+import { DEV_GAS_RESERVE, wire } from "../../signableRequest/testing/fixtures"
 import { hyperliquidApproveAgentRequest, hyperliquidSendAssetRequest } from "../../signableRequest/testing/builders/builders"
 import type { FakeUser } from "../fakeApi/types"
 import type {
   ApprovalProps,
   FakeUserOfProps,
+  GasPaymentProps,
   LogCollector,
   LoggedLine,
   MatchesProps,
@@ -57,6 +58,7 @@ function requestOf({
   venue = VenueId.HYPERLIQUID,
   typedData,
   message,
+  gas,
   state = SignatureRequestState.WAITING,
   createdAt = Date.now(),
   expiresAt = createdAt + DAY_MS,
@@ -79,7 +81,7 @@ function requestOf({
     signerDeclined: null,
     payload:
       message === undefined
-        ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }) }
+        ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...(gas === undefined ? {} : { gas }) }
         : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message },
   }
 }
@@ -110,6 +112,21 @@ function transferRequest({ id, accountId, destination, askedAt = Date.now() }: T
     signatureChainId: 42161,
   }).typedData
   return requestOf({ id, accountId, kind: SignatureRequestKind.TRANSFER, typedData, createdAt: askedAt })
+}
+
+/** Main's payment of $0.15 to lebroker's dev gas reserve, for gas on Arbitrum, as the executor's gas purchase asks it. */
+function gasPaymentRequest({ id, accountId, askedAt = Date.now() }: GasPaymentProps): SignatureRequestView {
+  const typedData = hyperliquidSendAssetRequest({
+    destination: DEV_GAS_RESERVE,
+    sourceDex: HYPERLIQUID_SEND_DEX,
+    destinationDex: HYPERLIQUID_SEND_DEX,
+    token: HYPERLIQUID_USDC,
+    amount: 0.15,
+    nonce: askedAt,
+    network: Network.MAINNET,
+    signatureChainId: 42161,
+  }).typedData
+  return requestOf({ id, accountId, kind: SignatureRequestKind.GAS_PURCHASE, typedData, gas: { chainId: 42161 }, createdAt: askedAt })
 }
 
 function logCollector(): LogCollector {
@@ -170,4 +187,4 @@ function manualTimers(): ManualTimers {
   }
 }
 
-export { approvalRequest, fakeUserOf, logCollector, manualTimers, requestOf, transferRequest }
+export { approvalRequest, fakeUserOf, gasPaymentRequest, logCollector, manualTimers, requestOf, transferRequest }

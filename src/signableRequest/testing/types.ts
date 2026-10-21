@@ -1,4 +1,5 @@
 import type {
+  GasPurchaseContext,
   LaMargeRequestContext,
   LaMargeTake,
   SignaturePayloadKind,
@@ -24,6 +25,10 @@ type RequestOfProps = {
   take?: LaMargeTake
   /** The LaMarge deployment the request says it's for: production's by default, none when null. */
   lamarge?: LaMargeRequestContext | null
+  /** What a payment to the gas reserve says it buys, beside its typed data; none by default. */
+  gas?: GasPurchaseContext | null
+  /** The origin of the deployment the request is signed on: lebroker's dev by default, whose gas reserve is pinned. */
+  appOrigin?: string
   /** When it was asked, in ms. */
   askedAt?: number
   /** When it's read, in ms: when it was asked, unless said. */
