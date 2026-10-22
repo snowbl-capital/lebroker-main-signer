@@ -1,7 +1,7 @@
 import {
   CHAINS,
   COLLATERAL_ROUTE,
-  TAKER_API_KEY,
+  TAKER_API_KEYS,
   USDC_ASSET,
   asterTransfer,
   checkAsterApproval,
@@ -217,9 +217,8 @@ function hexIndex({ hex }: HexIndexProps): number {
  * read Lighter, so the summary names the maker's account.
  */
 function lighterTake({ read, message, user, take, now, request }: LighterTakeProps): SignSummary {
-  const transfer = {
+  const fields = {
     from: hexIndex({ hex: read[2] }),
-    apiKey: TAKER_API_KEY,
     to: hexIndex({ hex: read[3] }),
     asset: USDC_ASSET,
     fromRoute: COLLATERAL_ROUTE,
@@ -230,9 +229,11 @@ function lighterTake({ read, message, user, take, now, request }: LighterTakePro
     expiredAt: 0,
     nonce: hexIndex({ hex: read[1] }),
   }
-  if (transferMessage(transfer) !== message) {
+  // Signed by one of LaMarge's keys, at one of its pinned indexes: the one whose message is this one, written again.
+  const apiKey =
+    TAKER_API_KEYS.find(key => transferMessage({ ...fields, apiKey: key }) === message) ??
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
-  }
+  const transfer = { ...fields, apiKey }
   if (take === null) {
     return refuse({ refusal: SignableRefusal.NO_TAKE })
   }
@@ -241,6 +242,7 @@ function lighterTake({ read, message, user, take, now, request }: LighterTakePro
     refuse({ refusal: SignableRefusal.NOT_TAKE_ACCOUNTS })
   }
   const terms = {
+    api_key_index: transfer.apiKey,
     from_account_index: transfer.from,
     amount: String(transfer.amount),
     usdc_fee: String(transfer.fee),
@@ -316,7 +318,8 @@ function laMargeMessage(props: LaMargeMessageRuleProps): SignSummary {
   }
   const registration = LIGHTER_REGISTRATION_MESSAGE.exec(message)
   if (registration !== null) {
-    if (Number.parseInt(registration[3] ?? "", 16) !== TAKER_API_KEY) {
+    const keyIndex = Number.parseInt(registration[3] ?? "", 16)
+    if (!TAKER_API_KEYS.includes(keyIndex)) {
       refuse({ refusal: SignableRefusal.NOT_LEBROKER_KEY })
     }
     // Main's master account, as the executor read it on Lighter for Main's address before asking: never another's.
@@ -328,7 +331,7 @@ function laMargeMessage(props: LaMargeMessageRuleProps): SignSummary {
       action: SignSummaryText.LAMARGE_LIGHTER_KEY,
       lines: [
         { label: SignSummaryLabel.ACCOUNT_INDEX, value: String(account) },
-        { label: SignSummaryLabel.KEY_INDEX, value: String(TAKER_API_KEY) },
+        { label: SignSummaryLabel.KEY_INDEX, value: String(keyIndex) },
       ],
       chainId: null,
     }
