@@ -4,7 +4,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createApiClient } from "../api/api"
 import { LogEvent, SessionStage, StreamStage } from "../log/enums"
 import { SignatureRequestKind, SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
-import { Network } from "../lebroker/core/model"
+import { Network, VenueId } from "../lebroker/core/model"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
 import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
 import { LEBROKER_DEV } from "../signableRequest/testing/fixtures"
@@ -21,6 +21,7 @@ import {
   transferRequest,
 } from "../testing/fixtures/fixtures"
 import { WalletKey } from "../wallets/wallets"
+import { DEPOSIT_ADDRESS_CACHE_MS, DEPOSIT_ADDRESS_PAUSE_MS } from "./constants"
 import { FailedStep } from "./enums"
 import { createWalletSigner } from "./walletSigner"
 
@@ -38,7 +39,12 @@ afterEach(async () => {
  * One Main wallet, a throwaway key, signed in to a fake service of its own; `appOrigin`, the deployment it signs for,
  * the fake service's own origin unless said, as `LEBROKER_URL`'s is.
  */
-function setUp({ label = "main", userId = "user-1", appOrigin }: { label?: string; userId?: string; appOrigin?: string } = {}) {
+function setUp({
+  label = "main",
+  userId = "user-1",
+  appOrigin,
+  now,
+}: { label?: string; userId?: string; appOrigin?: string; now?: () => number } = {}) {
   const key = generatePrivateKey()
   const wallet = new WalletKey({ key, label })
   const user = fakeUserOf({ id: userId, address: wallet.info.address, subAddress: SUB })
@@ -47,7 +53,15 @@ function setUp({ label = "main", userId = "user-1", appOrigin }: { label?: strin
   const logs = logCollector()
   const timers = manualTimers()
   const client = createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logs.log })
-  const signer = createWalletSigner({ wallet, client, chainId: null, appOrigin: appOrigin ?? api.url.origin, log: logs.log, timers })
+  const signer = createWalletSigner({
+    wallet,
+    client,
+    chainId: null,
+    appOrigin: appOrigin ?? api.url.origin,
+    log: logs.log,
+    timers,
+    ...(now === undefined ? {} : { now }),
+  })
   return { key, wallet, user, api, logs, timers, signer, mainId: `${userId}-main` }
 }
 
@@ -180,6 +194,78 @@ describe("Main's withdrawal straight into its own Lighter, which opens it (D56)"
 
   afterEach(() => {
     spyOn(globalThis, "fetch").mockRestore()
+  })
+
+  /** Main's withdrawal to the intent address, as `requestOf` makes it for any kind and venue. */
+  function withdrawalTo({ id, accountId, kind, venue }: { id: string; accountId: string; kind: SignatureRequestKind; venue: string }) {
+    const typedData = hyperliquidWithdrawRequest({
+      destination: INTENT,
+      amount: 6,
+      time: Date.now(),
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    return requestOf({ id, accountId, kind, venue, typedData, depositVenue: VenueId.LIGHTER })
+  }
+
+  test("reads nothing from Lighter for a request of another kind or venue, whatever it names", async () => {
+    const ctx = setUp()
+    const fetched = spyOn(globalThis, "fetch")
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: withdrawalTo({ id: "req-l5", accountId: ctx.mainId, kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID }),
+    })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: withdrawalTo({ id: "req-l6", accountId: ctx.mainId, kind: SignatureRequestKind.WITHDRAWAL, venue: VenueId.ASTER }),
+    })
+    await ctx.signer.pass()
+    await ctx.signer.pass()
+    expect(fetched).not.toHaveBeenCalled()
+    expect(ctx.api.submissions).toHaveLength(0)
+  })
+
+  test("reuses Lighter's answer a short while, then reads it again", async () => {
+    const clock = { ms: Date.now() }
+    const ctx = setUp({ now: () => clock.ms })
+    const fetched = spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ intent_address: INTENT }))
+      .mockResolvedValueOnce(Response.json({ intent_address: INTENT }))
+    for (const id of ["req-c1", "req-c2"]) {
+      ctx.api.addRequest({ userId: ctx.user.id, request: lighterWithdrawalRequest({ id, accountId: ctx.mainId, destination: INTENT }) })
+      await ctx.signer.pass()
+    }
+    expect(fetched).toHaveBeenCalledTimes(1)
+    clock.ms += DEPOSIT_ADDRESS_CACHE_MS
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: lighterWithdrawalRequest({ id: "req-c3", accountId: ctx.mainId, destination: INTENT }),
+    })
+    await ctx.signer.pass()
+    expect(fetched).toHaveBeenCalledTimes(2)
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-c1", "req-c2", "req-c3"])
+  })
+
+  test("stops reading Lighter a while after a 429, and signs nothing meanwhile", async () => {
+    const clock = { ms: Date.now() }
+    const ctx = setUp({ now: () => clock.ms })
+    const fetched = spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ code: 429 }, { status: 429 }))
+      .mockResolvedValueOnce(Response.json({ intent_address: INTENT }))
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: lighterWithdrawalRequest({ id: "req-p1", accountId: ctx.mainId, destination: INTENT }),
+    })
+    await ctx.signer.pass()
+    clock.ms += DEPOSIT_ADDRESS_PAUSE_MS - 1
+    await ctx.signer.pass()
+    expect(fetched).toHaveBeenCalledTimes(1)
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "req-p1", reason: SignableRefusal.DEPOSIT_UNREAD }])
+    clock.ms += 1
+    await ctx.signer.pass()
+    expect(fetched).toHaveBeenCalledTimes(2)
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-p1"])
   })
 
   test("is signed to the intent address the signer read itself from Lighter, for its own wallet, just before", async () => {
