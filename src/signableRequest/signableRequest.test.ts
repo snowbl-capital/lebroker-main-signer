@@ -492,6 +492,105 @@ describe("a withdrawal", () => {
       SignableRefusal.NOT_YOUR_ACCOUNT,
     )
   })
+
+  describe("Main's Hyperliquid withdrawal straight into its own Lighter, which opens it (D49)", () => {
+    /** Lighter's intent address for Main, as the browser read it from Lighter itself. */
+    const INTENT: Address = "0x7535aA4a9B6EC46E8bA1Fb4E5ca0aD7f0cA28BD0"
+    const READ = { venue: VenueId.LIGHTER, address: INTENT }
+
+    function intoLighter({
+      destination = INTENT,
+      amount = 6,
+      network = Network.MAINNET,
+      venue = VenueId.HYPERLIQUID,
+      depositVenue = VenueId.LIGHTER,
+      depositAddress = READ,
+      signatureChainId = 42161,
+      message = {},
+    }: {
+      destination?: Address
+      amount?: number
+      network?: Network
+      venue?: VenueId
+      signatureChainId?: number
+      /** Fields written over the withdrawal's message, as a host would change them. */
+      message?: Record<string, unknown>
+      /** None, for a plain withdrawal. */
+      depositVenue?: VenueId | null
+      /** None read, null. */
+      depositAddress?: { venue: VenueId; address: string } | null
+    } = {}) {
+      const typedData = hyperliquidWithdrawRequest({ destination, amount, time: ASKED_AT, network, signatureChainId }).typedData
+      return requestOf({
+        kind: SignatureRequestKind.WITHDRAWAL,
+        venue,
+        typedData: { ...typedData, message: { ...typedData.message, ...message } },
+        depositVenue,
+        ...(depositAddress === null ? {} : { depositAddress }),
+      })
+    }
+
+    test("signs it into the intent address the browser read from Lighter for Main, from 6 USDC", () => {
+      const read = signableRequest(intoLighter())
+      if (!read.ok) {
+        throw new Error(read.refusal)
+      }
+      expect(read.summary.action).toBe(SignSummaryText.WITHDRAW_INTO_LIGHTER)
+      expect(read.summary.chainId).toBe(42161)
+      expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.AMOUNT, value: "6 USDC" })
+      expect(signableRequest(intoLighter({ amount: 250.5 })).ok).toBe(true)
+    })
+
+    test("compares the addresses whatever their case, either way", () => {
+      expect(signableRequest(intoLighter({ depositAddress: { venue: VenueId.LIGHTER, address: INTENT.toLowerCase() } })).ok).toBe(true)
+      expect(signableRequest(intoLighter({ message: { destination: INTENT.toLowerCase() } })).ok).toBe(true)
+      expect(
+        signableRequest(intoLighter({ depositAddress: { venue: VenueId.LIGHTER, address: `0x${INTENT.slice(2).toUpperCase()}` } })).ok,
+      ).toBe(true)
+      // A different address stays refused in any case.
+      expect(refusalOf(intoLighter({ message: { destination: STRANGER.toLowerCase() } }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
+    })
+
+    test("refuses another address than the one read, Main's own among them", () => {
+      expect(refusalOf(intoLighter({ destination: STRANGER }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
+      expect(refusalOf(intoLighter({ destination: MAIN }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
+    })
+
+    test("refuses the address the request names alone, with none read from Lighter, or one read for another venue", () => {
+      expect(refusalOf(intoLighter({ depositAddress: null }))).toBe(SignableRefusal.DEPOSIT_UNREAD)
+      expect(refusalOf(intoLighter({ depositAddress: { venue: VenueId.ASTER, address: INTENT } }))).toBe(SignableRefusal.DEPOSIT_UNREAD)
+    })
+
+    test("refuses another venue to open, or another venue withdrawing", () => {
+      expect(refusalOf(intoLighter({ depositVenue: VenueId.ASTER, depositAddress: { venue: VenueId.ASTER, address: INTENT } }))).toBe(
+        SignableRefusal.DEPOSIT_VENUE,
+      )
+      expect(refusalOf(intoLighter({ venue: VenueId.ASTER }))).toBe(SignableRefusal.DEPOSIT_VENUE)
+    })
+
+    test("refuses less than 6 USDC, Hyperliquid's $1 fee and Lighter's 5 USDC least", () => {
+      expect(refusalOf(intoLighter({ amount: 5.99 }))).toBe(SignableRefusal.DEPOSIT_TOO_SMALL)
+    })
+
+    test("refuses it on Hyperliquid's testnet, or naming another Hyperliquid chain than Mainnet", () => {
+      expect(refusalOf(intoLighter({ network: Network.TESTNET }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+      expect(refusalOf(intoLighter({ message: { hyperliquidChain: "Testnet" } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    })
+
+    test("refuses a message with a field more, or an amount not written as a plain decimal", () => {
+      expect(refusalOf(intoLighter({ message: { memo: "lebroker" } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+      expect(refusalOf(intoLighter({ message: { amount: "6e0" } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+      expect(refusalOf(intoLighter({ message: { amount: 6 } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    })
+
+    test("refuses a signing domain on a chain outside the allowlist", () => {
+      expect(refusalOf(intoLighter({ signatureChainId: 1234 }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+    })
+
+    test("refuses the intent address as a plain withdrawal's destination: only Main's own wallet is", () => {
+      expect(refusalOf(intoLighter({ depositVenue: null }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    })
+  })
 })
 
 describe("a LaMarge move", () => {

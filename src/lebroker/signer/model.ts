@@ -1,4 +1,5 @@
 // What the mirrored rules read of lebroker's `@lebroker/signer/model`: the same names, from the same files.
+export { DEPOSIT_ADDRESS_TIMEOUT_MS, LIGHTER_INTENT_PATH, WITHDRAWAL_DEPOSIT_MIN_USD } from "./depositAddresses/constants"
 export {
   REGISTRATION_MESSAGE as LIGHTER_REGISTRATION_MESSAGE,
   TRANSFER_MESSAGE as LIGHTER_TRANSFER_MESSAGE,

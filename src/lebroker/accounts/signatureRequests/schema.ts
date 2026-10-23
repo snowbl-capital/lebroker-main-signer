@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { VenueId } from "../../core/model"
 import { SignaturePayloadKind } from "../enums"
 
 const typedDataPayload = z.object({
@@ -56,6 +57,7 @@ const signaturePayload = z.discriminatedUnion("kind", [
     take: laMargeTake.optional(),
     lamarge: laMargeRequestContext.optional(),
     gas: gasPurchaseContext.optional(),
+    depositVenue: z.enum(VenueId).optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),

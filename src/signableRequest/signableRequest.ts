@@ -5,7 +5,14 @@ import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
 import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval } from "./setupRules"
-import { asterTransfer, asterWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal } from "./transferRules"
+import {
+  asterTransfer,
+  asterWithdrawal,
+  hyperliquidDepositWithdrawal,
+  hyperliquidGasPayment,
+  hyperliquidTransfer,
+  hyperliquidWithdrawal,
+} from "./transferRules"
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
 import { refuse } from "./utils"
 
@@ -56,13 +63,21 @@ function transferSummary(props: RuleProps): SignSummary {
   }
 }
 
-/** A withdrawal of Main's, to Main's own wallet only (D3, D31). */
+/**
+ * A withdrawal of Main's, to Main's own wallet only (D3, D31); or Hyperliquid's straight into a venue's deposit address
+ * for Main, which opens Main's account there (D49), where the request names that venue.
+ */
 function withdrawalSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
   if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
     return refuse({ refusal: SignableRefusal.OPAQUE })
   }
   const typed = { ...props, typedData: payload.typedData }
+  if (payload.depositVenue !== undefined) {
+    return props.request.venue === VenueId.HYPERLIQUID
+      ? hyperliquidDepositWithdrawal({ ...typed, depositVenue: payload.depositVenue })
+      : refuse({ refusal: SignableRefusal.DEPOSIT_VENUE })
+  }
   switch (props.request.venue) {
     case VenueId.HYPERLIQUID:
       return hyperliquidWithdrawal(typed)

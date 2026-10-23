@@ -16,7 +16,7 @@ import {
 } from "./constants"
 import { FailedStep, ReadSubject } from "./enums"
 import type { CreateWalletSignerProps, DeclineProps, HandleProps, WalletSigner } from "./types"
-import { errorText, runtimeTimers } from "./utils"
+import { createDepositAddressReader, errorText, runtimeTimers } from "./utils"
 
 /**
  * Signs one Main wallet's signature requests as they wait (D2, D37), and only those lebroker's allowlist accepts (D43):
@@ -41,6 +41,7 @@ function createWalletSigner({
   // Refusals told to lebroker since the stream last opened: told again after, as lebroker keeps them in memory only.
   const declined = new Set<string>()
   const attempts = new Map<string, number>()
+  const readDepositAddress = createDepositAddressReader({ address: wallet.info.address, now })
   let running: Promise<void> | null = null
   let again = false
   let streamUp = false
@@ -50,7 +51,15 @@ function createWalletSigner({
 
   async function handle({ request, accounts, session }: HandleProps): Promise<void> {
     const logged = { id: request.id, kind: request.kind, venue: request.venue }
-    const signable = signableRequest({ request, user: session.user, accounts, walletChainId: chainId, appOrigin })
+    const signable = signableRequest({
+      request,
+      user: session.user,
+      accounts,
+      walletChainId: chainId,
+      appOrigin,
+      // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
+      depositAddress: await readDepositAddress({ request }),
+    })
     if (!signable.ok) {
       if (!refused.has(request.id)) {
         refused.add(request.id)

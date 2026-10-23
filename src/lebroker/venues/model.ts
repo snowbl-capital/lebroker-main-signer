@@ -1,4 +1,5 @@
 // What the mirrored rules read of lebroker's `@lebroker/venues/model`: each venue's domains and types, under the same names.
+export { API_URL as LIGHTER_API_URL } from "./lighter/constants"
 export {
   APPROVE_AGENT_TYPES as HYPERLIQUID_APPROVE_AGENT_TYPES,
   HYPERLIQUID_CHAINS,

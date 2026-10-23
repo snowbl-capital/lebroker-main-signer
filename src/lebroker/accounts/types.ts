@@ -1,3 +1,4 @@
+import type { VenueId } from "../core/model"
 import type { SignaturePayloadKind } from "./enums"
 
 /** EIP-712 typed data as a browser wallet's `eth_signTypedData_v4` takes it: integers as decimal strings. */
@@ -60,7 +61,9 @@ type GasPurchaseContext = { chainId: number }
 
 /**
  * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
- * `lamarge`, for a LaMarge request, the deployment it's for; `gas`, for a payment to lebroker's gas reserve, what it buys.
+ * `lamarge`, for a LaMarge request, the deployment it's for; `gas`, for a payment to lebroker's gas reserve, what it buys;
+ * `depositVenue`, for a withdrawal paid straight into a venue's deposit address for Main, which opens Main's account
+ * there, that venue: the signing side reads the address itself from the venue before it signs, never the request's word.
  */
 type SignaturePayload =
   | {
@@ -69,6 +72,7 @@ type SignaturePayload =
       take?: LaMargeTake | undefined
       lamarge?: LaMargeRequestContext | undefined
       gas?: GasPurchaseContext | undefined
+      depositVenue?: VenueId | undefined
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE

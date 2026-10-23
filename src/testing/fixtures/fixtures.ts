@@ -13,7 +13,11 @@ import { HYPERLIQUID_AGENT_NAME, HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC } from "
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { createLogger } from "../../log/log"
 import { DEV_GAS_RESERVE, wire } from "../../signableRequest/testing/fixtures"
-import { hyperliquidApproveAgentRequest, hyperliquidSendAssetRequest } from "../../signableRequest/testing/builders/builders"
+import {
+  hyperliquidApproveAgentRequest,
+  hyperliquidSendAssetRequest,
+  hyperliquidWithdrawRequest,
+} from "../../signableRequest/testing/builders/builders"
 import type { FakeUser } from "../fakeApi/types"
 import type {
   ApprovalProps,
@@ -59,6 +63,7 @@ function requestOf({
   typedData,
   message,
   gas,
+  depositVenue,
   state = SignatureRequestState.WAITING,
   createdAt = Date.now(),
   expiresAt = createdAt + DAY_MS,
@@ -81,7 +86,12 @@ function requestOf({
     signerDeclined: null,
     payload:
       message === undefined
-        ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...(gas === undefined ? {} : { gas }) }
+        ? {
+            kind: SignaturePayloadKind.TYPED_DATA,
+            typedData: wire({ typedData }),
+            ...(gas === undefined ? {} : { gas }),
+            ...(depositVenue === undefined ? {} : { depositVenue }),
+          }
         : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message },
   }
 }
@@ -127,6 +137,25 @@ function gasPaymentRequest({ id, accountId, askedAt = Date.now() }: GasPaymentPr
     signatureChainId: 42161,
   }).typedData
   return requestOf({ id, accountId, kind: SignatureRequestKind.GAS_PURCHASE, typedData, gas: { chainId: 42161 }, createdAt: askedAt })
+}
+
+/** Main's Hyperliquid withdrawal of 6 USDC on Arbitrum, said to pay Main's own Lighter intent address (D49). */
+function lighterWithdrawalRequest({ id, accountId, destination, askedAt = Date.now() }: TransferProps): SignatureRequestView {
+  const typedData = hyperliquidWithdrawRequest({
+    destination,
+    amount: 6,
+    time: askedAt,
+    network: Network.MAINNET,
+    signatureChainId: 42161,
+  }).typedData
+  return requestOf({
+    id,
+    accountId,
+    kind: SignatureRequestKind.WITHDRAWAL,
+    typedData,
+    depositVenue: VenueId.LIGHTER,
+    createdAt: askedAt,
+  })
 }
 
 function logCollector(): LogCollector {
@@ -187,4 +216,4 @@ function manualTimers(): ManualTimers {
   }
 }
 
-export { approvalRequest, fakeUserOf, gasPaymentRequest, logCollector, manualTimers, requestOf, transferRequest }
+export { approvalRequest, fakeUserOf, gasPaymentRequest, lighterWithdrawalRequest, logCollector, manualTimers, requestOf, transferRequest }

@@ -6,6 +6,7 @@ import type {
   SignatureRequestReason,
   TypedDataPayload,
 } from "../lebroker/accounts/model"
+import type { VenueId } from "../lebroker/core/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SessionUser } from "../lebroker/web/types"
 import type { SignableRefusal } from "./enums"
@@ -25,9 +26,18 @@ type SignableRequestProps = {
    * page's own, or the service the Main signer signs for. Which gas reserve a payment for gas may go to (D51).
    */
   appOrigin: string
+  /**
+   * For Main's withdrawal straight into a venue's deposit address for Main (D49), that address as the signing side read
+   * it itself from the venue the request names, for Main's own address, just before it signs: never the request's word.
+   * Absent where none was read, and such a withdrawal is refused.
+   */
+  depositAddress?: ReadDepositAddress | undefined
   /** When it's read, in ms: now, unless said. */
   now?: number
 }
+
+/** A venue's deposit address for Main's own address, as the signing side read it from the venue. */
+type ReadDepositAddress = { venue: VenueId; address: string }
 
 type SummaryLine = { label: string; value: string }
 
@@ -103,6 +113,9 @@ type GasReservePin = { appOrigin: string; reserve: string | null }
 /** A lebroker deployment, by its app's origin. */
 type AppOriginProps = { appOrigin: string }
 
+/** Main's withdrawal, and the venue whose deposit address for Main it says it pays straight. */
+type DepositWithdrawalRuleProps = TypedRuleProps & { depositVenue: VenueId }
+
 /** Main's payment to the gas reserve, and what the service says it buys, null when it says nothing. */
 type GasPaymentRuleProps = TypedRuleProps & { gas: GasPurchaseContext | null }
 
@@ -140,6 +153,7 @@ export type {
   AtMostProps,
   ChainOfProps,
   DelegateProps,
+  DepositWithdrawalRuleProps,
   ExpectedDomainProps,
   ExpectedTypesProps,
   HexIndexProps,
@@ -152,6 +166,7 @@ export type {
   NotSignableProps,
   OwnAccountProps,
   QueryFieldsProps,
+  ReadDepositAddress,
   RefuseProps,
   RuleProps,
   SameAddressProps,

@@ -2,6 +2,7 @@ import type { ApiClient, Session } from "../api/types"
 import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView } from "../lebroker/web/types"
+import type { ReadDepositAddress } from "../signableRequest/types"
 import type { WalletKey } from "../wallets/wallets"
 
 type EveryProps = { ms: number; run: () => void }
@@ -47,4 +48,24 @@ type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
 
 type ErrorTextProps = { error: unknown }
 
-export type { CreateWalletSignerProps, DeclineProps, ErrorTextProps, EveryProps, HandleProps, SleepProps, Timers, WalletSigner }
+type DepositVenueOfProps = { request: SignatureRequestView }
+
+/** `address`: the signing wallet's own, the L1 address the venue's deposit address must credit. */
+type CreateDepositAddressReaderProps = { address: string; now: () => number }
+
+/** The deposit address a request pays, as read from its venue; none for another request, or when it can't be read. */
+type DepositAddressReader = (props: DepositVenueOfProps) => Promise<ReadDepositAddress | undefined>
+
+export type {
+  CreateDepositAddressReaderProps,
+  CreateWalletSignerProps,
+  DeclineProps,
+  DepositAddressReader,
+  DepositVenueOfProps,
+  ErrorTextProps,
+  EveryProps,
+  HandleProps,
+  SleepProps,
+  Timers,
+  WalletSigner,
+}
