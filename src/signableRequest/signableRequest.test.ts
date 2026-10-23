@@ -9,6 +9,7 @@ import {
   USDC_ASSET,
   fillMemo,
   fromHex,
+  schemas,
   transferMessage,
 } from "@lamarge/sdk/protocol"
 import type { Address } from "viem"
@@ -292,6 +293,38 @@ function lighterProof({ owner = USER_ID, account = MAIN_ACCOUNT_ID }: { owner?: 
     types: MAIN_LIGHTER_ACCOUNT_PROOF_TYPES,
     primaryType: "MainLighterAccount",
     message: { owner, account, main: MAIN, accountIndex: 42n, nonce: 9n, deadline: BigInt(ASKED_AT / 1000 + 600) },
+  }
+}
+
+/** A take's payment from Main's Hyperliquid into `escrow`, delivered from `receiveEscrow` on HyperEVM, as LaMarge asks it. */
+function payTake({ escrow = ESCROW, receiveEscrow = ESCROW }: { escrow?: string; receiveEscrow?: string } = {}) {
+  return {
+    domain: { name: "LaMarge", version: "1", chainId: CHAINS.hyperliquid?.id, verifyingContract: escrow },
+    types: schemas.PayTake,
+    primaryType: "PayTake",
+    message: {
+      payer: MAIN,
+      deposit: "60000000",
+      payments: [
+        {
+          payer: MAIN,
+          swapId: `0x${"03".repeat(32)}`,
+          recipient: STRANGER,
+          amount: "60000000",
+          hashlock: `0x${"07".repeat(32)}`,
+          refundAt: String(ASKED_AT / 1000 + 7_200),
+          deadline: String(ASKED_AT / 1000 + 45),
+          orderId: `0x${"0a".repeat(32)}`,
+          sequence: "1",
+          amountOut: "59000000",
+          receiveChainId: String(CHAINS.hyperliquid?.id),
+          receiveToken: CHAINS.hyperliquid?.token,
+          receiveEscrow,
+          receiveRecipient: MAIN,
+          dex: "0",
+        },
+      ],
+    },
   }
 }
 
@@ -628,6 +661,19 @@ describe("a LaMarge move", () => {
     expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), lamarge: null }))).toBe(
       SignableRefusal.UNKNOWN_DEPLOYMENT,
     )
+  })
+
+  test("pays into the escrow of the deployment the request is for, each delivery from it too", () => {
+    const move = ({ typedData, lamarge }: { typedData: ReturnType<typeof payTake>; lamarge?: LaMargeRequestContext }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData, ...(lamarge === undefined ? {} : { lamarge }) })
+    const read = signableRequest(move({ typedData: payTake() }))
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_PAYMENT)
+    const development = payTake({ escrow: DEVELOPMENT_ESCROW, receiveEscrow: DEVELOPMENT_ESCROW })
+    expect(signableRequest(move({ typedData: development, lamarge: LAMARGE_DEV })).ok).toBe(true)
+    // Into the other deployment's escrow, or delivered from it.
+    expect(refusalOf(move({ typedData: development }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(move({ typedData: payTake({ receiveEscrow: DEVELOPMENT_ESCROW }) }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
+    expect(refusalOf(move({ typedData: payTake(), lamarge: LAMARGE_DEV }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
   })
 
   test("pays a take inside Lighter by the key of the deployment the request is for only", () => {

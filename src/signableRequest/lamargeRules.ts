@@ -29,6 +29,7 @@ import { EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS } fro
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,
+  DeliveryVenueProps,
   DeploymentOfProps,
   LaMargeDeploymentPins,
   HexIndexProps,
@@ -88,6 +89,13 @@ function venueOf({ typed }: VenueOfProps): string {
   return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
 }
 
+/** The LaMarge venue whose chain a payment's delivery names; refused when it names none. */
+function deliveryVenue({ paid }: DeliveryVenueProps): string {
+  const chainId = laMargeCheck({ check: () => Number(uint(paid.receiveChainId)) })
+  const venue = Object.keys(CHAINS).find(name => CHAINS[name]?.id === chainId)
+  return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
+}
+
 function units({ value, venue }: UnitsProps): string {
   return formatUnits(value, decimalsOf(venue))
 }
@@ -122,7 +130,10 @@ function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
   }
 }
 
-/** A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else. */
+/**
+ * A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else, each of its
+ * deliveries from that deployment's escrow too, or from the contract of a venue settled inside itself.
+ */
 function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
   const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
@@ -133,6 +144,10 @@ function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
     !payments.every(paid => isAddress({ address: paid.payer, other: user.address }))
   ) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
+  }
+  // The SDK's take check takes any environment's escrow for a delivery: only the request's deployment's is.
+  if (!payments.every(paid => isPinnedEscrow(deliveryVenue({ paid }), paid.receiveEscrow, escrows))) {
+    refuse({ refusal: SignableRefusal.OTHER_DEPLOYMENT_ESCROW })
   }
   const total = laMargeCheck({ check: () => payments.reduce((sum, paid) => sum + uint(paid.amount), 0n) })
   return {
