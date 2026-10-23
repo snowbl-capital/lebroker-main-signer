@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   CHAINS,
   COLLATERAL_ROUTE,
+  ENVIRONMENT_SLOTS,
   ESCROW,
   TAKER_API_KEY,
   UNLIMITED_ALLOWANCE,
@@ -57,6 +58,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 /** LaMarge's dev deployment, as the executor names it in a request. */
 const LAMARGE_DEV = { appOrigin: "https://app.dev.lamarge.trade" }
+
+/** LaMarge dev's own escrow on HyperEVM, which LaMarge's SDK reviews as it does production's. */
+const DEVELOPMENT_ESCROW = "0x948E65c40442d935d4ee990BDbD01BdD825c4873"
 
 function refusalOf(props: ReturnType<typeof requestOf>): string | null {
   const read = signableRequest(props)
@@ -240,12 +244,20 @@ function lighterTakeRequest({
   take = lighterTake(),
   kind = SignatureRequestKind.LAMARGE_MOVE,
   reason = SignatureRequestReason.MOVE,
-}: { message?: string; take?: LaMargeTake | null; kind?: SignatureRequestKind; reason?: SignatureRequestReason } = {}) {
+  lamarge,
+}: {
+  message?: string
+  take?: LaMargeTake | null
+  kind?: SignatureRequestKind
+  reason?: SignatureRequestReason
+  lamarge?: LaMargeRequestContext
+} = {}) {
   return requestOf({
     kind,
     venue: kind === SignatureRequestKind.LAMARGE_MOVE ? null : VenueId.LIGHTER,
     message,
     ...(take === null ? {} : { take }),
+    ...(lamarge === undefined ? {} : { lamarge }),
     reason,
     main: LIGHTER_MAIN,
   })
@@ -600,6 +612,44 @@ describe("a LaMarge move", () => {
     expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit({ spender: STRANGER }) }))).toStartWith(
       SignableRefusal.LAMARGE_CHECK,
     )
+  })
+
+  test("signs a permit only to the escrow of the deployment the request is for, though LaMarge's SDK reviews both", () => {
+    const toDevelopment = permit({ spender: DEVELOPMENT_ESCROW })
+    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: toDevelopment, lamarge: LAMARGE_DEV })).ok).toBe(
+      true,
+    )
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: toDevelopment }))).toBe(
+      SignableRefusal.OTHER_DEPLOYMENT_ESCROW,
+    )
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), lamarge: LAMARGE_DEV }))).toBe(
+      SignableRefusal.OTHER_DEPLOYMENT_ESCROW,
+    )
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), lamarge: null }))).toBe(
+      SignableRefusal.UNKNOWN_DEPLOYMENT,
+    )
+  })
+
+  test("pays a take inside Lighter by the key of the deployment the request is for only", () => {
+    const development = lighterTransferText({ apiKey: ENVIRONMENT_SLOTS.development.lighterKeyIndex })
+    expect(signableRequest(lighterTakeRequest({ message: development, lamarge: LAMARGE_DEV })).ok).toBe(true)
+    expect(refusalOf(lighterTakeRequest({ message: development }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(refusalOf(lighterTakeRequest({ lamarge: LAMARGE_DEV }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+  })
+
+  test("registers LaMarge's Lighter key at the index of the deployment the request is for only", () => {
+    const keyAt = ({ apiKeyIndex, lamarge }: { apiKeyIndex: number; lamarge: LaMargeRequestContext }) =>
+      requestOf({
+        kind: SignatureRequestKind.LAMARGE_MOVE,
+        message: registrationMessage({ accountIndex: 42, apiKeyIndex }),
+        lamarge: { ...lamarge, lighterAccountIndex: 42 },
+      })
+    const development = ENVIRONMENT_SLOTS.development.lighterKeyIndex
+    const production = ENVIRONMENT_SLOTS.production.lighterKeyIndex
+    expect(signableRequest(keyAt({ apiKeyIndex: development, lamarge: LAMARGE_DEV })).ok).toBe(true)
+    // The other deployment's index would replace that deployment's key.
+    expect(refusalOf(keyAt({ apiKeyIndex: development, lamarge: LAMARGE_PRODUCTION }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_KEY)
+    expect(refusalOf(keyAt({ apiKeyIndex: production, lamarge: LAMARGE_DEV }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_KEY)
   })
 
   test("signs a withdrawal LaMarge relays only back to Main", () => {

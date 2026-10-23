@@ -13,6 +13,7 @@ import {
   checkWithdrawal,
   decimalsOf,
   fromHex,
+  isPinnedEscrow,
   takePayments,
   toHex,
   transferMessage,
@@ -41,7 +42,7 @@ import type {
   UnitsProps,
   VenueOfProps,
 } from "./types"
-import { chainOf, isAddress, laMargeCheck, refuse, text } from "./utils"
+import { chainOf, deploymentEscrows, isAddress, laMargeCheck, refuse, text } from "./utils"
 
 /**
  * Typed data as LaMarge's SDK checks it: its domain's four fields and none more, the chain id a number, and the domain's
@@ -91,8 +92,11 @@ function units({ value, venue }: UnitsProps): string {
   return formatUnits(value, decimalsOf(venue))
 }
 
-/** The permit LaMarge's escrow takes Main's token with, only on moves Main signs: its pinned token and escrow (D20). */
-function permit({ typed, user, now }: LaMargeTypedProps): SignSummary {
+/**
+ * The permit LaMarge's escrow takes Main's token with, only on moves Main signs: its pinned token, and the escrow of
+ * the deployment the request is for (D20).
+ */
+function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
   laMargeCheck({
     check: () =>
@@ -104,6 +108,10 @@ function permit({ typed, user, now }: LaMargeTypedProps): SignSummary {
         now / 1000,
       ),
   })
+  // The SDK's check takes any environment's escrow as the spender: only the request's deployment's is.
+  if (!isPinnedEscrow(venue, typed.message.spender, deploymentEscrows({ deployment: deploymentOf({ lamarge }) }))) {
+    refuse({ refusal: SignableRefusal.OTHER_DEPLOYMENT_ESCROW })
+  }
   return {
     action: SignSummaryText.LAMARGE_PERMIT,
     lines: [
@@ -114,10 +122,11 @@ function permit({ typed, user, now }: LaMargeTypedProps): SignSummary {
   }
 }
 
-/** A take's payment into LaMarge's pinned escrow, paid by Main and nobody else. */
-function payment({ typed, user }: LaMargeTypedProps): SignSummary {
+/** A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else. */
+function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
-  laMargeCheck({ check: () => checkEscrowTyped(typed, venue) })
+  const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
+  laMargeCheck({ check: () => checkEscrowTyped(typed, venue, escrows) })
   const payments = laMargeCheck({ check: () => takePayments(typed) })
   if (
     !isAddress({ address: typed.message.payer, other: user.address }) ||
@@ -136,10 +145,11 @@ function payment({ typed, user }: LaMargeTypedProps): SignSummary {
   }
 }
 
-/** A refund of Main's own payment from LaMarge's pinned escrow. */
-function refund({ typed, user }: LaMargeTypedProps): SignSummary {
+/** A refund of Main's own payment from the escrow of the deployment the request is for. */
+function refund({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
-  laMargeCheck({ check: () => checkEscrowTyped(typed, venue) })
+  const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
+  laMargeCheck({ check: () => checkEscrowTyped(typed, venue, escrows) })
   if (!isAddress({ address: typed.message.payer, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
   }
@@ -216,7 +226,7 @@ function hexIndex({ hex }: HexIndexProps): number {
  * take and its accounts are the request's, as LaMarge's API and Lighter's answered the executor: Main's wallet can't
  * read Lighter, so the summary names the maker's account.
  */
-function lighterTake({ read, message, user, take, now, request }: LighterTakeProps): SignSummary {
+function lighterTake({ read, message, user, take, now, request, lamarge }: LighterTakeProps): SignSummary {
   const fields = {
     from: hexIndex({ hex: read[2] }),
     to: hexIndex({ hex: read[3] }),
@@ -229,10 +239,11 @@ function lighterTake({ read, message, user, take, now, request }: LighterTakePro
     expiredAt: 0,
     nonce: hexIndex({ hex: read[1] }),
   }
-  // Signed by one of LaMarge's keys, at one of its pinned indexes: the one whose message is this one, written again.
-  const apiKey =
-    TAKER_API_KEYS.find(key => transferMessage({ ...fields, apiKey: key }) === message) ??
+  // Signed by the key of the deployment the request is for, at its pinned index: its message is this one, written again.
+  const apiKey = deploymentOf({ lamarge }).lighterKeyIndex
+  if (transferMessage({ ...fields, apiKey }) !== message) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+  }
   const transfer = { ...fields, apiKey }
   if (take === null) {
     return refuse({ refusal: SignableRefusal.NO_TAKE })
@@ -326,6 +337,10 @@ function laMargeMessage(props: LaMargeMessageRuleProps): SignSummary {
     const account = Number.parseInt(registration[2] ?? "", 16)
     if (props.lamarge?.lighterAccountIndex === undefined || account !== props.lamarge.lighterAccountIndex) {
       refuse({ refusal: SignableRefusal.NOT_MAIN_LIGHTER_ACCOUNT })
+    }
+    // At the index of the deployment the request is for: registering at another's would replace that deployment's key.
+    if (keyIndex !== deploymentOf({ lamarge: props.lamarge }).lighterKeyIndex) {
+      refuse({ refusal: SignableRefusal.OTHER_DEPLOYMENT_KEY })
     }
     return {
       action: SignSummaryText.LAMARGE_LIGHTER_KEY,

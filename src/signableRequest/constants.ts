@@ -1,4 +1,4 @@
-import { ASTER_TRANSFER_CHAIN_ID, CHAINS } from "@lamarge/sdk/protocol"
+import { ASTER_TRANSFER_CHAIN_ID, CHAINS, ENVIRONMENT_SLOTS } from "@lamarge/sdk/protocol"
 import { Network, VenueId } from "../lebroker/core/model"
 import { AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import { ASTER_APPROVAL_CHAIN_ID, ASTER_SIGN_CHAIN_IDS, ASTER_WITHDRAWAL_DOMAIN, POLYMARKET_SIGN_DOMAIN } from "../lebroker/venues/model"
@@ -62,12 +62,23 @@ const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
 
 /**
  * LaMarge's deployments Main signs for: production's and the dev one's, each by its app, which Main's sign-in names as
- * LaMarge's SDK checks it, and its Aster agent's name. Aster keeps one agent per name: approving the other deployment's
- * name would revoke that deployment's agent, so a request is held to the deployment it says it's for.
+ * LaMarge's SDK checks it; its own slots on Main's venue accounts, its Aster agent's name and its Lighter key's index;
+ * and its own escrows, production's one proxy on HyperEVM and Polygon, the dev one's on each. Aster keeps one agent per
+ * name and Lighter one key per index: approving or registering the other deployment's would replace that deployment's,
+ * and a payment or a permit to the other's escrow would go to another environment, so a request is held to the
+ * deployment it says it's for.
  */
 const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = [
-  { appOrigin: "https://app.lamarge.trade", asterAgentName: "LaMarge" },
-  { appOrigin: "https://app.dev.lamarge.trade", asterAgentName: "LaMargeDev" },
+  {
+    appOrigin: "https://app.lamarge.trade",
+    ...ENVIRONMENT_SLOTS.production,
+    escrows: ["0x3100b7b49C0F9631c6AF25877b5A4E13a47AFad6"],
+  },
+  {
+    appOrigin: "https://app.dev.lamarge.trade",
+    ...ENVIRONMENT_SLOTS.development,
+    escrows: ["0x948E65c40442d935d4ee990BDbD01BdD825c4873", "0xA3FCA394739Ec4B984e908BD7A3c3b72d0ED77D1"],
+  },
 ]
 
 /** How long a LaMarge permit's deadline may run, in seconds, as lebroker's mover allows it. */
