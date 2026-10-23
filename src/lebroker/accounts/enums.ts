@@ -44,6 +44,8 @@ enum SignatureRequestKind {
    * wallet (D51, phase 6).
    */
   GAS_PURCHASE = "gas-purchase",
+  /** Main's own venue account switched to the mode lebroker runs it in: Hyperliquid's unified account (D66). */
+  ACCOUNT_MODE = "account-mode",
 }
 
 /** Why it's asked (D37). */

@@ -1,5 +1,6 @@
 import { AccountKind, SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
+import { hyperliquidUnifiedAccount } from "./accountModeRules"
 import { SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
@@ -104,6 +105,18 @@ function gasPurchaseSummary(props: RuleProps): SignSummary {
   return hyperliquidGasPayment({ ...props, typedData: payload.typedData, gas: payload.gas ?? null })
 }
 
+/** Main's own venue account switched to the mode lebroker runs it in (D66): Hyperliquid's unified account only. */
+function accountModeSummary(props: RuleProps): SignSummary {
+  const payload = props.request.payload
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
+  if (props.request.venue !== VenueId.HYPERLIQUID) {
+    return refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
+  }
+  return hyperliquidUnifiedAccount({ ...props, typedData: payload.typedData })
+}
+
 /** A LaMarge move out of one of Main's venues (D2, D20). */
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -128,6 +141,8 @@ function summaryOf(props: RuleProps): SignSummary {
       return laMargeSummary(props)
     case SignatureRequestKind.GAS_PURCHASE:
       return gasPurchaseSummary(props)
+    case SignatureRequestKind.ACCOUNT_MODE:
+      return accountModeSummary(props)
     default:
       return refuse({ refusal: SignableRefusal.UNKNOWN_KIND })
   }

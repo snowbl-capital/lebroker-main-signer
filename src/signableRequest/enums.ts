@@ -25,6 +25,8 @@ enum SignableRefusal {
   DEPOSIT_TOO_SMALL = "This withdrawal is less than the venue opens an account from once Hyperliquid's fee is out.",
   DEPOSIT_UNREAD = "The venue's deposit address for your Main couldn't be read just now: nothing was signed.",
   NOT_DEPOSIT_ADDRESS = "This withdrawal pays an address that isn't the venue's deposit address for your Main.",
+  /** Main's Hyperliquid account switched to a mode (D66): only ever to unified. */
+  NOT_UNIFIED = "This request switches Main's Hyperliquid account to another mode than unified.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
@@ -37,6 +39,7 @@ enum SignSummaryText {
   TRANSFER = "Transfer funds from Main to one of your accounts",
   WITHDRAW_TO_MAIN = "Withdraw funds to Main's own wallet",
   WITHDRAW_INTO_LIGHTER = "Withdraw funds from Main's Hyperliquid straight into Main's own Lighter account, which opens it",
+  UNIFY_HYPERLIQUID = "Switch Main's Hyperliquid account to unified mode: one balance per asset backs all of its positions",
   LAMARGE_PERMIT = "Let LaMarge's escrow take this token from Main when Main signs a move",
   LAMARGE_PAYMENT = "Pay a LaMarge move into its escrow",
   LAMARGE_REFUND = "Take back a LaMarge payment",
@@ -57,6 +60,8 @@ enum SignSummaryLabel {
   PROXY = "Proxy",
   VALID_UNTIL = "Valid until",
   CHAIN = "Signed on chain",
+  /** The venue account a request changes, as its short address. */
+  ACCOUNT = "Account",
   ACCOUNT_INDEX = "Lighter account",
   KEY_INDEX = "Key index",
   AMOUNT = "Amount",
