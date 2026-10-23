@@ -1,9 +1,10 @@
 import { shortAddress } from "../lebroker/core/model"
 import { HYPERLIQUID_USER_SET_ABSTRACTION_TYPES, HyperliquidAbstraction } from "../lebroker/venues/model"
+import { CLOCK_SLACK_MS } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
 import { hyperliquidChain } from "./transferRules"
 import type { SignSummary, TypedRuleProps } from "./types"
-import { expectTypes, isAddress, refuse, text, wholeNumber } from "./utils"
+import { atMost, expectTypes, isAddress, refuse, text, wholeNumber } from "./utils"
 
 /**
  * Hyperliquid: Main's own account switched to unified mode (D66), `userSetAbstraction` on mainnet, on the chain its
@@ -23,7 +24,9 @@ function hyperliquidUnifiedAccount(props: TypedRuleProps): SignSummary {
   if (text({ value: props.typedData.message.abstraction }) !== HyperliquidAbstraction.UNIFIED_ACCOUNT) {
     refuse({ refusal: SignableRefusal.NOT_UNIFIED })
   }
-  wholeNumber({ value: props.typedData.message.nonce })
+  // Hyperliquid's nonce is the time lebroker asked it, in milliseconds: one further ahead would keep the signature
+  // usable for longer than lebroker ever asks. Hyperliquid refuses one it has seen, or one too old.
+  atMost({ value: wholeNumber({ value: props.typedData.message.nonce }), max: props.askedAt + CLOCK_SLACK_MS })
   return {
     action: SignSummaryText.UNIFY_HYPERLIQUID,
     lines: [

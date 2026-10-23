@@ -12,23 +12,32 @@ function unify({
   chainId = 42161,
   venue = VenueId.HYPERLIQUID,
   kind = SignatureRequestKind.ACCOUNT_MODE,
+  typedData = {},
+  accountId,
 }: {
   message?: Record<string, unknown>
   chainId?: number
   venue?: string
   kind?: SignatureRequestKind
+  /** Any part of the typed data replaced whole: its domain, types, primary type or message. */
+  typedData?: Record<string, unknown>
+  accountId?: string
 } = {}) {
   return requestOf({
     kind,
     venue,
+    ...(accountId === undefined ? {} : { accountId }),
     typedData: {
       domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId },
       types: HYPERLIQUID_USER_SET_ABSTRACTION_TYPES,
       primaryType: "HyperliquidTransaction:UserSetAbstraction",
       message: { hyperliquidChain: "Mainnet", user: MAIN.toLowerCase(), abstraction: "unifiedAccount", nonce: ASKED_AT, ...message },
+      ...typedData,
     },
   })
 }
+
+const FIELDS = HYPERLIQUID_USER_SET_ABSTRACTION_TYPES["HyperliquidTransaction:UserSetAbstraction"]
 
 function refusalOf(props: ReturnType<typeof requestOf>): string | null {
   const read = signableRequest(props)
@@ -77,5 +86,39 @@ describe("Main's Hyperliquid account switched to unified mode (D66)", () => {
     expect(refusalOf(unify({ venue: VenueId.ASTER }))).toBe(SignableRefusal.UNKNOWN_VENUE)
     expect(refusalOf(unify({ kind: SignatureRequestKind.VENUE_SETUP }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
     expect(refusalOf(unify({ kind: SignatureRequestKind.TRANSFER }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+  })
+
+  test("is signed only as Hyperliquid writes it: its primary type, its fields in their order, each of them", () => {
+    const withoutNonce = { hyperliquidChain: "Mainnet", user: MAIN.toLowerCase(), abstraction: "unifiedAccount" }
+    const requests = [
+      unify({ typedData: { primaryType: "HyperliquidTransaction:SendAsset" } }),
+      unify({ typedData: { types: { "HyperliquidTransaction:UserSetAbstraction": [...FIELDS].reverse() } } }),
+      unify({ typedData: { message: withoutNonce } }),
+    ]
+    for (const request of requests) {
+      expect(refusalOf(request)).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    }
+  })
+
+  test("is signed only in Hyperliquid's user-signed domain", () => {
+    for (const domain of [{ name: "Exchange" }, { version: "2" }, { verifyingContract: STRANGER }]) {
+      const request = unify({ typedData: { domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId: 42161, ...domain } } })
+      expect(refusalOf(request)).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    }
+  })
+
+  test("is signed with the nonce lebroker asked it with, never one further ahead", () => {
+    for (const nonce of ["abc", -1, 1.5]) {
+      expect(refusalOf(unify({ message: { nonce } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    }
+    expect(signableRequest(unify({ message: { nonce: ASKED_AT + 30 * 60 * 1000 } })).ok).toBe(true)
+    expect(refusalOf(unify({ message: { nonce: ASKED_AT + 2 * 60 * 60 * 1000 } }))).toBe(SignableRefusal.TOO_LONG)
+  })
+
+  test("is signed only as a typed request, for Main's own account", () => {
+    expect(refusalOf(requestOf({ kind: SignatureRequestKind.ACCOUNT_MODE, venue: VenueId.HYPERLIQUID, message: "unify" }))).toBe(
+      SignableRefusal.OPAQUE,
+    )
+    expect(refusalOf(unify({ accountId: "account-sub-1" }))).toBe(SignableRefusal.OTHER_ACCOUNT)
   })
 })
