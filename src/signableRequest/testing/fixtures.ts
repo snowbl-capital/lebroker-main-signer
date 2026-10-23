@@ -63,6 +63,8 @@ function requestOf({
   take,
   lamarge = LAMARGE_PRODUCTION,
   gas = null,
+  depositVenue = null,
+  depositAddress,
   askedAt = ASKED_AT,
   now = askedAt,
   main = MAIN,
@@ -78,13 +80,20 @@ function requestOf({
       createdAt: new Date(askedAt).toISOString(),
       payload:
         message === undefined
-          ? { kind: SignaturePayloadKind.TYPED_DATA, typedData: wire({ typedData }), ...named, ...(gas === null ? {} : { gas }) }
+          ? {
+              kind: SignaturePayloadKind.TYPED_DATA,
+              typedData: wire({ typedData }),
+              ...named,
+              ...(gas === null ? {} : { gas }),
+              ...(depositVenue === null ? {} : { depositVenue }),
+            }
           : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
     walletChainId,
     appOrigin,
+    ...(depositAddress === undefined ? {} : { depositAddress }),
     now,
   }
 }

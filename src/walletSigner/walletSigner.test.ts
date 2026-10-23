@@ -1,14 +1,25 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import { recoverTypedDataAddress } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createApiClient } from "../api/api"
 import { LogEvent, SessionStage, StreamStage } from "../log/enums"
-import { SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
+import { SignatureRequestKind, SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
+import { Network } from "../lebroker/core/model"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
+import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
 import { LEBROKER_DEV } from "../signableRequest/testing/fixtures"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
-import { approvalRequest, fakeUserOf, gasPaymentRequest, logCollector, manualTimers, transferRequest } from "../testing/fixtures/fixtures"
+import {
+  approvalRequest,
+  fakeUserOf,
+  gasPaymentRequest,
+  lighterWithdrawalRequest,
+  logCollector,
+  manualTimers,
+  requestOf,
+  transferRequest,
+} from "../testing/fixtures/fixtures"
 import { WalletKey } from "../wallets/wallets"
 import { FailedStep } from "./enums"
 import { createWalletSigner } from "./walletSigner"
@@ -160,6 +171,92 @@ describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
     await ctx.signer.pass()
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g3"])
     expect(ctx.api.declines).toEqual([{ requestId: "req-g2", reason: SignableRefusal.NO_GAS_RESERVE }])
+  })
+})
+
+describe("Main's withdrawal straight into its own Lighter, which opens it (D56)", () => {
+  /** Lighter's intent address for Main, as Lighter answers it. */
+  const INTENT = privateKeyToAccount(generatePrivateKey()).address
+
+  afterEach(() => {
+    spyOn(globalThis, "fetch").mockRestore()
+  })
+
+  test("is signed to the intent address the signer read itself from Lighter, for its own wallet, just before", async () => {
+    const ctx = setUp()
+    const fetched = spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ intent_address: INTENT.toLowerCase() }))
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: lighterWithdrawalRequest({ id: "req-l1", accountId: ctx.mainId, destination: INTENT }),
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-l1"])
+    const url = new URL(String(fetched.mock.calls[0]?.[0]))
+    expect(`${url.origin}${url.pathname}`).toBe("https://mainnet.zklighter.elliot.ai/api/v1/createIntentAddress")
+    expect(url.searchParams.get("chain_id")).toBe("42161")
+    expect(url.searchParams.get("from_addr")).toBe(ctx.wallet.info.address)
+    expect(ctx.logs.read().find(line => line.event === LogEvent.SIGNED)).toMatchObject({
+      requestId: "req-l1",
+      kind: "withdrawal",
+      action: SignSummaryText.WITHDRAW_INTO_LIGHTER,
+      chainId: 42161,
+    })
+  })
+
+  test("is refused, and told to lebroker, when it pays another address than the one Lighter gives", async () => {
+    const ctx = setUp()
+    spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ intent_address: INTENT }))
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: lighterWithdrawalRequest({ id: "req-l2", accountId: ctx.mainId, destination: STRANGER }),
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "req-l2", reason: SignableRefusal.NOT_DEPOSIT_ADDRESS }])
+  })
+
+  test("is never signed when Lighter can't be read: it fails, answers something else, or can't be reached", async () => {
+    const answers = [
+      { answer: Response.json({ code: 500 }, { status: 500 }) },
+      { answer: Response.json({ intent_address: "not an address" }) },
+      { error: new TypeError("Failed to fetch") },
+    ]
+    for (const [index, read] of answers.entries()) {
+      const ctx = setUp()
+      const fetched = spyOn(globalThis, "fetch")
+      if (read.answer === undefined) {
+        fetched.mockRejectedValue(read.error)
+      } else {
+        fetched.mockResolvedValue(read.answer)
+      }
+      const id = `req-l3-${index}`
+      ctx.api.addRequest({ userId: ctx.user.id, request: lighterWithdrawalRequest({ id, accountId: ctx.mainId, destination: INTENT }) })
+      await ctx.signer.pass()
+      expect(ctx.api.submissions).toHaveLength(0)
+      expect(ctx.api.declines).toEqual([{ requestId: id, reason: SignableRefusal.DEPOSIT_UNREAD }])
+      // The next wallet's client takes the runtime's fetch, not this read's.
+      fetched.mockRestore()
+    }
+  })
+
+  test("without a venue named, stays a withdrawal to Main's own address only, and reads nothing from Lighter", async () => {
+    const ctx = setUp()
+    const fetched = spyOn(globalThis, "fetch")
+    const typedData = hyperliquidWithdrawRequest({
+      destination: INTENT,
+      amount: 6,
+      time: Date.now(),
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: requestOf({ id: "req-l4", accountId: ctx.mainId, kind: SignatureRequestKind.WITHDRAWAL, typedData }),
+    })
+    await ctx.signer.pass()
+    expect(fetched).not.toHaveBeenCalled()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines.map(own => own.requestId)).toEqual(["req-l4"])
   })
 })
 

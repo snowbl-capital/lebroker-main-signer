@@ -6,7 +6,8 @@ import type {
   SignatureRequestKind,
   SignatureRequestReason,
 } from "../../lebroker/accounts/model"
-import type { SignableRequestProps } from "../types"
+import type { VenueId } from "../../lebroker/core/model"
+import type { ReadDepositAddress, SignableRequestProps } from "../types"
 
 /** Typed data of any shape, bigints and all, as a venue's builder makes it. */
 type WireProps = { typedData: unknown }
@@ -27,6 +28,10 @@ type RequestOfProps = {
   lamarge?: LaMargeRequestContext | null
   /** What a payment to the gas reserve says it buys, beside its typed data; none by default. */
   gas?: GasPurchaseContext | null
+  /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
+  depositVenue?: VenueId | null
+  /** That venue's address for Main, as the signing side read it from the venue; none read by default. */
+  depositAddress?: ReadDepositAddress
   /** The origin of the deployment the request is signed on: lebroker's dev by default, whose gas reserve is pinned. */
   appOrigin?: string
   /** When it was asked, in ms. */

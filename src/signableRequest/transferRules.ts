@@ -14,9 +14,17 @@ import {
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_WITHDRAW_TYPES,
 } from "../lebroker/venues/model"
-import { ASTER_TRANSFER_FIELDS, GAS_RESERVE_PAYMENT_MAX_USD, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS, USDC } from "./constants"
+import { WITHDRAWAL_DEPOSIT_MIN_USD } from "../lebroker/signer/model"
+import {
+  ASTER_TRANSFER_FIELDS,
+  DEPOSIT_WITHDRAWAL_ACTIONS,
+  GAS_RESERVE_PAYMENT_MAX_USD,
+  HYPERLIQUID_MAINNET,
+  SIGNATURE_CHAIN_IDS,
+  USDC,
+} from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
-import type { GasPaymentRuleProps, SignSummary, TypedRuleProps } from "./types"
+import type { DepositWithdrawalRuleProps, GasPaymentRuleProps, SignSummary, TypedRuleProps } from "./types"
 import {
   allowedChain,
   amount,
@@ -151,6 +159,42 @@ function hyperliquidWithdrawal(props: TypedRuleProps): SignSummary {
   }
 }
 
+/**
+ * Hyperliquid's `withdraw3` of Main's straight into a venue's deposit address for Main, which opens Main's account there
+ * from inside lebroker with no gas (D49): a venue the signer's least lists, at least that least, on mainnet, and only to
+ * the address the signing side read itself from that venue for Main's own address just now. An address the request
+ * names alone is never taken: Lighter's intent address credits whichever L1 address it was made for.
+ */
+function hyperliquidDepositWithdrawal(props: DepositWithdrawalRuleProps): SignSummary {
+  const chainId = hyperliquidChain(props)
+  expectTypes({ typedData: props.typedData, types: HYPERLIQUID_WITHDRAW_TYPES, primaryType: "HyperliquidTransaction:Withdraw" })
+  const leastUsd = WITHDRAWAL_DEPOSIT_MIN_USD[props.depositVenue]
+  const action = DEPOSIT_WITHDRAWAL_ACTIONS[props.depositVenue]
+  if (leastUsd === undefined || action === undefined) {
+    return refuse({ refusal: SignableRefusal.DEPOSIT_VENUE })
+  }
+  const paid = amount({ value: props.typedData.message.amount, symbol: USDC })
+  if (Number(props.typedData.message.amount) < leastUsd) {
+    refuse({ refusal: SignableRefusal.DEPOSIT_TOO_SMALL })
+  }
+  const read = props.depositAddress
+  if (read === undefined || read.venue !== props.depositVenue) {
+    return refuse({ refusal: SignableRefusal.DEPOSIT_UNREAD })
+  }
+  if (!isAddress({ address: props.typedData.message.destination, other: read.address })) {
+    refuse({ refusal: SignableRefusal.NOT_DEPOSIT_ADDRESS })
+  }
+  return {
+    action,
+    lines: [
+      { label: SignSummaryLabel.AMOUNT, value: paid },
+      { label: SignSummaryLabel.DEPOSIT_ADDRESS, value: shortAddress({ address: read.address }) },
+      { label: SignSummaryLabel.CHAIN, value: String(chainId) },
+    ],
+    chainId,
+  }
+}
+
 /** Aster's withdrawal, signed by Main, to Main's own address only (D3, D31). */
 function asterWithdrawal({ typedData, user }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: ASTER_WITHDRAWAL_DOMAIN })
@@ -173,4 +217,4 @@ function asterWithdrawal({ typedData, user }: TypedRuleProps): SignSummary {
   }
 }
 
-export { asterTransfer, asterWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal }
+export { asterTransfer, asterWithdrawal, hyperliquidDepositWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal }

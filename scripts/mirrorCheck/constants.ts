@@ -73,10 +73,21 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   },
   { mirror: "src/lebroker/venues/aster/constants.ts", source: "packages/venues/src/aster/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/polymarket/constants.ts", source: "packages/venues/src/polymarket/constants.ts", whole: false },
+  { mirror: "src/lebroker/venues/lighter/constants.ts", source: "packages/venues/src/lighter/constants.ts", whole: false },
+  {
+    mirror: "src/lebroker/signer/depositAddresses/constants.ts",
+    source: "packages/signer/src/depositAddresses/constants.ts",
+    whole: true,
+  },
   { mirror: "src/lebroker/web/schema.ts", source: "apps/web/src/schema.ts", whole: false },
   { mirror: "src/lebroker/web/types.ts", source: "apps/web/src/types.ts", whole: false },
   { mirror: "src/lebroker/web/helpers/sameAddress/sameAddress.ts", source: "apps/web/src/helpers/sameAddress/sameAddress.ts", whole: true },
   { mirror: "src/lebroker/web/helpers/sameAddress/types.ts", source: "apps/web/src/helpers/sameAddress/types.ts", whole: true },
+  ...["venueDepositAddress", "venueDepositAddress.test", "enums", "schema", "types"].map(name => ({
+    mirror: `src/lebroker/web/helpers/venueDepositAddress/${name}.ts`,
+    source: `apps/web/src/helpers/venueDepositAddress/${name}.ts`,
+    whole: true,
+  })),
   {
     mirror: "src/lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema.ts",
     source: "apps/web/src/hooks/signatureRequests/useSignatureRequestsQueryList/schema.ts",

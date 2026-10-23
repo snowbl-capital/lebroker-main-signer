@@ -1,6 +1,7 @@
 import type { Address } from "viem"
 import type { GasPurchaseContext, SignatureRequestKind } from "../../lebroker/accounts/model"
 import type { SignatureRequestState } from "../../lebroker/accounts/model"
+import type { VenueId } from "../../lebroker/core/model"
 import type { LogEvent } from "../../log/enums"
 import type { Logger } from "../../log/types"
 import type { Timers } from "../../walletSigner/types"
@@ -18,6 +19,8 @@ type RequestProps = {
   message?: string
   /** What a payment to the gas reserve says it buys, beside its typed data; none by default. */
   gas?: GasPurchaseContext
+  /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
+  depositVenue?: VenueId
   state?: SignatureRequestState
   /** When it was asked, in ms; now by default. */
   createdAt?: number

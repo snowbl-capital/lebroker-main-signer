@@ -47,4 +47,17 @@ type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
 
 type ErrorTextProps = { error: unknown }
 
-export type { CreateWalletSignerProps, DeclineProps, ErrorTextProps, EveryProps, HandleProps, SleepProps, Timers, WalletSigner }
+/** `address`: the signing wallet's own, the L1 address the venue's deposit address must credit. */
+type DepositAddressOfProps = { request: SignatureRequestView; address: string }
+
+export type {
+  CreateWalletSignerProps,
+  DeclineProps,
+  DepositAddressOfProps,
+  ErrorTextProps,
+  EveryProps,
+  HandleProps,
+  SleepProps,
+  Timers,
+  WalletSigner,
+}

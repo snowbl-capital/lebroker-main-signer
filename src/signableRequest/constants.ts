@@ -1,8 +1,8 @@
 import { ASTER_TRANSFER_CHAIN_ID, CHAINS } from "@lamarge/sdk/protocol"
-import { Network } from "../lebroker/core/model"
+import { Network, VenueId } from "../lebroker/core/model"
 import { AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import { ASTER_APPROVAL_CHAIN_ID, ASTER_SIGN_CHAIN_IDS, ASTER_WITHDRAWAL_DOMAIN, POLYMARKET_SIGN_DOMAIN } from "../lebroker/venues/model"
-import { LaMargeWord } from "./enums"
+import { LaMargeWord, SignSummaryText } from "./enums"
 import type { GasReservePin, LaMargeDeploymentPins } from "./types"
 
 /** Hyperliquid's own chain for its user-signed actions, which lebroker names when the wallet shows none (Arbitrum). */
@@ -96,10 +96,19 @@ const HYPERLIQUID_MAINNET = "Mainnet"
 /** The token Hyperliquid's transfers and withdrawals move. */
 const USDC = "USDC"
 
+/**
+ * What Main's withdrawal straight into a venue's deposit address for Main does, by venue (D49): only the venues the
+ * signer's least lists (`WITHDRAWAL_DEPOSIT_MIN_USD`) take one.
+ */
+const DEPOSIT_WITHDRAWAL_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
+  [VenueId.LIGHTER]: SignSummaryText.WITHDRAW_INTO_LIGHTER,
+}
+
 export {
   ASTER_APPROVAL_FIELDS,
   ASTER_TRANSFER_FIELDS,
   CLOCK_SLACK_MS,
+  DEPOSIT_WITHDRAWAL_ACTIONS,
   EIP712_DOMAIN_FIELDS,
   GAS_RESERVE_DEPLOYMENTS,
   GAS_RESERVE_PAYMENT_MAX_USD,
