@@ -104,8 +104,17 @@ type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null; lamarg
 /** A message for a LaMarge move, and the take its request names, null for none. */
 type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
 
-/** A LaMarge deployment Main signs for: its app's origin, and the name its Aster agent goes by. */
-type LaMargeDeploymentPins = { appOrigin: string; asterAgentName: string }
+/**
+ * A LaMarge deployment Main signs for: its app's origin, its own slots on Main's venue accounts (the name its Aster
+ * agent goes by, its Lighter key's index), and its own escrows' addresses.
+ */
+type LaMargeDeploymentPins = { appOrigin: string; asterAgentName: string; lighterKeyIndex: number; escrows: readonly string[] }
+
+/** A LaMarge deployment Main signs for. */
+type DeploymentEscrowsProps = { deployment: LaMargeDeploymentPins }
+
+/** One payment of a take, as LaMarge's SDK reads it from the request. */
+type DeliveryVenueProps = { paid: Record<string, unknown> }
 
 /** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet (D51, phase 6). */
 type GasReservePin = { appOrigin: string; reserve: string | null }
@@ -144,6 +153,8 @@ type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
   AppOriginProps,
+  DeliveryVenueProps,
+  DeploymentEscrowsProps,
   DeploymentOfProps,
   GasPaymentRuleProps,
   GasReservePin,

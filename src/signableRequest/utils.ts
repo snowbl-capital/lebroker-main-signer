@@ -1,3 +1,4 @@
+import { ESCROW_DEPLOYMENTS, type DeploymentManifest } from "@lamarge/sdk/protocol"
 import { AccountKind, AccountState } from "../lebroker/accounts/model"
 import { isRecord, shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
@@ -11,6 +12,7 @@ import type {
   AppOriginProps,
   AtMostProps,
   ChainOfProps,
+  DeploymentEscrowsProps,
   ExpectedDomainProps,
   ExpectedTypesProps,
   LaMargeCheckProps,
@@ -152,6 +154,14 @@ function pinnedGasReserve({ appOrigin }: AppOriginProps): string | null {
   return GAS_RESERVE_DEPLOYMENTS.find(pin => pin.appOrigin === appOrigin)?.reserve ?? null
 }
 
+/**
+ * A LaMarge deployment's own escrows, as LaMarge's SDK reviews them: its reviewed deployments of every environment, held
+ * to those the deployment pins. What a request for it may name as its escrow, never another environment's.
+ */
+function deploymentEscrows({ deployment }: DeploymentEscrowsProps): DeploymentManifest {
+  return ESCROW_DEPLOYMENTS.filter(reviewed => deployment.escrows.some(address => sameAddress({ address, other: reviewed.address })))
+}
+
 /** Runs one of LaMarge's SDK checks: what it refuses is refused here, in its words after ours. */
 function laMargeCheck<T>({ check }: LaMargeCheckProps<T>): T {
   try {
@@ -166,6 +176,7 @@ export {
   amount,
   atMost,
   chainOf,
+  deploymentEscrows,
   expectDomain,
   expectTypes,
   isAddress,

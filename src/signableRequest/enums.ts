@@ -17,6 +17,8 @@ enum SignableRefusal {
   NOT_TAKE_ACCOUNTS = "This Lighter transfer goes between other accounts than Main's and the maker's its LaMarge take names.",
   UNKNOWN_DEPLOYMENT = "This request doesn't say which LaMarge it's for, or names one lebroker doesn't sign for.",
   NOT_MAIN_LIGHTER_ACCOUNT = "This request registers LaMarge's key on another Lighter account than Main's.",
+  OTHER_DEPLOYMENT_KEY = "This request registers LaMarge's key at another deployment's index than the one it's for.",
+  OTHER_DEPLOYMENT_ESCROW = "This request names another LaMarge escrow than the one of the deployment it's for.",
   NO_GAS_RESERVE = "lebroker has no gas reserve pinned for this deployment: Main buys no gas here.",
   NOT_GAS_RESERVE = "This payment goes to an address that isn't lebroker's gas reserve for this deployment.",
   GAS_OVER_CAP = "This payment is more than lebroker's gas reserve is ever paid at once.",
