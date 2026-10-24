@@ -1,5 +1,6 @@
 import { AccountKind, SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
+import { hyperliquidUnifiedAccount } from "./accountModeRules"
 import { SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
@@ -104,6 +105,18 @@ function gasPurchaseSummary(props: RuleProps): SignSummary {
   return hyperliquidGasPayment({ ...props, typedData: payload.typedData, gas: payload.gas ?? null })
 }
 
+/** Main's own venue account switched to the mode lebroker runs it in (D66): Hyperliquid's unified account only. */
+function accountModeSummary(props: RuleProps): SignSummary {
+  const payload = props.request.payload
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
+  if (props.request.venue !== VenueId.HYPERLIQUID) {
+    return refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
+  }
+  return hyperliquidUnifiedAccount({ ...props, typedData: payload.typedData })
+}
+
 /** A LaMarge move out of one of Main's venues (D2, D20). */
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -128,6 +141,8 @@ function summaryOf(props: RuleProps): SignSummary {
       return laMargeSummary(props)
     case SignatureRequestKind.GAS_PURCHASE:
       return gasPurchaseSummary(props)
+    case SignatureRequestKind.ACCOUNT_MODE:
+      return accountModeSummary(props)
     default:
       return refuse({ refusal: SignableRefusal.UNKNOWN_KIND })
   }
@@ -142,7 +157,12 @@ function summaryOf(props: RuleProps): SignSummary {
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {
-    const summary = summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt), now: props.now ?? Date.now() })
+    const askedAt = Date.parse(props.request.createdAt)
+    // Every lifetime lebroker asks for is bounded from when it asked: a request that doesn't say when can't be bounded.
+    if (!Number.isFinite(askedAt)) {
+      refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+    }
+    const summary = summaryOf({ ...props, askedAt, now: props.now ?? Date.now() })
     // Signed on the chain the wallet shows, or on one the wallet can be switched to: never another.
     if (summary.chainId !== null && summary.chainId !== props.walletChainId && !SIGNATURE_CHAIN_IDS.has(summary.chainId)) {
       refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })

@@ -4,6 +4,7 @@ import { MAIN_SIGNER_RESOURCE } from "../lebroker/accounts/constants"
 import { accountsList } from "../lebroker/web/hooks/accounts/useAccountsQueryList/schema"
 import { issuedNonce } from "../lebroker/web/hooks/session/useSessionMutationSignIn/schema"
 import { SIGN_IN_STATEMENT, SIGN_IN_TTL_MS } from "../lebroker/web/hooks/session/useSessionMutationSignIn/constants"
+import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
 import { requestAnswer, signatureRequestsList } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema"
 import { EVENT_STREAM_CONTENT_TYPE, JSON_CONTENT_TYPE, SIGN_IN_DEFAULT_CHAIN_ID, SIWE_VERSION } from "./constants"
 import { ApiErrorText, ApiRoute, HttpMethod, RequestAction } from "./enums"
@@ -80,6 +81,14 @@ function createApiClient({ baseUrl, wallet, chainId, log, fetch = globalThis.fet
     }
     if (opened.user === null || opened.user === undefined) {
       throw new ApiError({ message: ApiErrorText.NO_USER, status: response.status })
+    }
+    // Every rule that names Main's own address reads it from the session: it must be this wallet's, whatever the service
+    // answers, or a service that lied would name a destination of its own as Main's.
+    if (
+      !sameAddress({ address: opened.user.address, other: account.address }) ||
+      !sameAddress({ address: opened.address, other: account.address })
+    ) {
+      throw new ApiError({ message: ApiErrorText.OTHER_USER, status: response.status })
     }
     const renewed = current !== null
     cookie = pair

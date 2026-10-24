@@ -217,4 +217,12 @@ function asterWithdrawal({ typedData, user }: TypedRuleProps): SignSummary {
   }
 }
 
-export { asterTransfer, asterWithdrawal, hyperliquidDepositWithdrawal, hyperliquidGasPayment, hyperliquidTransfer, hyperliquidWithdrawal }
+export {
+  asterTransfer,
+  asterWithdrawal,
+  hyperliquidChain,
+  hyperliquidDepositWithdrawal,
+  hyperliquidGasPayment,
+  hyperliquidTransfer,
+  hyperliquidWithdrawal,
+}

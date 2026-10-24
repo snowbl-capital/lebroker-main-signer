@@ -66,6 +66,7 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   { mirror: "src/lebroker/signer/proof/constants.ts", source: "packages/signer/src/proof/constants.ts", whole: false },
   { mirror: "src/lebroker/signer/lighterPolicy/constants.ts", source: "packages/signer/src/lighterPolicy/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/hyperliquid/constants.ts", source: "packages/venues/src/hyperliquid/constants.ts", whole: false },
+  { mirror: "src/lebroker/venues/hyperliquid/enums.ts", source: "packages/venues/src/hyperliquid/enums.ts", whole: false },
   {
     mirror: "src/lebroker/venues/hyperliquid/agents/constants.ts",
     source: "packages/venues/src/hyperliquid/agents/constants.ts",

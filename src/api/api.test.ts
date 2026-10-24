@@ -7,6 +7,7 @@ import type { FakeApi } from "../testing/fakeApi/types"
 import { fakeUserOf, logCollector } from "../testing/fixtures/fixtures"
 import { WalletKey } from "../wallets/wallets"
 import { createApiClient } from "./api"
+import { ApiErrorText } from "./enums"
 import { ApiError } from "./errors"
 
 const SUB = privateKeyToAccount(generatePrivateKey()).address
@@ -49,6 +50,16 @@ describe("signing in", () => {
     const refused = await client.signIn().catch((error: unknown) => error)
     expect(refused).toBeInstanceOf(ApiError)
     expect(refused instanceof ApiError ? refused.status : null).toBe(401)
+  })
+
+  test("is refused when the service's session names another address than the wallet's, so nothing is signed on it", async () => {
+    const wallet = new WalletKey({ key: generatePrivateKey(), label: "main" })
+    const api = createFakeApi({ users: [fakeUserOf({ id: "user-1", address: wallet.info.address, subAddress: SUB })], answerAs: SUB })
+    opened.push(api)
+    const client = createApiClient({ baseUrl: api.url, wallet, chainId: null, log: logCollector().log })
+    const refused = await client.signIn().catch((error: unknown) => error)
+    expect(refused instanceof ApiError ? refused.message : null).toBe(ApiErrorText.OTHER_USER)
+    expect(client.session()).toBeNull()
   })
 
   test("happens once for calls refused together after the session ended", async () => {

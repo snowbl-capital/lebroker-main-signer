@@ -64,6 +64,16 @@ const APPROVE_AGENT_TYPES = {
   ],
 } as const
 
+/** An account's mode set by its own key, as Hyperliquid's Python SDK types `userSetAbstraction`. */
+const USER_SET_ABSTRACTION_TYPES = {
+  "HyperliquidTransaction:UserSetAbstraction": [
+    { name: "hyperliquidChain", type: "string" },
+    { name: "user", type: "address" },
+    { name: "abstraction", type: "string" },
+    { name: "nonce", type: "uint64" },
+  ],
+} as const
+
 export {
   APPROVE_AGENT_TYPES,
   HYPERLIQUID_CHAINS,
@@ -73,6 +83,7 @@ export {
   SEND_ASSET_TYPES,
   SEND_ASSET_USDC,
   SIGNATURE_CHAIN_ID,
+  USER_SET_ABSTRACTION_TYPES,
   USER_SIGNED_DOMAIN,
   WITHDRAW_TYPES,
 }

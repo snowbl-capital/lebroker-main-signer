@@ -6,7 +6,8 @@ import type { AccountView } from "../../lebroker/web/types"
 /** A user of the fake service: Main's address, and their accounts, Main first. */
 type FakeUser = { id: string; address: Address; accounts: AccountView[] }
 
-type FakeApiProps = { users: FakeUser[] }
+/** `answerAs`: a service gone wrong, whose session names this address as the signed-in user's, whoever signed in. */
+type FakeApiProps = { users: FakeUser[]; answerAs?: Address }
 
 /** A signature the fake took, checked: it recovers to Main's address. */
 type Submission = { requestId: string; address: Address; signature: Hex }
