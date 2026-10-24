@@ -15,7 +15,9 @@ export { laMargeTake, signaturePayload, typedDataPayload } from "./signatureRequ
 export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"
 export type {
   GasPurchaseContext,
+  LaMargeOp,
   LaMargeRequestContext,
+  LaMargeSend,
   LaMargeTake,
   LaMargeTakeFill,
   LaMargeTakeInput,

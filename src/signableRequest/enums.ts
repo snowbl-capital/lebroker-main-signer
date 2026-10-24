@@ -29,6 +29,8 @@ enum SignableRefusal {
   NOT_DEPOSIT_ADDRESS = "This withdrawal pays an address that isn't the venue's deposit address for your Main.",
   /** Main's Hyperliquid account switched to a mode (D66): only ever to unified. */
   NOT_UNIFIED = "This request switches Main's Hyperliquid account to another mode than unified.",
+  /** A LaMarge send on Polymarket, whose wallet prompt shows a hash, without the operation it hashes (D69). */
+  NO_SEND_OP = "This Polymarket send doesn't carry the operation its signature hashes, so the browser can't check it.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
@@ -50,6 +52,7 @@ enum SignSummaryText {
   LAMARGE_ASTER_AGENT = "Approve LaMarge's Aster agent to move Main's margin to Spot, never to withdraw",
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
+  LAMARGE_SEND = "Send funds from Main to one of your sub-accounts on the same venue, through LaMarge",
   /** Followed by the amount, then what it buys: "Pay lebroker's gas reserve $0.15 for gas on Arbitrum". */
   PAY_GAS_RESERVE = "Pay lebroker's gas reserve",
   FOR_GAS_ON = "for gas on",

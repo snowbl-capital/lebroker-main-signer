@@ -16,6 +16,7 @@ const laMargeTake = z.object({
     to: z.string(),
     amount_in: z.string(),
     min_out: z.string(),
+    max_fee_bps: z.number().int().nonnegative().optional(),
   }),
   fills: z.array(
     z.object({
@@ -36,9 +37,23 @@ const laMargeTake = z.object({
       t1: z.string(),
       t2: z.string(),
       delivery_to: z.string().nullable().optional(),
+      taker_fee: z.string().optional(),
     }),
   ),
   lighter: z.object({ from_account_index: z.number().int().nonnegative(), to_account_index: z.number().int().nonnegative() }).optional(),
+})
+
+/** A LaMarge send to another of the user's accounts on the same venue (`LaMargeSend`). */
+const laMargeSend = z.object({
+  venue: z.string(),
+  recipient: z.string(),
+  amount: z.string().regex(/^[0-9]+$/),
+  op: z
+    .object({
+      type: z.string(),
+      args: z.object({ account: z.string(), token: z.string(), amount: z.string(), to: z.string() }),
+    })
+    .optional(),
 })
 
 /** The LaMarge deployment a request is for (`LaMargeRequestContext`). */
@@ -58,6 +73,7 @@ const signaturePayload = z.discriminatedUnion("kind", [
     lamarge: laMargeRequestContext.optional(),
     gas: gasPurchaseContext.optional(),
     depositVenue: z.enum(VenueId).optional(),
+    send: laMargeSend.optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),
