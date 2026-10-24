@@ -50,7 +50,7 @@ function sameOrigin({ request }: RequestProps): boolean {
   return origin !== null && origin.host === request.headers.get("host")
 }
 
-function createFakeApi({ users }: FakeApiProps): FakeApi {
+function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
   const nonces = new Set<string>()
   const sessions = new Map<string, FakeUser>()
   const requests = new Map<string, SignatureRequestView[]>()
@@ -92,7 +92,7 @@ function createFakeApi({ users }: FakeApiProps): FakeApi {
     const token = randomUUID()
     sessions.set(token, user)
     return json({
-      body: sessionBody({ user }),
+      body: sessionBody({ user: answerAs === undefined ? user : { ...user, address: answerAs } }),
       headers: { "set-cookie": `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200` },
     })
   }

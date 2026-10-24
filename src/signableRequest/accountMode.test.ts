@@ -14,18 +14,25 @@ function unify({
   kind = SignatureRequestKind.ACCOUNT_MODE,
   typedData = {},
   accountId,
+  askedAt = ASKED_AT,
+  now = ASKED_AT,
 }: {
   message?: Record<string, unknown>
   chainId?: number
-  venue?: string
+  venue?: string | null
   kind?: SignatureRequestKind
   /** Any part of the typed data replaced whole: its domain, types, primary type or message. */
   typedData?: Record<string, unknown>
   accountId?: string
+  /** When the service says it asked, and when this signer reads it. */
+  askedAt?: number
+  now?: number
 } = {}) {
   return requestOf({
     kind,
     venue,
+    askedAt,
+    now,
     ...(accountId === undefined ? {} : { accountId }),
     typedData: {
       domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId },
@@ -113,6 +120,18 @@ describe("Main's Hyperliquid account switched to unified mode (D66)", () => {
     }
     expect(signableRequest(unify({ message: { nonce: ASKED_AT + 30 * 60 * 1000 } })).ok).toBe(true)
     expect(refusalOf(unify({ message: { nonce: ASKED_AT + 2 * 60 * 60 * 1000 } }))).toBe(SignableRefusal.TOO_LONG)
+  })
+
+  test("is held to this signer's own clock too: a request the service dates ahead lifts nothing", () => {
+    const ahead = ASKED_AT + 24 * 60 * 60 * 1000
+    expect(refusalOf(unify({ askedAt: ahead, now: ASKED_AT, message: { nonce: ahead } }))).toBe(SignableRefusal.TOO_LONG)
+  })
+
+  test("is never signed asked as anything else, nor for no venue", () => {
+    for (const kind of [SignatureRequestKind.WITHDRAWAL, SignatureRequestKind.GAS_PURCHASE, SignatureRequestKind.LAMARGE_MOVE]) {
+      expect(refusalOf(unify({ kind }))).not.toBeNull()
+    }
+    expect(refusalOf(unify({ venue: null }))).not.toBeNull()
   })
 
   test("is signed only as a typed request, for Main's own account", () => {

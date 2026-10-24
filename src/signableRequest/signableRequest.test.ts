@@ -1027,4 +1027,9 @@ describe("any request", () => {
       SignableRefusal.OTHER_ACCOUNT,
     )
   })
+
+  test("is refused when it doesn't say when it was asked: every lifetime it holds is bounded from then", () => {
+    const asked = requestOf({ venue: VenueId.HYPERLIQUID, typedData: hyperliquidApproval({ validDays: 3650 }) })
+    expect(refusalOf({ ...asked, request: { ...asked.request, createdAt: "not a date" } })).toBe(SignableRefusal.UNKNOWN_SHAPE)
+  })
 })

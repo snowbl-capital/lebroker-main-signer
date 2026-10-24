@@ -157,7 +157,12 @@ function summaryOf(props: RuleProps): SignSummary {
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {
-    const summary = summaryOf({ ...props, askedAt: Date.parse(props.request.createdAt), now: props.now ?? Date.now() })
+    const askedAt = Date.parse(props.request.createdAt)
+    // Every lifetime lebroker asks for is bounded from when it asked: a request that doesn't say when can't be bounded.
+    if (!Number.isFinite(askedAt)) {
+      refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+    }
+    const summary = summaryOf({ ...props, askedAt, now: props.now ?? Date.now() })
     // Signed on the chain the wallet shows, or on one the wallet can be switched to: never another.
     if (summary.chainId !== null && summary.chainId !== props.walletChainId && !SIGNATURE_CHAIN_IDS.has(summary.chainId)) {
       refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })

@@ -25,8 +25,13 @@ function hyperliquidUnifiedAccount(props: TypedRuleProps): SignSummary {
     refuse({ refusal: SignableRefusal.NOT_UNIFIED })
   }
   // Hyperliquid's nonce is the time lebroker asked it, in milliseconds: one further ahead would keep the signature
-  // usable for longer than lebroker ever asks. Hyperliquid refuses one it has seen, or one too old.
-  atMost({ value: wholeNumber({ value: props.typedData.message.nonce }), max: props.askedAt + CLOCK_SLACK_MS })
+  // usable for longer than lebroker ever asks. The bound is the earlier of when the request says it was asked and this
+  // signer's own clock, so a service that dates its request ahead can't lift it. Hyperliquid refuses a nonce it has seen,
+  // or one too old.
+  atMost({
+    value: wholeNumber({ value: props.typedData.message.nonce }),
+    max: Math.min(props.askedAt, props.now) + CLOCK_SLACK_MS,
+  })
   return {
     action: SignSummaryText.UNIFY_HYPERLIQUID,
     lines: [

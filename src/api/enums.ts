@@ -27,6 +27,8 @@ enum ApiErrorText {
   NO_SESSION_COOKIE = "lebroker opened no session",
   /** The session belongs to no user: an executor without hosted users. */
   NO_USER = "lebroker's session names no user: this signer works with the hosted service only",
+  /** A session naming another address than the wallet that signed in: nothing is signed on it. */
+  OTHER_USER = "lebroker's session names another address than this wallet: nothing will be signed on it",
 }
 
 export { ApiErrorText, ApiRoute, HttpMethod, RequestAction }
