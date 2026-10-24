@@ -63,6 +63,7 @@ function requestOf({
   take,
   lamarge = LAMARGE_PRODUCTION,
   gas = null,
+  send,
   depositVenue = null,
   depositAddress,
   askedAt = ASKED_AT,
@@ -85,6 +86,7 @@ function requestOf({
               typedData: wire({ typedData }),
               ...named,
               ...(gas === null ? {} : { gas }),
+              ...(send === undefined ? {} : { send }),
               ...(depositVenue === null ? {} : { depositVenue }),
             }
           : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },

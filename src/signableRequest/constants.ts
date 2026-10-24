@@ -53,6 +53,13 @@ const ASTER_TRANSFER_FIELDS: readonly string[] = [
 ]
 
 /** The EIP-712 domain's own fields, in the order a wallet writes them: what the LaMarge SDK's checks expect named. */
+/**
+ * What a LaMarge send on Polymarket signs (D69): its operation's typed data (`Op`), whose domain names no contract, and
+ * the one operation it hashes, an internal transfer, in LaMarge's SDK's words.
+ */
+const OP_TYPE = "Op"
+const OP_INTERNAL_TRANSFER = "internalTransfer"
+
 const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
   { name: "name", type: "string" },
   { name: "version", type: "string" },
@@ -121,6 +128,8 @@ export {
   CLOCK_SLACK_MS,
   DEPOSIT_WITHDRAWAL_ACTIONS,
   EIP712_DOMAIN_FIELDS,
+  OP_INTERNAL_TRANSFER,
+  OP_TYPE,
   GAS_RESERVE_DEPLOYMENTS,
   GAS_RESERVE_PAYMENT_MAX_USD,
   HYPERLIQUID_MAINNET,
