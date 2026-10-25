@@ -23,9 +23,9 @@ import {
 } from "@lamarge/sdk/protocol"
 import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
-import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE } from "../lebroker/signer/model"
+import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE, MAX_TAKE_LOSS_BPS } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, MAX_TAKE_LOSS_BPS } from "./constants"
+import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS } from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,
@@ -41,6 +41,7 @@ import type {
   SignSummary,
   StartedByProps,
   SummaryLine,
+  TakePaymentsProps,
   UnitsProps,
   VenueOfProps,
 } from "./types"
@@ -98,13 +99,37 @@ function deliveryVenue({ paid }: DeliveryVenueProps): string {
 }
 
 /**
- * Whether a payment brings back at least what it pays less the most a take may lose (`MAX_TAKE_LOSS_BPS`): what its
- * delivery returns (`amountOut`) and what it pays (`amount`), both dollar stablecoins, each counted at its own venue's
- * decimals. A payment to a maker who returns nearly nothing is never one lebroker asks.
+ * The one LaMarge venue all of a take's payments deliver on, each its own token on its chain, as LaMarge's SDK pins a
+ * delivery against the take's venue (`checkTakeIntent`), which Main's wallet doesn't read: refused when a payment
+ * delivers another token, or the payments deliver on more than one chain.
  */
-function keepsValue({ paid, venue }: KeepsValueProps): boolean {
-  const out = laMargeCheck({ check: () => uint(paid.amountOut) * 10n ** BigInt(decimalsOf(venue)) })
-  const paidIn = laMargeCheck({ check: () => uint(paid.amount) * 10n ** BigInt(decimalsOf(deliveryVenue({ paid }))) })
+function takeDelivery({ payments }: TakePaymentsProps): string {
+  const venues = new Set(payments.map(paid => deliveryVenue({ paid })))
+  const delivery = venues.size === 1 ? [...venues][0] : undefined
+  const chain = delivery === undefined ? undefined : CHAINS[delivery]
+  if (delivery === undefined || chain === undefined) {
+    return refuse({ refusal: SignableRefusal.NOT_TAKE_DELIVERY })
+  }
+  if (!payments.every(paid => isAddress({ address: paid.receiveToken, other: chain.token }))) {
+    refuse({ refusal: SignableRefusal.NOT_TAKE_DELIVERY })
+  }
+  return delivery
+}
+
+/**
+ * Whether a take brings back at least what it pays less the most a take may lose (`MAX_TAKE_LOSS_BPS`): what all its
+ * deliveries return together (`amountOut`) and what all its payments pay together (`amount`), both dollar stablecoins,
+ * each counted at its own venue's decimals. One costly fill of a sweep passes when the take as a whole keeps its value,
+ * as lebroker's own limits and LaMarge's `min_out` hold the whole take; a take to a maker who returns nearly nothing is
+ * never one lebroker asks.
+ */
+function keepsValue({ payments, venue, delivery }: KeepsValueProps): boolean {
+  const out = laMargeCheck({
+    check: () => payments.reduce((sum, paid) => sum + uint(paid.amountOut), 0n) * 10n ** BigInt(decimalsOf(venue)),
+  })
+  const paidIn = laMargeCheck({
+    check: () => payments.reduce((sum, paid) => sum + uint(paid.amount), 0n) * 10n ** BigInt(decimalsOf(delivery)),
+  })
   return out * BPS >= paidIn * (BPS - MAX_TAKE_LOSS_BPS)
 }
 
@@ -145,9 +170,9 @@ function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
 /**
  * A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else, each of its
  * deliveries from that deployment's escrow too, or from the contract of a venue settled inside itself, to Main itself,
- * the wallet signing and never an address the request names, for at least what it pays less the most a take may lose.
- * LaMarge's SDK pins both against the take's fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker
- * always takes for the account that pays.
+ * the wallet signing and never an address the request names, in that venue's own token on its chain, all of them on
+ * one, and the whole take for at least what it pays less the most a take may lose. LaMarge's SDK pins these against the
+ * take's fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker always takes for the account that pays.
  */
 function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
@@ -167,7 +192,8 @@ function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   if (!payments.every(paid => isAddress({ address: paid.receiveRecipient, other: user.address }))) {
     refuse({ refusal: SignableRefusal.NOT_TAKE_RECIPIENT })
   }
-  if (!payments.every(paid => keepsValue({ paid, venue }))) {
+  const delivery = takeDelivery({ payments })
+  if (!keepsValue({ payments, venue, delivery })) {
     refuse({ refusal: SignableRefusal.TAKE_LOSS })
   }
   const total = laMargeCheck({ check: () => payments.reduce((sum, paid) => sum + uint(paid.amount), 0n) })

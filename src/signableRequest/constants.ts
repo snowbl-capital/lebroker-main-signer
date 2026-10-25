@@ -88,15 +88,6 @@ const LAMARGE_PERMIT_SECONDS = 600
 const BPS = 10_000n
 
 /**
- * The most a LaMarge take's payment may lose, in basis points of what it pays: what its delivery brings back, both
- * dollar stablecoins, is never less than its amount less this. lebroker's own moves stay under it: the margin keeper's
- * loses 1 % at most, its giving venue's fee counted (`MARGIN_MOVE_MAX_COST`), and a fund move's LaMarge step half again
- * its quote's cost (`LAMARGE_COST_SLACK`), so 1.5 % on a quote costing as much as the keeper ever lets a move lose.
- * LaMarge's recorded books and takes sit within 0.1 % of par.
- */
-const MAX_TAKE_LOSS_BPS = 150n
-
-/**
  * lebroker's gas reserve on each deployment, by the origin its app is served from (D51, phase 6): the one address
  * Main's payment for gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`),
  * never a request's word. Null until the deployment's reserve exists: Main buys no gas there, and no screen offers it.
@@ -139,7 +130,6 @@ export {
   HYPERLIQUID_MAINNET,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
-  MAX_TAKE_LOSS_BPS,
   SIGNATURE_CHAIN_IDS,
   USDC,
 }

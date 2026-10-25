@@ -20,6 +20,7 @@ enum SignableRefusal {
   OTHER_DEPLOYMENT_KEY = "This request registers LaMarge's key at another deployment's index than the one it's for.",
   OTHER_DEPLOYMENT_ESCROW = "This request names another LaMarge escrow than the one of the deployment it's for.",
   NOT_TAKE_RECIPIENT = "This LaMarge take delivers to another address than your Main.",
+  NOT_TAKE_DELIVERY = "This LaMarge take delivers another token than its venue's own on its chain, or on more than one chain.",
   TAKE_LOSS = "This LaMarge take brings back less than lebroker ever lets a take lose of what it pays.",
   NO_GAS_RESERVE = "lebroker has no gas reserve pinned for this deployment: Main buys no gas here.",
   NOT_GAS_RESERVE = "This payment goes to an address that isn't lebroker's gas reserve for this deployment.",

@@ -297,17 +297,25 @@ function lighterProof({ owner = USER_ID, account = MAIN_ACCOUNT_ID }: { owner?: 
 }
 
 /**
- * One payment of a take from Main's Hyperliquid, its maker a stranger, delivered on `to` from `receiveEscrow` (that
- * venue's own by default) to `receiveRecipient`: by default, as lebroker's recorded take into Aster paid it, 60 USDC for
- * 60 USDT, each at its own decimals.
+ * One payment of a take from Main's Hyperliquid, its maker a stranger, delivered on `to` in `receiveToken` from
+ * `receiveEscrow` (that venue's own by default) to `receiveRecipient`: by default, as lebroker's recorded take into Aster
+ * paid it, 60 USDC for 60 USDT, each at its own decimals.
  */
 function lockPayment({
   to = "aster",
+  receiveToken = CHAINS[to]?.token,
   receiveEscrow = CHAINS[to]?.escrow,
   receiveRecipient = MAIN,
   amount = "60000000",
   amountOut = "60000000000000000000",
-}: { to?: string; receiveEscrow?: string; receiveRecipient?: string; amount?: string; amountOut?: string } = {}) {
+}: {
+  to?: string
+  receiveToken?: string | undefined
+  receiveEscrow?: string
+  receiveRecipient?: string
+  amount?: string
+  amountOut?: string
+} = {}) {
   return {
     payer: MAIN,
     swapId: `0x${"03".repeat(32)}`,
@@ -320,7 +328,7 @@ function lockPayment({
     sequence: "1",
     amountOut,
     receiveChainId: String(CHAINS[to]?.id),
-    receiveToken: CHAINS[to]?.token,
+    receiveToken,
     receiveEscrow,
     receiveRecipient,
     dex: "0",
@@ -707,6 +715,43 @@ describe("a LaMarge move", () => {
     expect(refusalOf(take({ payments: [lockPayment(), lockPayment({ receiveRecipient: STRANGER })] }))).toBe(
       SignableRefusal.NOT_TAKE_RECIPIENT,
     )
+  })
+
+  test("pays a take that delivers its venue's own token on its chain, every payment on the same one", () => {
+    const take = ({ payments }: { payments: ReturnType<typeof lockPayment>[] }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: payTake({ payments }) })
+    const onHyperEvm = lockPayment({ to: "hyperliquid", receiveEscrow: ESCROW, amountOut: "60000000" })
+    expect(signableRequest(take({ payments: [onHyperEvm] })).ok).toBe(true)
+    expect(
+      signableRequest(take({ payments: [lockPayment({ receiveToken: `0x${CHAINS.aster?.token.slice(2).toUpperCase() ?? ""}` })] })).ok,
+    ).toBe(true)
+    // BSC's USDT said delivered on HyperEVM, or any token but the venue's own.
+    const bscOnHyperEvm = lockPayment({
+      to: "hyperliquid",
+      receiveEscrow: ESCROW,
+      receiveToken: CHAINS.aster?.token,
+      amountOut: "60000000",
+    })
+    expect(refusalOf(take({ payments: [bscOnHyperEvm] }))).toBe(SignableRefusal.NOT_TAKE_DELIVERY)
+    expect(refusalOf(take({ payments: [lockPayment({ receiveToken: STRANGER })] }))).toBe(SignableRefusal.NOT_TAKE_DELIVERY)
+    expect(refusalOf(take({ payments: [lockPayment(), lockPayment({ receiveToken: CHAINS.hyperliquid?.token })] }))).toBe(
+      SignableRefusal.NOT_TAKE_DELIVERY,
+    )
+    // One take delivers on one chain: a payment into Aster beside one on HyperEVM is refused.
+    expect(refusalOf(take({ payments: [lockPayment(), onHyperEvm] }))).toBe(SignableRefusal.NOT_TAKE_DELIVERY)
+  })
+
+  test("pays a sweep whose costly fill the whole take makes up for, and refuses one whose total loses past 1.5 %", () => {
+    const take = ({ payments }: { payments: ReturnType<typeof lockPayment>[] }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: payTake({ payments }) })
+    // 60 USDC for 60 USDT, then 40 for 39 (2.5 % on that fill): 99 for 100, 1 % on the take.
+    const costly = lockPayment({ amount: "40000000", amountOut: "39000000000000000000" })
+    expect(signableRequest(take({ payments: [lockPayment(), costly] })).ok).toBe(true)
+    // 59.5 then 39 for 100: 1.5 % on the take, the floor itself; a base unit under it is refused.
+    expect(signableRequest(take({ payments: [lockPayment({ amountOut: "59500000000000000000" }), costly] })).ok).toBe(true)
+    expect(refusalOf(take({ payments: [lockPayment({ amountOut: "59499999999999999999" }), costly] }))).toBe(SignableRefusal.TAKE_LOSS)
+    // 59 then 39 for 100: 2 % on the take.
+    expect(refusalOf(take({ payments: [lockPayment({ amountOut: "59000000000000000000" }), costly] }))).toBe(SignableRefusal.TAKE_LOSS)
   })
 
   test("pays a take that brings back at least what it pays less 1.5 %, each side at its own token's decimals", () => {
