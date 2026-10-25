@@ -99,7 +99,10 @@ const LAMARGE_PERMIT_SECONDS = 600
  */
 const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
   { appOrigin: "https://lebroker.dev.lamarge.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
+  // The same deployment under the Leneutre name it moves to: one host, one account process, one reserve.
+  { appOrigin: "https://app.leneutre.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
   { appOrigin: "https://lebroker.lamarge.trade", reserve: null },
+  { appOrigin: "https://app.dev.leneutre.trade", reserve: null },
 ]
 
 /**
