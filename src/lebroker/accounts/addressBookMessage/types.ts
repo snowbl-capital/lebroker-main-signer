@@ -40,7 +40,14 @@ type AddressBookStatementOf = {
   at: number
 }
 
-type ApprovedRecipientsOfProps = { statements: readonly AddressBookStatementOf[] }
+/** `now`: the reader's own clock, in ms; an entry dated more than `ADDRESS_BOOK_MAX_SKEW_MS` past it says nothing. */
+type ApprovedRecipientsOfProps = { statements: readonly AddressBookStatementOf[]; now: number }
+
+/** Two entries naming one address: whether `said` holds over `kept`. */
+type HoldsOverProps = { said: Pick<AddressBookStatementOf, "statement" | "at">; kept: Pick<AddressBookStatementOf, "statement" | "at"> }
+
+/** `at`: an entry's date; `now`: the reader's own clock. Both in ms. */
+type WithinClockProps = { at: number; now: number }
 
 /** A recipient approved now: as the latest entry naming it writes it, and that entry's date (ms). */
 type ApprovedRecipient = { address: string; label: string; at: number }
@@ -65,8 +72,10 @@ export type {
   CanonicalSignatureProps,
   ContentProblemProps,
   FullAddressProps,
+  HoldsOverProps,
   ParseAddressBookMessageProps,
   RecipientLineProps,
   StatementOfLineProps,
   VerifiedAddressBookEntryProps,
+  WithinClockProps,
 }

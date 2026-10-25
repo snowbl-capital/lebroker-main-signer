@@ -9,7 +9,7 @@ import {
   parseAddressBookMessage,
   verifiedAddressBookEntry,
 } from "./addressBookMessage"
-import { SECP256K1_ORDER } from "./constants"
+import { ADDRESS_BOOK_MAX_SKEW_MS, SECP256K1_ORDER } from "./constants"
 import { AddressBookMessageError, AddressBookStatement } from "./enums"
 
 const MAIN = privateKeyToAccount(generatePrivateKey())
@@ -178,9 +178,12 @@ describe("the recipients approved now (D70)", () => {
   const withdraw = { ...approve, statement: AddressBookStatement.WITHDRAW }
 
   test("for each address, the latest dated entry holds, whatever order they're listed in", () => {
-    expect(approvedRecipientsOf({ statements: [{ ...approve, at: AT }] })).toEqual([{ address: SUB_1, label: "Sub-account 1", at: AT }])
+    expect(approvedRecipientsOf({ now: AT, statements: [{ ...approve, at: AT }] })).toEqual([
+      { address: SUB_1, label: "Sub-account 1", at: AT },
+    ])
     expect(
       approvedRecipientsOf({
+        now: AT,
         statements: [
           { ...approve, at: AT },
           { ...withdraw, at: AT + 1 },
@@ -189,6 +192,7 @@ describe("the recipients approved now (D70)", () => {
     ).toEqual([])
     expect(
       approvedRecipientsOf({
+        now: AT,
         statements: [
           { ...withdraw, at: AT + 1 },
           { ...approve, at: AT },
@@ -197,6 +201,7 @@ describe("the recipients approved now (D70)", () => {
     ).toEqual([])
     expect(
       approvedRecipientsOf({
+        now: AT,
         statements: [
           { ...withdraw, at: AT },
           { ...approve, at: AT + 1 },
@@ -208,6 +213,7 @@ describe("the recipients approved now (D70)", () => {
   test("a withdrawal dated as an approval holds over it, and an address is matched whatever its case", () => {
     expect(
       approvedRecipientsOf({
+        now: AT,
         statements: [
           { ...approve, at: AT },
           { ...withdraw, at: AT },
@@ -215,12 +221,22 @@ describe("the recipients approved now (D70)", () => {
       }),
     ).toEqual([])
     const upper = { ...withdraw, recipients: [{ address: getAddress(SUB_1), label: "Sub-account 1" }], at: AT + 1 }
-    expect(approvedRecipientsOf({ statements: [{ ...approve, at: AT }, upper] })).toEqual([])
+    expect(approvedRecipientsOf({ now: AT, statements: [{ ...approve, at: AT }, upper] })).toEqual([])
+  })
+
+  test("an entry dated past the reader's clock by more than the skew says nothing: a 2100 approval never holds over a later withdrawal", () => {
+    const far = { ...approve, at: Date.UTC(2100, 0, 1) }
+    expect(approvedRecipientsOf({ now: AT, statements: [far] })).toEqual([])
+    expect(approvedRecipientsOf({ now: AT + 2, statements: [{ ...approve, at: AT }, far, { ...withdraw, at: AT + 1 }] })).toEqual([])
+    // An entry dated up to the skew past the reader's clock still counts: clocks a few minutes apart agree.
+    const soon = { ...approve, at: AT + ADDRESS_BOOK_MAX_SKEW_MS }
+    expect(approvedRecipientsOf({ now: AT, statements: [soon] })).toHaveLength(1)
+    expect(approvedRecipientsOf({ now: AT - 1, statements: [soon] })).toEqual([])
   })
 
   test("a withdrawal of one address leaves the others its approval named", () => {
     const both = { ...approve, recipients: [...approve.recipients, { address: SUB_2, label: "Sub-account 2" }], at: AT }
-    expect(approvedRecipientsOf({ statements: [both, { ...withdraw, at: AT + 1 }] })).toEqual([
+    expect(approvedRecipientsOf({ now: AT, statements: [both, { ...withdraw, at: AT + 1 }] })).toEqual([
       { address: SUB_2, label: "Sub-account 2", at: AT },
     ])
   })

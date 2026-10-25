@@ -3,6 +3,12 @@ import { AddressBookLine, AddressBookStatement } from "./enums"
 /** The most recipients one entry names: every open sub-account in one signature, with room to spare. */
 const ADDRESS_BOOK_MAX_RECIPIENTS = 20
 
+/**
+ * How far past a reader's own clock an entry may be dated, in ms (D70): clocks a few minutes apart still agree, and an
+ * entry dated later is ignored and never kept, so no far-future date holds over the withdrawals signed after it.
+ */
+const ADDRESS_BOOK_MAX_SKEW_MS = 10 * 60 * 1000
+
 /** The longest label a recipient takes, in characters. */
 const ADDRESS_BOOK_MAX_LABEL = 64
 
@@ -43,6 +49,7 @@ export {
   ADDRESS_BOOK_LABEL,
   ADDRESS_BOOK_MAX_LABEL,
   ADDRESS_BOOK_MAX_RECIPIENTS,
+  ADDRESS_BOOK_MAX_SKEW_MS,
   COMPACT_SIGNATURE_HEX_LENGTH,
   SECP256K1_ORDER,
   SIGNATURE_HEX_LENGTH,

@@ -5,6 +5,7 @@ import {
   ADDRESS_BOOK_LABEL,
   ADDRESS_BOOK_MAX_LABEL,
   ADDRESS_BOOK_MAX_RECIPIENTS,
+  ADDRESS_BOOK_MAX_SKEW_MS,
   COMPACT_SIGNATURE_HEX_LENGTH,
   SECP256K1_ORDER,
   SIGNATURE_HEX_LENGTH,
@@ -21,10 +22,12 @@ import type {
   CanonicalSignatureProps,
   ContentProblemProps,
   FullAddressProps,
+  HoldsOverProps,
   ParseAddressBookMessageProps,
   RecipientLineProps,
   StatementOfLineProps,
   VerifiedAddressBookEntryProps,
+  WithinClockProps,
 } from "./types"
 
 /** An address in full, checksummed from any case; null for anything else. */
@@ -203,16 +206,36 @@ async function verifiedAddressBookEntry({
 }
 
 /**
- * The recipients approved now (D70): for each address, the latest dated entry naming it holds, an approval or its
- * withdrawal; a withdrawal dated the same as an approval holds over it. Addresses matched whatever their case.
+ * Whether an entry's date is within the reader's own clock (D70): no more than `ADDRESS_BOOK_MAX_SKEW_MS` past it. One
+ * dated later is ignored and never kept: a far-future approval would otherwise hold over every withdrawal after it.
  */
-function approvedRecipientsOf({ statements }: ApprovedRecipientsOfProps): ApprovedRecipient[] {
+function withinClock({ at, now }: WithinClockProps): boolean {
+  return at <= now + ADDRESS_BOOK_MAX_SKEW_MS
+}
+
+/** Whether one entry holds over another naming the same address (D70): dated later, or a withdrawal dated as an approval. */
+function holdsOver({ said, kept }: HoldsOverProps): boolean {
+  return (
+    said.at > kept.at ||
+    (said.at === kept.at && said.statement === AddressBookStatement.WITHDRAW && kept.statement === AddressBookStatement.APPROVE)
+  )
+}
+
+/**
+ * The recipients approved now (D70): for each address, the latest dated entry naming it holds, an approval or its
+ * withdrawal; a withdrawal dated the same as an approval holds over it. Addresses matched whatever their case. An entry
+ * dated past the reader's clock by more than the skew says nothing.
+ */
+function approvedRecipientsOf({ statements, now }: ApprovedRecipientsOfProps): ApprovedRecipient[] {
   const latest = new Map<string, ApprovedRecipient & { statement: AddressBookStatement }>()
   for (const said of statements) {
+    if (!withinClock({ at: said.at, now })) {
+      continue
+    }
     for (const recipient of said.recipients) {
       const key = recipient.address.toLowerCase()
       const kept = latest.get(key)
-      if (kept === undefined || said.at > kept.at || (said.at === kept.at && said.statement === AddressBookStatement.WITHDRAW)) {
+      if (kept === undefined || holdsOver({ said, kept })) {
         latest.set(key, { statement: said.statement, address: recipient.address, label: recipient.label, at: said.at })
       }
     }
@@ -231,7 +254,9 @@ export {
   addressBookMessage,
   approvedRecipientsOf,
   canonicalSignature,
+  holdsOver,
   isAddressBookMessage,
   parseAddressBookMessage,
   verifiedAddressBookEntry,
+  withinClock,
 }

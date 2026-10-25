@@ -333,6 +333,25 @@ describe("Main's address book (lebroker's D70)", () => {
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-14", "book-15", "book-16"])
   })
 
+  test("an entry dated past this machine's clock by more than the skew is ignored and never kept: a later withdrawal holds over a 2100 approval", async () => {
+    const ctx = await setUp()
+    const at = Date.now()
+    await approve({ ctx, recipients: [SUB], at: Date.UTC(2100, 0, 1) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-30", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.declines).toEqual([{ requestId: "book-30", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+
+    await approve({ ctx, recipients: [SUB], at })
+    await approve({ ctx, recipients: [SUB], statement: AddressBookStatement.WITHDRAW, at: at + 1 })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-31", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toEqual([])
+    expect(ctx.api.declines.map(declined => declined.requestId)).toEqual(["book-30", "book-31"])
+    const kept = await readFile(ctx.recordPath, "utf8")
+    expect(kept).not.toContain("2100-01-01")
+    expect(kept).toContain(new Date(at + 1).toISOString())
+  })
+
   test("keeps in its record the entries it checked, as signed, and no key", async () => {
     const ctx = await setUp()
     const message = await approve({ ctx, recipients: [SUB] })

@@ -1,7 +1,7 @@
 import { ApiError } from "../api/errors"
 import { readEvents } from "../eventStream/eventStream"
 import { LogEvent, StreamStage } from "../log/enums"
-import { approvedRecipientsOf } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
+import { approvedRecipientsOf, withinClock } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
 import { SignatureRequestState } from "../lebroker/accounts/model"
 import { SignableRefusal } from "../signableRequest/enums"
 import { signableRequest } from "../signableRequest/signableRequest"
@@ -144,7 +144,8 @@ function createWalletSigner({
   /**
    * The recipients this wallet's own key approves now (D70): the service's entries, each checked here, never its word,
    * added to those this machine kept, and for each address the latest dated one holding. A withdrawal seen once holds
-   * though the service stops listing it. Null when the address book can't be read: logged once until a read succeeds.
+   * though the service stops listing it; one dated past this machine's clock by more than `ADDRESS_BOOK_MAX_SKEW_MS`
+   * says nothing. Null when the address book can't be read: logged once until a read succeeds.
    */
   async function readApproved(): Promise<string[] | null> {
     let listed
@@ -164,12 +165,14 @@ function createWalletSigner({
     bookUnread = false
     const main = wallet.info.address
     try {
-      await record.keep({ entries: await verifiedEntries({ entries: listed, main, deployment }) })
+      const checked = await verifiedEntries({ entries: listed, main, deployment })
+      // An entry dated past this machine's clock by more than the skew is never kept: it'd hold over every withdrawal after it.
+      await record.keep({ entries: checked.filter(entry => withinClock({ at: entry.content.at, now: now() })) })
     } catch (error) {
       // Kept for this run all the same; the file is written again on the next pass.
       log({ event: LogEvent.FAILED, wallet: wallet.info, fields: { step: FailedStep.RECORD, error: errorText({ error }) } })
     }
-    return approvedRecipientsOf({ statements: record.statementsOf({ main }) }).map(recipient => recipient.address)
+    return approvedRecipientsOf({ statements: record.statementsOf({ main }), now: now() }).map(recipient => recipient.address)
   }
 
   async function passOnce(): Promise<void> {
