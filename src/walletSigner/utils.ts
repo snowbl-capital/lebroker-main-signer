@@ -1,9 +1,20 @@
+import { isHex } from "viem"
+import { isAddressBookMessage, verifiedAddressBookEntry } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
 import { SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
 import { WITHDRAWAL_DEPOSIT_MIN_USD } from "../lebroker/signer/model"
 import { venueDepositAddress } from "../lebroker/web/helpers/venueDepositAddress/venueDepositAddress"
+import type { VerifiedEntry } from "../addressBookRecord/types"
 import { DEPOSIT_ADDRESS_CACHE_MS, DEPOSIT_ADDRESS_PAUSE_MS, HYPERLIQUID_WITHDRAW_PRIMARY_TYPE } from "./constants"
-import type { CreateDepositAddressReaderProps, DepositAddressReader, DepositVenueOfProps, ErrorTextProps, Timers } from "./types"
+import type {
+  AsksAddressBookEntryProps,
+  CreateDepositAddressReaderProps,
+  DepositAddressReader,
+  DepositVenueOfProps,
+  ErrorTextProps,
+  Timers,
+  VerifiedEntriesProps,
+} from "./types"
 
 /** An error's words for a log line: its message, never the object, which may carry what it was called with. */
 function errorText({ error }: ErrorTextProps): string {
@@ -63,6 +74,30 @@ function createDepositAddressReader(props: CreateDepositAddressReaderProps): Dep
   }
 }
 
+/**
+ * The entries of the service's list this wallet's own key signed (lebroker's D70), each checked here: an entry counts
+ * only when its message names this wallet's own address as Main and this deployment, and its signature recovers to
+ * that address. What it says is read from the message as signed, never from the service's own fields.
+ */
+async function verifiedEntries({ entries, main, deployment }: VerifiedEntriesProps): Promise<VerifiedEntry[]> {
+  const verified = await Promise.all(
+    entries.map(async entry => {
+      const signature = entry.signature
+      if (!isHex(signature)) {
+        return null
+      }
+      const content = await verifiedAddressBookEntry({ main, deployment, message: entry.message, signature })
+      return content === null ? null : { message: entry.message, signature, content }
+    }),
+  )
+  return verified.filter(entry => entry !== null)
+}
+
+/** Whether a request asks Main to sign an address-book entry, or a text that carries one: only the user does, in their wallet. */
+function asksAddressBookEntry({ request }: AsksAddressBookEntryProps): boolean {
+  return request.payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE && isAddressBookMessage({ message: request.payload.message })
+}
+
 const runtimeTimers: Timers = {
   every: ({ ms, run }) => {
     const interval = setInterval(run, ms)
@@ -84,4 +119,4 @@ const runtimeTimers: Timers = {
     }),
 }
 
-export { createDepositAddressReader, errorText, runtimeTimers }
+export { asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers, verifiedEntries }

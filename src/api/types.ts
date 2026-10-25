@@ -2,6 +2,7 @@ import type { Hex } from "viem"
 import type { z } from "zod"
 import type { Logger } from "../log/types"
 import type { accountsList } from "../lebroker/web/hooks/accounts/useAccountsQueryList/schema"
+import type { addressBookList } from "../lebroker/web/hooks/addressBook/useAddressBookQueryList/schema"
 import type { requestAnswer } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema"
 import type { SignatureRequestsList } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { SessionUser } from "../lebroker/web/types"
@@ -15,6 +16,9 @@ type SessionBody = z.output<typeof sessionBody>
 type Session = { user: SessionUser; accountId: string | null }
 
 type AccountsList = z.output<typeof accountsList>
+
+/** Main's address book as the service lists it (D70): its word only, each entry checked again before it's used. */
+type AddressBookList = z.output<typeof addressBookList>
 
 type RequestAnswer = z.output<typeof requestAnswer>
 
@@ -43,6 +47,7 @@ type ApiClient = {
   session: () => Session | null
   signatureRequests: () => Promise<SignatureRequestsList>
   accounts: () => Promise<AccountsList>
+  addressBook: () => Promise<AddressBookList>
   sign: (props: SignProps) => Promise<RequestAnswer>
   /** Tells lebroker this signer won't sign the request, and why: the user is offered it in the browser. */
   decline: (props: DeclineProps) => Promise<RequestAnswer>
@@ -68,6 +73,7 @@ type SessionCookieProps = { response: Response }
 
 export type {
   AccountsList,
+  AddressBookList,
   ApiClient,
   ApiErrorProps,
   CallProps,

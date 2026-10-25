@@ -1,4 +1,5 @@
 import { join } from "node:path"
+import { ADDRESS_BOOK_RECORD_FILE } from "../addressBookRecord/constants"
 import { isWalletLabel, labelSaid } from "../wallets/wallets"
 import { HTTP_PROTOCOL, HTTPS_PROTOCOL, LABEL_SEPARATOR, LOOPBACK_HOSTNAMES, LOOPBACK_IPV4 } from "./constants"
 import { ConfigError, EnvName } from "./enums"
@@ -66,11 +67,14 @@ function readConfig({ env, home }: ReadConfigProps): Config {
   if (keysDir === "") {
     throw new Error(ConfigError.KEYS_DIR_MISSING)
   }
+  const keysPath = expandHome({ path: keysDir, home })
+  const addressBookFile = (env[EnvName.MAIN_ADDRESS_BOOK_FILE] ?? "").trim()
   return {
     lebrokerUrl,
-    keysDir: expandHome({ path: keysDir, home }),
+    keysDir: keysPath,
     labels: labels({ raw: env[EnvName.MAIN_WALLETS] ?? "" }),
     chainId: chainId({ raw: (env[EnvName.MAIN_CHAIN_ID] ?? "").trim() }),
+    addressBookFile: addressBookFile === "" ? join(keysPath, ADDRESS_BOOK_RECORD_FILE) : expandHome({ path: addressBookFile, home }),
   }
 }
 

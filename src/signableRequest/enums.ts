@@ -7,6 +7,8 @@ enum SignableRefusal {
   OTHER_MAIN = "This request names another wallet than your Main.",
   OTHER_ACCOUNT = "This request is for another account than the one it names.",
   NOT_YOUR_ACCOUNT = "This request sends funds to an address that isn't one of your accounts.",
+  /** Where the signing side reads Main's address book (D70): the Main signer, never the browser. */
+  NOT_IN_ADDRESS_BOOK = "This request sends funds to an account your address book doesn't approve: approve it in Settings, Address book, or sign it in your wallet.",
   NOT_LEBROKER_AGENT = "This request approves an agent that isn't lebroker's.",
   NOT_LEBROKER_KEY = "This request registers a key at an index lebroker doesn't use.",
   WITHDRAW_PERMISSION = "This request gives an agent more than trading: lebroker's agent never withdraws.",

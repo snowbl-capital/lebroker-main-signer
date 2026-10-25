@@ -65,6 +65,7 @@ function requestOf({
   gas = null,
   depositVenue = null,
   depositAddress,
+  approvedRecipients,
   askedAt = ASKED_AT,
   now = askedAt,
   main = MAIN,
@@ -94,6 +95,7 @@ function requestOf({
     walletChainId,
     appOrigin,
     ...(depositAddress === undefined ? {} : { depositAddress }),
+    ...(approvedRecipients === undefined ? {} : { approvedRecipients }),
     now,
   }
 }

@@ -5,6 +5,8 @@ enum ApiRoute {
   ACCOUNTS = "/api/v1/accounts",
   EVENTS = "/api/v1/events",
   SIGNATURE_REQUESTS = "/api/v1/signature-requests",
+  /** The recipients Main approved in its wallet (D70): the service's word, each entry checked again before it's used. */
+  ADDRESS_BOOK = "/api/v1/address-book",
 }
 
 /** A signature request's action route: `/api/v1/signature-requests/<id>/<action>`. */
