@@ -4,5 +4,6 @@ export {
   REGISTRATION_MESSAGE as LIGHTER_REGISTRATION_MESSAGE,
   TRANSFER_MESSAGE as LIGHTER_TRANSFER_MESSAGE,
 } from "./lighterPolicy/constants"
+export { MAX_TAKE_LOSS_BPS } from "./lamargePolicy/constants"
 export { AsterBoolean, AsterParam } from "./policy/enums"
 export { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, MAX_PROOF_LIFETIME_MS, SUB_ACCOUNT_PROOF_DOMAIN } from "./proof/constants"
