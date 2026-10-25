@@ -133,7 +133,7 @@ function lighterProof({ typedData, user, request, askedAt }: TypedRuleProps): Si
   }
 }
 
-/** Lighter, then: Main signs the registration of lebroker's key, at one of its own indexes only, 200 to 253 (D6). */
+/** Lighter, then: Main signs the registration of lebroker's key, at one of its own indexes only, 200 to 252 (D6). */
 function lighterRegistration({ message }: MessageRuleProps): SignSummary {
   const read = LIGHTER_REGISTRATION_MESSAGE.exec(message) ?? refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   const apiKeyIndex = Number.parseInt(read[3] ?? "", 16)
