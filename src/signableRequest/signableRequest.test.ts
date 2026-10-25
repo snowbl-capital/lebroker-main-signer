@@ -54,6 +54,7 @@ import {
   registrationMessage,
   requestOf,
 } from "./testing/fixtures"
+import type { TransferToProps } from "./testing/types"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -515,7 +516,7 @@ describe("a transfer from Main", () => {
 })
 
 describe("Main's address book, where the Main signer reads it (D70)", () => {
-  function transferTo({ approvedRecipients, destination = SUB }: { approvedRecipients?: readonly string[]; destination?: Address }) {
+  function transferTo({ approvedRecipients, destination = SUB }: TransferToProps) {
     return requestOf({
       kind: SignatureRequestKind.TRANSFER,
       venue: VenueId.HYPERLIQUID,

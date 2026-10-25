@@ -33,6 +33,10 @@ type AddEntryProps = { userId: string; message: string; signature: string; recip
 /** A user's address-book entry, as the fake lists it. */
 type FakeEntry = Omit<AddEntryProps, "userId" | "recipients"> & { recipients: { address: string; label: string }[] }
 
+type RemoveEntryProps = { userId: string; message: string }
+
+type FailAddressBookProps = { failing: boolean }
+
 type RequestIdProps = { requestId: string }
 
 type FakeApi = {
@@ -50,8 +54,10 @@ type FakeApi = {
   /** The next submission is refused with this status, as when the venue fails. */
   failNextSign: (props: FailSignProps) => void
   addEntry: (props: AddEntryProps) => void
-  /** Every read of the address book fails from now on (503). */
-  failAddressBook: () => void
+  /** Stops listing an entry, as a service gone wrong may hide one. */
+  removeEntry: (props: RemoveEntryProps) => void
+  /** Every read of the address book fails from now on (503), or reads again. */
+  failAddressBook: (props: FailAddressBookProps) => void
   /** Resolves once a signature for this request is taken. */
   submitted: (props: RequestIdProps) => Promise<Submission>
   stop: () => Promise<void>
@@ -73,12 +79,14 @@ export type {
   AddEntryProps,
   AddRequestProps,
   Decline,
+  FailAddressBookProps,
   FakeEntry,
   FailSignProps,
   FakeApi,
   FakeApiProps,
   FakeUser,
   JsonProps,
+  RemoveEntryProps,
   RequestIdProps,
   RequestProps,
   SessionBodyProps,

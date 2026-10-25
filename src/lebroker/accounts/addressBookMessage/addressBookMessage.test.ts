@@ -1,8 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { getAddress } from "viem"
+import { getAddress, parseSignature, recoverMessageAddress, type Hex } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { addressBookMessage, isAddressBookMessage, parseAddressBookMessage, verifiedAddressBookEntry } from "./addressBookMessage"
-import { AddressBookMessageError } from "./enums"
+import {
+  addressBookMessage,
+  approvedRecipientsOf,
+  canonicalSignature,
+  isAddressBookMessage,
+  parseAddressBookMessage,
+  verifiedAddressBookEntry,
+} from "./addressBookMessage"
+import { SECP256K1_ORDER } from "./constants"
+import { AddressBookMessageError, AddressBookStatement } from "./enums"
 
 const MAIN = privateKeyToAccount(generatePrivateKey())
 const OTHER = privateKeyToAccount(generatePrivateKey())
@@ -11,10 +19,15 @@ const OTHER = privateKeyToAccount(generatePrivateKey())
 const SUB_1 = "0x2222222222222222222222222222222222222abc"
 const SUB_2 = "0x3333333333333333333333333333333333333def"
 
+/** The deployment the entries are for, by host. */
+const DEPLOYMENT = "lebroker.dev.lamarge.trade"
+
 /** 25 October 2026, noon UTC. */
 const AT = Date.UTC(2026, 9, 25, 12)
 
 const ENTRY = {
+  statement: AddressBookStatement.APPROVE,
+  deployment: DEPLOYMENT,
   main: MAIN.address.toLowerCase(),
   recipients: [
     { address: SUB_1, label: "Sub-account 1" },
@@ -24,11 +37,12 @@ const ENTRY = {
 }
 
 describe("Main's address-book entry (D70)", () => {
-  test("names the app, Main, each recipient's label and full checksummed address, and the date, as the wallet shows it", () => {
+  test("names the app, the deployment, Main, each recipient's label and full checksummed address, and the date, as the wallet shows it", () => {
     expect(addressBookMessage(ENTRY)).toBe(
       [
         "lebroker address book",
         "",
+        "Deployment: lebroker.dev.lamarge.trade",
         `Main: ${MAIN.address}`,
         "",
         "I approve these addresses as recipients of transfers from this Main:",
@@ -40,8 +54,16 @@ describe("Main's address-book entry (D70)", () => {
     )
   })
 
+  test("withdraws an approval in the same form, its own line saying so", () => {
+    const message = addressBookMessage({ ...ENTRY, statement: AddressBookStatement.WITHDRAW })
+    expect(message.split("\n")[5]).toBe("I withdraw approval of these addresses as recipients of transfers from this Main:")
+    expect(parseAddressBookMessage({ message })).toMatchObject({ statement: AddressBookStatement.WITHDRAW })
+  })
+
   test("reads back what it writes, several recipients in one entry, checksummed whatever case they were asked in", () => {
     expect(parseAddressBookMessage({ message: addressBookMessage(ENTRY) })).toEqual({
+      statement: AddressBookStatement.APPROVE,
+      deployment: DEPLOYMENT,
       main: MAIN.address,
       recipients: [
         { address: getAddress(SUB_1), label: "Sub-account 1" },
@@ -56,18 +78,31 @@ describe("Main's address-book entry (D70)", () => {
     for (const changed of [
       message.replace(getAddress(SUB_1), SUB_1),
       message.replace(MAIN.address, MAIN.address.toLowerCase()),
-      `${message}\n`,
       `\n${message}`,
       message.replace("lebroker address book", "Lebroker address book"),
       message.replace("2026-10-25T12:00:00.000Z", "2026-10-25"),
       message.replace("- Sub-account 1", "Sub-account 1"),
       message.replace(`${getAddress(SUB_2)}\n\nDate`, `${getAddress(SUB_2)}\nDate`),
-      message.replace("\n\nMain", "\nMain"),
+      message.replace("\n\nDeployment", "\nDeployment"),
+      message.replace(`Deployment: ${DEPLOYMENT}\n`, ""),
+      message.replace(DEPLOYMENT, "Lebroker.dev.lamarge.trade"),
+      message.replace("I approve these", "I approved these"),
       message.replace(`- Sub-account 2: ${getAddress(SUB_2)}`, `- Sub-account 2: ${getAddress(SUB_1)}`),
       message.replace(`- Sub-account 2: ${getAddress(SUB_2)}`, `- Main: ${MAIN.address}`),
       message.replace("Sub-account 1", "Sub: account 1"),
     ]) {
       expect(parseAddressBookMessage({ message: changed })).toBeNull()
+    }
+  })
+
+  test("reads no entry with Windows line ends, a new line after its date, or a label beyond its letters", () => {
+    const message = addressBookMessage(ENTRY)
+    expect(parseAddressBookMessage({ message: message.replaceAll("\n", "\r\n") })).toBeNull()
+    expect(parseAddressBookMessage({ message: `${message}\n` })).toBeNull()
+    expect(parseAddressBookMessage({ message: `${message}\r\n` })).toBeNull()
+    for (const label of ["Sous-compte é", "Sub-account 1​", "Sub‐account 1", "Ѕub-account 1", "Sub-account 💰"]) {
+      expect(parseAddressBookMessage({ message: message.replace("Sub-account 1", label) })).toBeNull()
+      expect(() => addressBookMessage({ ...ENTRY, recipients: [{ address: SUB_1, label }] })).toThrow(AddressBookMessageError.LABEL)
     }
   })
 
@@ -100,28 +135,34 @@ describe("Main's address-book entry (D70)", () => {
         AddressBookMessageError.TOO_MANY,
       ],
       [{ ...ENTRY, at: Number.NaN }, AddressBookMessageError.DATE],
+      [{ ...ENTRY, deployment: "https://lebroker.dev.lamarge.trade" }, AddressBookMessageError.DEPLOYMENT],
+      [{ ...ENTRY, deployment: "Lebroker.dev.lamarge.trade" }, AddressBookMessageError.DEPLOYMENT],
+      [{ ...ENTRY, deployment: "" }, AddressBookMessageError.DEPLOYMENT],
     ]
     for (const [asked, error] of cases) {
       expect(() => addressBookMessage(asked)).toThrow(error)
     }
   })
 
-  test("is verified only when Main's own key signed it and it names that very Main, whatever case the reader gives Main in", async () => {
+  test("is verified only when Main's own key signed it and it names that very Main and deployment, whatever case the reader gives Main in", async () => {
     const message = addressBookMessage(ENTRY)
     const signature = await MAIN.signMessage({ message })
-    expect(await verifiedAddressBookEntry({ main: MAIN.address.toLowerCase(), message, signature })).toMatchObject({ main: MAIN.address })
+    const reader = { main: MAIN.address.toLowerCase(), deployment: DEPLOYMENT }
+    expect(await verifiedAddressBookEntry({ ...reader, message, signature })).toMatchObject({ main: MAIN.address })
     // Another key's signature over Main's entry, and Main's signature presented for another Main.
-    expect(await verifiedAddressBookEntry({ main: MAIN.address, message, signature: await OTHER.signMessage({ message }) })).toBeNull()
-    expect(await verifiedAddressBookEntry({ main: OTHER.address, message, signature })).toBeNull()
+    expect(await verifiedAddressBookEntry({ ...reader, message, signature: await OTHER.signMessage({ message }) })).toBeNull()
+    expect(await verifiedAddressBookEntry({ ...reader, main: OTHER.address, message, signature })).toBeNull()
+    // Main's own entry for another deployment: signed on dev, never read on production.
+    expect(await verifiedAddressBookEntry({ ...reader, deployment: "lebroker.lamarge.trade", message, signature })).toBeNull()
     // Another Main's own entry, signed by that Main: never Main's.
     const others = addressBookMessage({ ...ENTRY, main: OTHER.address })
     expect(
-      await verifiedAddressBookEntry({ main: MAIN.address, message: others, signature: await OTHER.signMessage({ message: others }) }),
+      await verifiedAddressBookEntry({ ...reader, message: others, signature: await OTHER.signMessage({ message: others }) }),
     ).toBeNull()
     // A recipient changed after the signature, and a signature that isn't one.
     const changed = message.replace(getAddress(SUB_2), getAddress("0x4444444444444444444444444444444444444444"))
-    expect(await verifiedAddressBookEntry({ main: MAIN.address, message: changed, signature })).toBeNull()
-    expect(await verifiedAddressBookEntry({ main: MAIN.address, message, signature: "0x1234" })).toBeNull()
+    expect(await verifiedAddressBookEntry({ ...reader, message: changed, signature })).toBeNull()
+    expect(await verifiedAddressBookEntry({ ...reader, message, signature: "0x1234" })).toBeNull()
   })
 
   test("is told apart from any other text, wherever it sits in one", () => {
@@ -129,5 +170,90 @@ describe("Main's address-book entry (D70)", () => {
     expect(isAddressBookMessage({ message })).toBe(true)
     expect(isAddressBookMessage({ message: `Sign this\n\n${message}` })).toBe(true)
     expect(isAddressBookMessage({ message: "Register Lighter Account" })).toBe(false)
+  })
+})
+
+describe("the recipients approved now (D70)", () => {
+  const approve = { statement: AddressBookStatement.APPROVE, recipients: [{ address: SUB_1, label: "Sub-account 1" }] }
+  const withdraw = { ...approve, statement: AddressBookStatement.WITHDRAW }
+
+  test("for each address, the latest dated entry holds, whatever order they're listed in", () => {
+    expect(approvedRecipientsOf({ statements: [{ ...approve, at: AT }] })).toEqual([{ address: SUB_1, label: "Sub-account 1", at: AT }])
+    expect(
+      approvedRecipientsOf({
+        statements: [
+          { ...approve, at: AT },
+          { ...withdraw, at: AT + 1 },
+        ],
+      }),
+    ).toEqual([])
+    expect(
+      approvedRecipientsOf({
+        statements: [
+          { ...withdraw, at: AT + 1 },
+          { ...approve, at: AT },
+        ],
+      }),
+    ).toEqual([])
+    expect(
+      approvedRecipientsOf({
+        statements: [
+          { ...withdraw, at: AT },
+          { ...approve, at: AT + 1 },
+        ],
+      }),
+    ).toHaveLength(1)
+  })
+
+  test("a withdrawal dated as an approval holds over it, and an address is matched whatever its case", () => {
+    expect(
+      approvedRecipientsOf({
+        statements: [
+          { ...approve, at: AT },
+          { ...withdraw, at: AT },
+        ],
+      }),
+    ).toEqual([])
+    const upper = { ...withdraw, recipients: [{ address: getAddress(SUB_1), label: "Sub-account 1" }], at: AT + 1 }
+    expect(approvedRecipientsOf({ statements: [{ ...approve, at: AT }, upper] })).toEqual([])
+  })
+
+  test("a withdrawal of one address leaves the others its approval named", () => {
+    const both = { ...approve, recipients: [...approve.recipients, { address: SUB_2, label: "Sub-account 2" }], at: AT }
+    expect(approvedRecipientsOf({ statements: [both, { ...withdraw, at: AT + 1 }] })).toEqual([
+      { address: SUB_2, label: "Sub-account 2", at: AT },
+    ])
+  })
+})
+
+describe("a signature's canonical encoding", () => {
+  test("writes one signature one way: high s, v as 0 or 1, 64 bytes or upper case all read as the same", async () => {
+    const message = addressBookMessage(ENTRY)
+    const signature = await MAIN.signMessage({ message })
+    const canonical = canonicalSignature({ signature })
+    expect(canonical).toBe(signature)
+    const parts = parseSignature(signature)
+    const r = parts.r.slice(2)
+    const s = BigInt(parts.s)
+    const bit = parts.yParity
+    const highS = (SECP256K1_ORDER - s).toString(16).padStart(64, "0")
+    const compactS = ((BigInt(bit) << 255n) | s).toString(16).padStart(64, "0")
+    const encodings: Hex[] = [
+      `0x${r}${highS}${(28 - bit).toString(16)}`,
+      `0x${r}${parts.s.slice(2)}0${String(bit)}`,
+      `0x${r}${compactS}`,
+      `0x${signature.slice(2).toUpperCase()}`,
+    ]
+    for (const encoding of encodings) {
+      expect(canonicalSignature({ signature: encoding })).toBe(canonical)
+    }
+    // Each still recovers to Main, so each would verify: only the canonical one is kept.
+    expect(await recoverMessageAddress({ message, signature: encodings[0] ?? "0x" })).toBe(MAIN.address)
+  })
+
+  test("is none for what isn't an ECDSA signature", () => {
+    for (const signature of ["0x1234", "not hex", `0x${"00".repeat(65)}`, `0x${"ab".repeat(64)}1d`, `0x${"ff".repeat(65)}`]) {
+      expect(canonicalSignature({ signature })).toBeNull()
+    }
   })
 })

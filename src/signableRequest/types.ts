@@ -39,9 +39,10 @@ type SignableRequestProps = {
    */
   depositAddress?: ReadDepositAddress | undefined
   /**
-   * The recipients Main's own key approved in its address book (D70), each entry's signature checked by the signing
-   * side itself against Main's own address, never the service's word: funds from Main to another of the user's accounts
-   * go to one of them only. Absent in the browser, where the wallet's own prompt is the user's check.
+   * The recipients Main's own key approves now in its address book (D70), each entry's signature checked by the signing
+   * side itself against Main's own address and its own deployment, the latest entry naming an address holding, never
+   * the service's word: funds from Main to another of the user's accounts go to one of them only. Absent in the
+   * browser, where the wallet's own prompt is the user's check.
    */
   approvedRecipients?: readonly string[] | undefined
   /** When it's read, in ms: now, unless said. */

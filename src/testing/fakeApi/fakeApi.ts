@@ -5,7 +5,15 @@ import { randomUUID } from "node:crypto"
 import { getAddress, verifyMessage, verifyTypedData } from "viem"
 import { parseSiweMessage } from "viem/siwe"
 import { ApiRoute, HttpMethod } from "../../api/enums"
-import { SignatureRequestState, SignaturePayloadKind, typedDataFromWire, UserAccess, WalletKind } from "../../lebroker/accounts/model"
+import { parseAddressBookMessage } from "../../lebroker/accounts/addressBookMessage/addressBookMessage"
+import {
+  AddressBookStatement,
+  SignatureRequestState,
+  SignaturePayloadKind,
+  typedDataFromWire,
+  UserAccess,
+  WalletKind,
+} from "../../lebroker/accounts/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { DECLINE_ROUTE, SESSION_COOKIE, SESSION_TTL_MS, SIGN_ROUTE, SIGNATURE_REQUESTS_FRAME } from "./constants"
 import { declineBody, signBody, signInBody } from "./schema"
@@ -199,6 +207,9 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
                 entries: (books.get(user.id) ?? []).map((entry, index) => ({
                   id: `entry-${index + 1}`,
                   ...entry,
+                  // The service's word of what the entry says, read here from the message, which nothing checks.
+                  statement: parseAddressBookMessage({ message: entry.message })?.statement ?? AddressBookStatement.APPROVE,
+                  deployment: parseAddressBookMessage({ message: entry.message })?.deployment ?? "",
                   signedAt: new Date(0).toISOString(),
                   addedAt: new Date(0).toISOString(),
                 })),
@@ -243,8 +254,14 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
     addEntry: ({ userId, message, signature, recipients = [] }) => {
       books.set(userId, [...(books.get(userId) ?? []), { message, signature, recipients }])
     },
-    failAddressBook: () => {
-      bookFails = true
+    removeEntry: ({ userId, message }) => {
+      books.set(
+        userId,
+        (books.get(userId) ?? []).filter(entry => entry.message !== message),
+      )
+    },
+    failAddressBook: ({ failing }) => {
+      bookFails = failing
     },
     submitted: ({ requestId }) =>
       new Promise(resolve => {
