@@ -1,5 +1,6 @@
 // A stand-in for lebroker's hosted account process, for tests: its sign-in, session cookie, origin check, accounts,
-// signature requests and event stream, each checked as the service checks them. Tests only.
+// signature requests and event stream, each checked as the service checks them, and an address book listed as given,
+// unchecked, as a service gone wrong may list it. Tests only.
 import { randomUUID } from "node:crypto"
 import { getAddress, verifyMessage, verifyTypedData } from "viem"
 import { parseSiweMessage } from "viem/siwe"
@@ -13,6 +14,7 @@ import type {
   FailSignProps,
   FakeApi,
   FakeApiProps,
+  FakeEntry,
   FakeUser,
   JsonProps,
   RequestProps,
@@ -60,8 +62,10 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
   const signIns: SignIn[] = []
   const declines: Decline[] = []
   const calls: string[] = []
+  const books = new Map<string, FakeEntry[]>()
   const encoder = new TextEncoder()
   let failure: FailSignProps | null = null
+  let bookFails = false
 
   function userOf({ request }: RequestProps): FakeUser | null {
     const pair = (request.headers.get("cookie") ?? "")
@@ -187,6 +191,19 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
           },
         })
       }
+      case `${HttpMethod.GET} ${ApiRoute.ADDRESS_BOOK}`:
+        return bookFails
+          ? json({ body: { error: "The address book can't be read now" }, status: 503 })
+          : json({
+              body: {
+                entries: (books.get(user.id) ?? []).map((entry, index) => ({
+                  id: `entry-${index + 1}`,
+                  ...entry,
+                  signedAt: new Date(0).toISOString(),
+                  addedAt: new Date(0).toISOString(),
+                })),
+              },
+            })
       case `${HttpMethod.GET} ${ApiRoute.EVENTS}`:
         return events({ request, user })
       default:
@@ -222,6 +239,12 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
     expireSessions: () => sessions.clear(),
     failNextSign: props => {
       failure = props
+    },
+    addEntry: ({ userId, message, signature, recipients = [] }) => {
+      books.set(userId, [...(books.get(userId) ?? []), { message, signature, recipients }])
+    },
+    failAddressBook: () => {
+      bookFails = true
     },
     submitted: ({ requestId }) =>
       new Promise(resolve => {

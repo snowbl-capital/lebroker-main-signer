@@ -1,9 +1,19 @@
+import { isHex } from "viem"
+import { isAddressBookMessage, verifiedAddressBookEntry } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
 import { SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
 import { WITHDRAWAL_DEPOSIT_MIN_USD } from "../lebroker/signer/model"
 import { venueDepositAddress } from "../lebroker/web/helpers/venueDepositAddress/venueDepositAddress"
 import { DEPOSIT_ADDRESS_CACHE_MS, DEPOSIT_ADDRESS_PAUSE_MS, HYPERLIQUID_WITHDRAW_PRIMARY_TYPE } from "./constants"
-import type { CreateDepositAddressReaderProps, DepositAddressReader, DepositVenueOfProps, ErrorTextProps, Timers } from "./types"
+import type {
+  ApprovedRecipientsProps,
+  AsksAddressBookEntryProps,
+  CreateDepositAddressReaderProps,
+  DepositAddressReader,
+  DepositVenueOfProps,
+  ErrorTextProps,
+  Timers,
+} from "./types"
 
 /** An error's words for a log line: its message, never the object, which may carry what it was called with. */
 function errorText({ error }: ErrorTextProps): string {
@@ -63,6 +73,26 @@ function createDepositAddressReader(props: CreateDepositAddressReaderProps): Dep
   }
 }
 
+/**
+ * The recipients this wallet's own key approved in its address book (lebroker's D70), from the entries the service
+ * lists, each checked here: an entry counts only when its message names this wallet's own address as Main and its
+ * signature recovers to that address. Its recipients are read from the message as signed, never from the service's
+ * own list of them.
+ */
+async function approvedRecipients({ entries, main }: ApprovedRecipientsProps): Promise<string[]> {
+  const verified = await Promise.all(
+    entries.map(entry =>
+      isHex(entry.signature) ? verifiedAddressBookEntry({ main, message: entry.message, signature: entry.signature }) : null,
+    ),
+  )
+  return verified.flatMap(content => (content === null ? [] : content.recipients.map(recipient => recipient.address)))
+}
+
+/** Whether a request asks Main to sign an address-book entry, or a text that carries one: only the user does, in their wallet. */
+function asksAddressBookEntry({ request }: AsksAddressBookEntryProps): boolean {
+  return request.payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE && isAddressBookMessage({ message: request.payload.message })
+}
+
 const runtimeTimers: Timers = {
   every: ({ ms, run }) => {
     const interval = setInterval(run, ms)
@@ -84,4 +114,4 @@ const runtimeTimers: Timers = {
     }),
 }
 
-export { createDepositAddressReader, errorText, runtimeTimers }
+export { approvedRecipients, asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers }

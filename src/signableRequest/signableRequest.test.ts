@@ -514,6 +514,70 @@ describe("a transfer from Main", () => {
   })
 })
 
+describe("Main's address book, where the Main signer reads it (D70)", () => {
+  function transferTo({ approvedRecipients, destination = SUB }: { approvedRecipients?: readonly string[]; destination?: Address }) {
+    return requestOf({
+      kind: SignatureRequestKind.TRANSFER,
+      venue: VenueId.HYPERLIQUID,
+      typedData: sendAsset({ destination }),
+      ...(approvedRecipients === undefined ? {} : { approvedRecipients }),
+    })
+  }
+
+  test("sends to a sub-account only once an entry Main's own key signed approves it", () => {
+    expect(refusalOf(transferTo({ approvedRecipients: [] }))).toBe(SignableRefusal.NOT_IN_ADDRESS_BOOK)
+    expect(refusalOf(transferTo({ approvedRecipients: [STRANGER] }))).toBe(SignableRefusal.NOT_IN_ADDRESS_BOOK)
+    expect(signableRequest(transferTo({ approvedRecipients: [STRANGER, SUB] })).ok).toBe(true)
+    const aster = { kind: SignatureRequestKind.TRANSFER, venue: VenueId.ASTER, typedData: asterTransfer({ to: SUB }) }
+    expect(refusalOf(requestOf({ ...aster, approvedRecipients: [] }))).toBe(SignableRefusal.NOT_IN_ADDRESS_BOOK)
+    expect(signableRequest(requestOf({ ...aster, approvedRecipients: [SUB] })).ok).toBe(true)
+  })
+
+  test("never sends to an address the user's accounts don't list as an open sub-account, though the address book names it", () => {
+    for (const destination of [STRANGER, CLOSED_SUB, MAIN]) {
+      expect(refusalOf(transferTo({ destination, approvedRecipients: [destination] }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    }
+  })
+
+  test("leaves the browser as it was: with no address book read, the wallet's own prompt is the user's check", () => {
+    expect(signableRequest(transferTo({})).ok).toBe(true)
+  })
+
+  test("asks nothing of what sends to Main itself, the gas reserve or LaMarge's escrow", () => {
+    const toMain = hyperliquidWithdrawRequest({
+      destination: MAIN,
+      amount: 10,
+      time: ASKED_AT,
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    const none: readonly string[] = []
+    expect(
+      signableRequest(
+        requestOf({ kind: SignatureRequestKind.WITHDRAWAL, venue: VenueId.HYPERLIQUID, typedData: toMain, approvedRecipients: none }),
+      ).ok,
+    ).toBe(true)
+    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), approvedRecipients: none })).ok).toBe(
+      true,
+    )
+    const gas = hyperliquidSendAssetRequest({
+      destination: DEV_GAS_RESERVE,
+      sourceDex: HYPERLIQUID_SEND_DEX,
+      destinationDex: HYPERLIQUID_SEND_DEX,
+      token: HYPERLIQUID_USDC,
+      amount: 0.15,
+      nonce: ASKED_AT,
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    expect(
+      signableRequest(
+        requestOf({ kind: SignatureRequestKind.GAS_PURCHASE, venue: VenueId.HYPERLIQUID, typedData: gas, approvedRecipients: none }),
+      ).ok,
+    ).toBe(true)
+  })
+})
+
 describe("a withdrawal", () => {
   test("goes to Main's own wallet only", () => {
     const toMain = hyperliquidWithdrawRequest({

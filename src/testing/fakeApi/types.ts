@@ -24,6 +24,15 @@ type UserProps = { userId: string }
 
 type FailSignProps = { status: number; error: string }
 
+/**
+ * An address-book entry the fake lists, as given, unchecked, as a service gone wrong may list anything: `recipients`, the
+ * service's own word of what it approves, none by default.
+ */
+type AddEntryProps = { userId: string; message: string; signature: string; recipients?: { address: string; label: string }[] }
+
+/** A user's address-book entry, as the fake lists it. */
+type FakeEntry = Omit<AddEntryProps, "userId" | "recipients"> & { recipients: { address: string; label: string }[] }
+
 type RequestIdProps = { requestId: string }
 
 type FakeApi = {
@@ -40,6 +49,9 @@ type FakeApi = {
   expireSessions: () => void
   /** The next submission is refused with this status, as when the venue fails. */
   failNextSign: (props: FailSignProps) => void
+  addEntry: (props: AddEntryProps) => void
+  /** Every read of the address book fails from now on (503). */
+  failAddressBook: () => void
   /** Resolves once a signature for this request is taken. */
   submitted: (props: RequestIdProps) => Promise<Submission>
   stop: () => Promise<void>
@@ -58,8 +70,10 @@ type SignRouteProps = UserRequestProps & { id: string }
 type SessionBodyProps = { user: FakeUser }
 
 export type {
+  AddEntryProps,
   AddRequestProps,
   Decline,
+  FakeEntry,
   FailSignProps,
   FakeApi,
   FakeApiProps,

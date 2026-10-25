@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test"
-import { recoverTypedDataAddress } from "viem"
+import { getAddress, recoverTypedDataAddress, type Address, type Hex } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createApiClient } from "../api/api"
 import { LogEvent, SessionStage, StreamStage } from "../log/enums"
-import { SignatureRequestKind, SignatureRequestState, typedDataFromWire, SignaturePayloadKind } from "../lebroker/accounts/model"
+import { addressBookMessage } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
+import {
+  AccountKind,
+  AccountState,
+  SignatureRequestKind,
+  SignatureRequestState,
+  typedDataFromWire,
+  SignaturePayloadKind,
+} from "../lebroker/accounts/model"
 import { Network, VenueId } from "../lebroker/core/model"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
 import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
@@ -22,7 +30,7 @@ import {
 } from "../testing/fixtures/fixtures"
 import { WalletKey } from "../wallets/wallets"
 import { DEPOSIT_ADDRESS_CACHE_MS, DEPOSIT_ADDRESS_PAUSE_MS } from "./constants"
-import { FailedStep } from "./enums"
+import { FailedStep, ReadSubject, SignerRefusal } from "./enums"
 import { createWalletSigner } from "./walletSigner"
 
 const AGENT = privateKeyToAccount(generatePrivateKey()).address
@@ -63,6 +71,34 @@ function setUp({
     ...(now === undefined ? {} : { now }),
   })
   return { key, wallet, user, api, logs, timers, signer, mainId: `${userId}-main` }
+}
+
+/**
+ * Main's address-book entry approving these addresses, as the web app writes it, signed by Main's own key unless another
+ * is given, and listed by the service with `listed` as what it says the entry approves: the recipients by default.
+ */
+async function approve({
+  ctx,
+  recipients,
+  key = ctx.key,
+  listed = recipients,
+}: {
+  ctx: ReturnType<typeof setUp>
+  recipients: string[]
+  key?: Hex
+  listed?: string[]
+}) {
+  const message = addressBookMessage({
+    main: ctx.wallet.info.address,
+    recipients: recipients.map((address, index) => ({ address, label: `Sub-account ${String(index + 1)}` })),
+    at: Date.now(),
+  })
+  ctx.api.addEntry({
+    userId: ctx.user.id,
+    message,
+    signature: await privateKeyToAccount(key).signMessage({ message }),
+    recipients: listed.map(address => ({ address, label: "Sub-account" })),
+  })
 }
 
 describe("a waiting request", () => {
@@ -118,12 +154,14 @@ describe("a waiting request", () => {
     await ctx.signer.stop()
   })
 
-  test("to one of the user's own sub-accounts, read again from the service, is signed", async () => {
+  test("to one of the user's own sub-accounts, read again from the service, and approved in Main's address book, is signed", async () => {
     const ctx = setUp()
+    await approve({ ctx, recipients: [SUB] })
     ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "req-3", accountId: ctx.mainId, destination: SUB }) })
     await ctx.signer.pass()
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-3"])
     expect(ctx.api.calls).toContain("GET /api/v1/accounts")
+    expect(ctx.api.calls).toContain("GET /api/v1/address-book")
   })
 
   test("left for later by the user, or expired, waits", async () => {
@@ -161,6 +199,120 @@ describe("a waiting request", () => {
         .filter(line => line.event === LogEvent.FAILED)
         .at(-1),
     ).toMatchObject({ status: 422, retry: false })
+  })
+})
+
+describe("Main's address book (lebroker's D70)", () => {
+  test("a transfer to a listed sub-account no entry approves is refused, told to lebroker, and left for the browser", async () => {
+    const ctx = setUp()
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-1", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "book-1", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+    expect(ctx.logs.read().find(line => line.event === LogEvent.REFUSED)).toMatchObject({
+      requestId: "book-1",
+      reason: SignableRefusal.NOT_IN_ADDRESS_BOOK,
+    })
+  })
+
+  test("a transfer to a sub-account an entry signed by Main's own key approves is signed", async () => {
+    const ctx = setUp()
+    await approve({ ctx, recipients: [SUB] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-2", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-2"])
+  })
+
+  test("an entry another key signed, one naming another Main, or the service's word alone, approves nothing", async () => {
+    const ctx = setUp()
+    const other = privateKeyToAccount(generatePrivateKey())
+    // Main's own entry, signed by another key.
+    await approve({ ctx, recipients: [SUB], key: generatePrivateKey() })
+    // Another Main's entry, signed by that Main.
+    const others = addressBookMessage({ main: other.address, recipients: [{ address: SUB, label: "Sub-account 1" }], at: Date.now() })
+    ctx.api.addEntry({ userId: ctx.user.id, message: others, signature: await other.signMessage({ message: others }) })
+    // An entry of Main's that approves another address, which the service lists as approving the sub-account.
+    await approve({ ctx, recipients: [STRANGER], listed: [SUB] })
+    // A signature that isn't one.
+    const unsigned = addressBookMessage({ main: ctx.wallet.info.address, recipients: [{ address: SUB, label: "Sub" }], at: Date.now() })
+    ctx.api.addEntry({ userId: ctx.user.id, message: unsigned, signature: "not hex" })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-3", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "book-3", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+  })
+
+  test("one entry approves several addresses: each sub-account it names is sent to", async () => {
+    const ctx = setUp()
+    const second = privateKeyToAccount(generatePrivateKey()).address
+    ctx.user.accounts.push({
+      id: `${ctx.user.id}-sub-2`,
+      name: "Sub-account 2",
+      kind: AccountKind.SUB,
+      slot: 2,
+      address: second,
+      state: AccountState.OPEN,
+      active: false,
+    })
+    await approve({ ctx, recipients: [SUB, second] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-4", accountId: ctx.mainId, destination: SUB }) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-5", accountId: ctx.mainId, destination: second }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-4", "book-5"])
+  })
+
+  test("matches an address whatever its case, in the request or in the user's accounts; an entry's own address is written checksummed", async () => {
+    const ctx = setUp()
+    const lower: Address = `0x${SUB.slice(2).toLowerCase()}`
+    // Asked in lower case, written checksummed in the entry.
+    await approve({ ctx, recipients: [lower] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-6", accountId: ctx.mainId, destination: lower }) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-7", accountId: ctx.mainId, destination: SUB }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-6", "book-7"])
+
+    // An entry whose address isn't written checksummed, as lebroker never writes one, reads as no entry at all.
+    const loose = setUp({ userId: "user-2" })
+    const message = addressBookMessage({
+      main: loose.wallet.info.address,
+      recipients: [{ address: SUB, label: "Sub-account 1" }],
+      at: Date.now(),
+    }).replace(getAddress(SUB), lower)
+    loose.api.addEntry({ userId: loose.user.id, message, signature: await privateKeyToAccount(loose.key).signMessage({ message }) })
+    loose.api.addRequest({ userId: loose.user.id, request: transferRequest({ id: "book-8", accountId: loose.mainId, destination: SUB }) })
+    await loose.signer.pass()
+    expect(loose.api.declines).toEqual([{ requestId: "book-8", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+  })
+
+  test("is never signed by the signer: a request for an entry, or a text that carries one, is refused and told to lebroker", async () => {
+    const ctx = setUp()
+    const entry = addressBookMessage({ main: ctx.wallet.info.address, recipients: [{ address: STRANGER, label: "Mine" }], at: Date.now() })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: requestOf({ id: "book-9", accountId: ctx.mainId, venue: VenueId.LIGHTER, message: entry }),
+    })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: requestOf({ id: "book-10", accountId: ctx.mainId, kind: SignatureRequestKind.LAMARGE_MOVE, message: `Sign in\n\n${entry}` }),
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([
+      { requestId: "book-9", reason: SignerRefusal.ADDRESS_BOOK_ENTRY },
+      { requestId: "book-10", reason: SignerRefusal.ADDRESS_BOOK_ENTRY },
+    ])
+  })
+
+  test("a read that fails approves no one: a transfer waits for the browser, the rest is signed as before", async () => {
+    const ctx = setUp()
+    await approve({ ctx, recipients: [SUB] })
+    ctx.api.failAddressBook()
+    ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-11", accountId: ctx.mainId, destination: SUB }) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "book-12", accountId: ctx.mainId, agent: AGENT }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-12"])
+    expect(ctx.api.declines).toEqual([{ requestId: "book-11", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+    expect(ctx.logs.read().find(line => line.event === LogEvent.READ_FAILED)).toMatchObject({ subject: ReadSubject.ADDRESS_BOOK })
   })
 })
 

@@ -3,6 +3,7 @@ import { readEvents } from "../eventStream/eventStream"
 import { LogEvent, StreamStage } from "../log/enums"
 import { SignatureRequestState } from "../lebroker/accounts/model"
 import { signableRequest } from "../signableRequest/signableRequest"
+import type { Signable } from "../signableRequest/types"
 import { signPayload } from "../signPayload/signPayload"
 import {
   MAX_DECLINE_REASON,
@@ -14,9 +15,9 @@ import {
   STREAM_RETRY_FIRST_MS,
   STREAM_RETRY_MAX_MS,
 } from "./constants"
-import { FailedStep, ReadSubject } from "./enums"
+import { FailedStep, ReadSubject, SignerRefusal } from "./enums"
 import type { CreateWalletSignerProps, DeclineProps, HandleProps, WalletSigner } from "./types"
-import { createDepositAddressReader, errorText, runtimeTimers } from "./utils"
+import { approvedRecipients, asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers } from "./utils"
 
 /**
  * Signs one Main wallet's signature requests as they wait (D2, D37), and only those lebroker's allowlist accepts (D43):
@@ -49,17 +50,22 @@ function createWalletSigner({
   let stopPolling: (() => void) | null = null
   let watching: Promise<void> | null = null
 
-  async function handle({ request, accounts, session }: HandleProps): Promise<void> {
+  async function handle({ request, accounts, approved, session }: HandleProps): Promise<void> {
     const logged = { id: request.id, kind: request.kind, venue: request.venue }
-    const signable = signableRequest({
-      request,
-      user: session.user,
-      accounts,
-      walletChainId: chainId,
-      appOrigin,
-      // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
-      depositAddress: await readDepositAddress({ request }),
-    })
+    // Only the user approves a recipient, in their wallet (D70): this signer never signs an address-book entry.
+    const signable: Signable = asksAddressBookEntry({ request })
+      ? { ok: false, refusal: SignerRefusal.ADDRESS_BOOK_ENTRY }
+      : signableRequest({
+          request,
+          user: session.user,
+          accounts,
+          walletChainId: chainId,
+          appOrigin,
+          // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
+          depositAddress: await readDepositAddress({ request }),
+          // Funds from Main go to another account only when an entry this wallet's own key signed names it (D70).
+          approvedRecipients: approved,
+        })
     if (!signable.ok) {
       if (!refused.has(request.id)) {
         refused.add(request.id)
@@ -148,11 +154,20 @@ function createWalletSigner({
       log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.ACCOUNTS, error: errorText({ error }) } })
       return
     }
+    // The recipients this wallet's own key approved, each entry checked here, never the service's word (D70). A read that
+    // fails approves no one: a transfer to another account is then left to the browser, everything else signed as before.
+    let approved: string[]
+    try {
+      approved = await approvedRecipients({ entries: (await client.addressBook()).entries, main: wallet.info.address })
+    } catch (error) {
+      approved = []
+      log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.ADDRESS_BOOK, error: errorText({ error }) } })
+    }
     for (const request of waiting) {
       if (stopping.signal.aborted) {
         return
       }
-      await handle({ request, accounts, session })
+      await handle({ request, accounts, approved, session })
     }
   }
 

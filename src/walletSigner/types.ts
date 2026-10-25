@@ -1,4 +1,4 @@
-import type { ApiClient, Session } from "../api/types"
+import type { AddressBookList, ApiClient, Session } from "../api/types"
 import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView } from "../lebroker/web/types"
@@ -41,7 +41,13 @@ type WalletSigner = {
   stop: () => Promise<void>
 }
 
-type HandleProps = { request: SignatureRequestView; accounts: readonly AccountView[]; session: Session }
+/** `approved`: the recipients this wallet's own key approved in its address book, each entry checked here (D70). */
+type HandleProps = { request: SignatureRequestView; accounts: readonly AccountView[]; approved: readonly string[]; session: Session }
+
+/** The entries as the service lists them, and the wallet's own address, the Main each must name and be signed by. */
+type ApprovedRecipientsProps = { entries: AddressBookList["entries"]; main: string }
+
+type AsksAddressBookEntryProps = { request: SignatureRequestView }
 
 /** `reason`: the allowlist's refusal. `logged`: the request as the logs name it. */
 type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
@@ -57,6 +63,8 @@ type CreateDepositAddressReaderProps = { address: string; now: () => number }
 type DepositAddressReader = (props: DepositVenueOfProps) => Promise<ReadDepositAddress | undefined>
 
 export type {
+  ApprovedRecipientsProps,
+  AsksAddressBookEntryProps,
   CreateDepositAddressReaderProps,
   CreateWalletSignerProps,
   DeclineProps,

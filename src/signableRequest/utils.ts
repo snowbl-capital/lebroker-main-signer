@@ -9,6 +9,7 @@ import { NotSignable } from "./errors"
 import type {
   AllowedChainProps,
   AmountProps,
+  ApprovalsProps,
   AppOriginProps,
   AtMostProps,
   ChainOfProps,
@@ -19,6 +20,7 @@ import type {
   OwnAccountProps,
   QueryFieldsProps,
   RefuseProps,
+  RuleAccount,
   SameAddressProps,
   SameDomainValueProps,
   ToAccountProps,
@@ -85,13 +87,36 @@ function queryFields({ query, names }: QueryFieldsProps): Record<string, string>
   return Object.fromEntries(entries)
 }
 
-/** The open sub-account of the user's at an address: funds from Main go to the user's own accounts only. */
+/**
+ * The open sub-account of the user's at an address: funds from Main go to the user's own accounts only, and, where the
+ * signing side reads Main's address book, to one an entry signed by Main's own key approves (D70). Every rule that
+ * sends from Main to another account passes here.
+ */
 function ownSubAccount({ address, accounts }: OwnAccountProps) {
-  const account = accounts.find(
-    own =>
-      own.kind === AccountKind.SUB && own.state === AccountState.OPEN && own.address !== null && isAddress({ address, other: own.address }),
-  )
-  return account ?? refuse({ refusal: SignableRefusal.NOT_YOUR_ACCOUNT })
+  const account =
+    accounts.find(
+      own =>
+        own.kind === AccountKind.SUB &&
+        own.state === AccountState.OPEN &&
+        own.address !== null &&
+        isAddress({ address, other: own.address }),
+    ) ?? refuse({ refusal: SignableRefusal.NOT_YOUR_ACCOUNT })
+  if (!account.approved) {
+    refuse({ refusal: SignableRefusal.NOT_IN_ADDRESS_BOOK })
+  }
+  return account
+}
+
+/**
+ * The user's accounts, each with whether funds from Main may go to it (D70): every one where no address book is read,
+ * as in the browser, only those whose address an approved recipient names otherwise. Set here, whatever the accounts
+ * said before.
+ */
+function withApprovals({ accounts, approvedRecipients }: ApprovalsProps): RuleAccount[] {
+  return accounts.map(account => ({
+    ...account,
+    approved: approvedRecipients === undefined || approvedRecipients.some(other => isAddress({ address: account.address, other })),
+  }))
 }
 
 /** The chain a typed message is signed on, as its domain names it. */
@@ -190,4 +215,5 @@ export {
   toAccount,
   until,
   wholeNumber,
+  withApprovals,
 }

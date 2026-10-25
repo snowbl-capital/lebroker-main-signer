@@ -32,6 +32,8 @@ type RequestOfProps = {
   depositVenue?: VenueId | null
   /** That venue's address for Main, as the signing side read it from the venue; none read by default. */
   depositAddress?: ReadDepositAddress
+  /** The recipients Main's address book approves, as the Main signer reads it; none read, as in the browser, by default. */
+  approvedRecipients?: readonly string[]
   /** The origin of the deployment the request is signed on: lebroker's dev by default, whose gas reserve is pinned. */
   appOrigin?: string
   /** When it was asked, in ms. */
