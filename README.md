@@ -79,7 +79,7 @@ A log line never holds a key, a signature or a request's payload. The keys stay 
 
 ## Kept in sync with lebroker
 
-The allowlist and the shapes around it are copied from lebroker, at commit `664e65cf` (24 October 2026, LaMarge's SDK 0.7.0 and its sends between the user's accounts, lebroker PR #472), but for the accounts list's `shared` field (D55), which the signer doesn't read yet. Each copied declaration reads word for word as its source's; only the imports differ, rewritten to this repository's paths. A file copied whole keeps every declaration of its source; another keeps only those the signer needs.
+The allowlist and the shapes around it are copied from lebroker, at commit `6435c836` (25 October 2026, LaMarge's SDK 0.7.0, its sends between the user's accounts and a take's fee consent bounded at 100 bps, lebroker PR #472), but for the accounts list's `shared` field (D55), which the signer doesn't read yet. Each copied declaration reads word for word as its source's; only the imports differ, rewritten to this repository's paths. A file copied whole keeps every declaration of its source; another keeps only those the signer needs.
 
 `bun run mirror:check <path to a lebroker checkout>` compares them all with that checkout and lists every difference. Run it whenever lebroker's allowlist changes, and copy the change here.
 
