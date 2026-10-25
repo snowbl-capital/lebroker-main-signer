@@ -296,8 +296,16 @@ function lighterProof({ owner = USER_ID, account = MAIN_ACCOUNT_ID }: { owner?: 
   }
 }
 
-/** A take's payment from Main's Hyperliquid into `escrow`, delivered from `receiveEscrow` on HyperEVM, as LaMarge asks it. */
-function payTake({ escrow = ESCROW, receiveEscrow = ESCROW }: { escrow?: string; receiveEscrow?: string } = {}) {
+/**
+ * A take's payment from Main's Hyperliquid into `escrow`, delivered into `into` from `receiveEscrow`, on the chain
+ * `receiveChainId` names (`into`'s unless said), as LaMarge asks it.
+ */
+function payTake({
+  escrow = ESCROW,
+  into = "hyperliquid",
+  receiveChainId = String(CHAINS[into]?.id),
+  receiveEscrow = ESCROW,
+}: { escrow?: string; into?: string; receiveChainId?: string; receiveEscrow?: string } = {}) {
   return {
     domain: { name: "LaMarge", version: "1", chainId: CHAINS.hyperliquid?.id, verifyingContract: escrow },
     types: schemas.PayTake,
@@ -317,8 +325,8 @@ function payTake({ escrow = ESCROW, receiveEscrow = ESCROW }: { escrow?: string;
           orderId: `0x${"0a".repeat(32)}`,
           sequence: "1",
           amountOut: "59000000",
-          receiveChainId: String(CHAINS.hyperliquid?.id),
-          receiveToken: CHAINS.hyperliquid?.token,
+          receiveChainId,
+          receiveToken: CHAINS[into]?.token,
           receiveEscrow,
           receiveRecipient: MAIN,
           dex: "0",
@@ -413,7 +421,7 @@ describe("a venue's setup", () => {
     expect(refusalOf(requestOf({ venue: VenueId.POLYMARKET_PERPS, typedData: month }))).toBe(SignableRefusal.TOO_LONG)
   })
 
-  test("signs Lighter's proof for Main's own account, and its key's registration at lebroker's indexes only, 200 to 253", () => {
+  test("signs Lighter's proof for Main's own account, and its key's registration at lebroker's indexes only, 200 to 252", () => {
     expect(signableRequest(requestOf({ venue: VenueId.LIGHTER, typedData: lighterProof() })).ok).toBe(true)
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, typedData: lighterProof({ owner: "user-2" }) }))).toBe(SignableRefusal.OTHER_MAIN)
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, typedData: lighterProof({ account: "account-sub-1" }) }))).toBe(
@@ -427,11 +435,13 @@ describe("a venue's setup", () => {
     )
     expect(next.ok ? next.summary.lines : null).toContainEqual({ label: SignSummaryLabel.KEY_INDEX, value: "201" })
     expect(
-      signableRequest(requestOf({ venue: VenueId.LIGHTER, message: registrationMessage({ accountIndex: 42, apiKeyIndex: 253 }) })).ok,
+      signableRequest(requestOf({ venue: VenueId.LIGHTER, message: registrationMessage({ accountIndex: 42, apiKeyIndex: 252 }) })).ok,
     ).toBe(true)
-    // LaMarge's index, never lebroker's: a setup there would replace LaMarge's key.
-    const lamarge = registrationMessage({ accountIndex: 42, apiKeyIndex: TAKER_API_KEY })
-    expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, message: lamarge }))).toBe(SignableRefusal.NOT_LEBROKER_KEY)
+    // LaMarge's indexes, production's and development's, never lebroker's: a setup there would replace LaMarge's key.
+    for (const slots of [ENVIRONMENT_SLOTS.production, ENVIRONMENT_SLOTS.development]) {
+      const lamarge = registrationMessage({ accountIndex: 42, apiKeyIndex: slots.lighterKeyIndex })
+      expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, message: lamarge }))).toBe(SignableRefusal.NOT_LEBROKER_KEY)
+    }
     const theirs = registrationMessage({ accountIndex: 42, apiKeyIndex: 3 })
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, message: theirs }))).toBe(SignableRefusal.NOT_LEBROKER_KEY)
     const below = registrationMessage({ accountIndex: 42, apiKeyIndex: 199 })
@@ -674,6 +684,11 @@ describe("a LaMarge move", () => {
     expect(refusalOf(move({ typedData: development }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
     expect(refusalOf(move({ typedData: payTake({ receiveEscrow: DEVELOPMENT_ESCROW }) }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
     expect(refusalOf(move({ typedData: payTake(), lamarge: LAMARGE_DEV }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    // Into Aster, from its vault alone, whatever the deployment: never its retired escrow on BSC.
+    expect(signableRequest(move({ typedData: payTake({ into: "aster", receiveEscrow: CHAINS.aster?.escrow ?? "" }) })).ok).toBe(true)
+    expect(refusalOf(move({ typedData: payTake({ into: "aster", receiveEscrow: ESCROW }) }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
+    // A delivery on a chain LaMarge names for no venue.
+    expect(refusalOf(move({ typedData: payTake({ receiveChainId: "1" }) }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
   })
 
   test("pays a take inside Lighter by the key of the deployment the request is for only", () => {
