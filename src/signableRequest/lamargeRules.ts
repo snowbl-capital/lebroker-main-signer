@@ -25,7 +25,7 @@ import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS } from "./constants"
+import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, MAX_TAKE_LOSS_BPS } from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,
@@ -33,6 +33,7 @@ import type {
   DeploymentOfProps,
   LaMargeDeploymentPins,
   HexIndexProps,
+  KeepsValueProps,
   LaMargeMessageRuleProps,
   LaMargeTypedProps,
   LaMargeTypedRuleProps,
@@ -96,6 +97,17 @@ function deliveryVenue({ paid }: DeliveryVenueProps): string {
   return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
 }
 
+/**
+ * Whether a payment brings back at least what it pays less the most a take may lose (`MAX_TAKE_LOSS_BPS`): what its
+ * delivery returns (`amountOut`) and what it pays (`amount`), both dollar stablecoins, each counted at its own venue's
+ * decimals. A payment to a maker who returns nearly nothing is never one lebroker asks.
+ */
+function keepsValue({ paid, venue }: KeepsValueProps): boolean {
+  const out = laMargeCheck({ check: () => uint(paid.amountOut) * 10n ** BigInt(decimalsOf(venue)) })
+  const paidIn = laMargeCheck({ check: () => uint(paid.amount) * 10n ** BigInt(decimalsOf(deliveryVenue({ paid }))) })
+  return out * BPS >= paidIn * (BPS - MAX_TAKE_LOSS_BPS)
+}
+
 function units({ value, venue }: UnitsProps): string {
   return formatUnits(value, decimalsOf(venue))
 }
@@ -132,7 +144,10 @@ function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
 
 /**
  * A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else, each of its
- * deliveries from that deployment's escrow too, or from the contract of a venue settled inside itself.
+ * deliveries from that deployment's escrow too, or from the contract of a venue settled inside itself, to Main itself,
+ * the wallet signing and never an address the request names, for at least what it pays less the most a take may lose.
+ * LaMarge's SDK pins both against the take's fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker
+ * always takes for the account that pays.
  */
 function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
@@ -148,6 +163,12 @@ function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   // The SDK's take check takes any environment's escrow for a delivery: only the request's deployment's is.
   if (!payments.every(paid => isPinnedEscrow(deliveryVenue({ paid }), paid.receiveEscrow, escrows))) {
     refuse({ refusal: SignableRefusal.OTHER_DEPLOYMENT_ESCROW })
+  }
+  if (!payments.every(paid => isAddress({ address: paid.receiveRecipient, other: user.address }))) {
+    refuse({ refusal: SignableRefusal.NOT_TAKE_RECIPIENT })
+  }
+  if (!payments.every(paid => keepsValue({ paid, venue }))) {
+    refuse({ refusal: SignableRefusal.TAKE_LOSS })
   }
   const total = laMargeCheck({ check: () => payments.reduce((sum, paid) => sum + uint(paid.amount), 0n) })
   return {

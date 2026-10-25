@@ -116,6 +116,9 @@ type DeploymentEscrowsProps = { deployment: LaMargeDeploymentPins }
 /** One payment of a take, as LaMarge's SDK reads it from the request. */
 type DeliveryVenueProps = { paid: Record<string, unknown> }
 
+/** One payment of a take, and the venue whose escrow it pays into, in whose token its amount counts. */
+type KeepsValueProps = DeliveryVenueProps & { venue: string }
+
 /** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet (D51, phase 6). */
 type GasReservePin = { appOrigin: string; reserve: string | null }
 
@@ -168,6 +171,7 @@ export type {
   ExpectedDomainProps,
   ExpectedTypesProps,
   HexIndexProps,
+  KeepsValueProps,
   LaMargeCheckProps,
   LaMargeMessageRuleProps,
   LaMargeTypedProps,

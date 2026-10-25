@@ -296,35 +296,55 @@ function lighterProof({ owner = USER_ID, account = MAIN_ACCOUNT_ID }: { owner?: 
   }
 }
 
-/** A take's payment from Main's Hyperliquid into `escrow`, delivered from `receiveEscrow` on HyperEVM, as LaMarge asks it. */
-function payTake({ escrow = ESCROW, receiveEscrow = ESCROW }: { escrow?: string; receiveEscrow?: string } = {}) {
+/**
+ * One payment of a take from Main's Hyperliquid, its maker a stranger, delivered on `to` from `receiveEscrow` (that
+ * venue's own by default) to `receiveRecipient`: by default, as lebroker's recorded take into Aster paid it, 60 USDC for
+ * 60 USDT, each at its own decimals.
+ */
+function lockPayment({
+  to = "aster",
+  receiveEscrow = CHAINS[to]?.escrow,
+  receiveRecipient = MAIN,
+  amount = "60000000",
+  amountOut = "60000000000000000000",
+}: { to?: string; receiveEscrow?: string; receiveRecipient?: string; amount?: string; amountOut?: string } = {}) {
+  return {
+    payer: MAIN,
+    swapId: `0x${"03".repeat(32)}`,
+    recipient: STRANGER,
+    amount,
+    hashlock: `0x${"07".repeat(32)}`,
+    refundAt: String(ASKED_AT / 1000 + 7_200),
+    deadline: String(ASKED_AT / 1000 + 45),
+    orderId: `0x${"0a".repeat(32)}`,
+    sequence: "1",
+    amountOut,
+    receiveChainId: String(CHAINS[to]?.id),
+    receiveToken: CHAINS[to]?.token,
+    receiveEscrow,
+    receiveRecipient,
+    dex: "0",
+  }
+}
+
+/**
+ * A take's payment from Main's Hyperliquid into `escrow`, as LaMarge asks it: by default one payment of 60 USDC,
+ * delivered from `receiveEscrow` on HyperEVM for as much.
+ */
+function payTake({
+  escrow = ESCROW,
+  receiveEscrow = ESCROW,
+  payments = [lockPayment({ to: "hyperliquid", receiveEscrow, amountOut: "60000000" })],
+}: {
+  escrow?: string
+  receiveEscrow?: string
+  payments?: ReturnType<typeof lockPayment>[]
+} = {}) {
   return {
     domain: { name: "LaMarge", version: "1", chainId: CHAINS.hyperliquid?.id, verifyingContract: escrow },
     types: schemas.PayTake,
     primaryType: "PayTake",
-    message: {
-      payer: MAIN,
-      deposit: "60000000",
-      payments: [
-        {
-          payer: MAIN,
-          swapId: `0x${"03".repeat(32)}`,
-          recipient: STRANGER,
-          amount: "60000000",
-          hashlock: `0x${"07".repeat(32)}`,
-          refundAt: String(ASKED_AT / 1000 + 7_200),
-          deadline: String(ASKED_AT / 1000 + 45),
-          orderId: `0x${"0a".repeat(32)}`,
-          sequence: "1",
-          amountOut: "59000000",
-          receiveChainId: String(CHAINS.hyperliquid?.id),
-          receiveToken: CHAINS.hyperliquid?.token,
-          receiveEscrow,
-          receiveRecipient: MAIN,
-          dex: "0",
-        },
-      ],
-    },
+    message: { payer: MAIN, deposit: "60000000", payments },
   }
 }
 
@@ -674,6 +694,38 @@ describe("a LaMarge move", () => {
     expect(refusalOf(move({ typedData: development }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
     expect(refusalOf(move({ typedData: payTake({ receiveEscrow: DEVELOPMENT_ESCROW }) }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
     expect(refusalOf(move({ typedData: payTake(), lamarge: LAMARGE_DEV }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("pays a take that delivers to Main itself, never to an address the request names", () => {
+    const take = ({ payments }: { payments: ReturnType<typeof lockPayment>[] }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: payTake({ payments }) })
+    expect(signableRequest(take({ payments: [lockPayment()] })).ok).toBe(true)
+    expect(signableRequest(take({ payments: [lockPayment({ receiveRecipient: MAIN.toLowerCase() })] })).ok).toBe(true)
+    expect(refusalOf(take({ payments: [lockPayment({ receiveRecipient: STRANGER })] }))).toBe(SignableRefusal.NOT_TAKE_RECIPIENT)
+    // Not even one of the user's own sub-accounts: lebroker's takes deliver to the account that pays.
+    expect(refusalOf(take({ payments: [lockPayment({ receiveRecipient: SUB })] }))).toBe(SignableRefusal.NOT_TAKE_RECIPIENT)
+    expect(refusalOf(take({ payments: [lockPayment(), lockPayment({ receiveRecipient: STRANGER })] }))).toBe(
+      SignableRefusal.NOT_TAKE_RECIPIENT,
+    )
+  })
+
+  test("pays a take that brings back at least what it pays less 1.5 %, each side at its own token's decimals", () => {
+    const take = ({ payments }: { payments: ReturnType<typeof lockPayment>[] }) =>
+      requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: payTake({ payments }) })
+    // lebroker's recorded take into Aster: 60 then 40 USDC, each for as many USDT.
+    const sixty = lockPayment()
+    expect(signableRequest(take({ payments: [sixty, lockPayment({ amount: "40000000", amountOut: "40000000000000000000" })] })).ok).toBe(
+      true,
+    )
+    // 60 USDC for 59.1 USDT, 18 decimals, or for 59.1 USDC on HyperEVM, 6 decimals: the floor itself.
+    expect(signableRequest(take({ payments: [lockPayment({ amountOut: "59100000000000000000" })] })).ok).toBe(true)
+    expect(refusalOf(take({ payments: [lockPayment({ amountOut: "59099999999999999999" })] }))).toBe(SignableRefusal.TAKE_LOSS)
+    const onHyperEvm = ({ amountOut }: { amountOut: string }) => lockPayment({ to: "hyperliquid", receiveEscrow: ESCROW, amountOut })
+    expect(signableRequest(take({ payments: [onHyperEvm({ amountOut: "59100000" })] })).ok).toBe(true)
+    expect(refusalOf(take({ payments: [onHyperEvm({ amountOut: "59099999" })] }))).toBe(SignableRefusal.TAKE_LOSS)
+    // 6 decimals' worth on an 18-decimal token is nearly nothing.
+    expect(refusalOf(take({ payments: [lockPayment({ amountOut: "60000000" })] }))).toBe(SignableRefusal.TAKE_LOSS)
+    expect(refusalOf(take({ payments: [sixty, lockPayment({ amount: "40000000", amountOut: "1" })] }))).toBe(SignableRefusal.TAKE_LOSS)
   })
 
   test("pays a take inside Lighter by the key of the deployment the request is for only", () => {
