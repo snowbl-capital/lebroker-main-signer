@@ -52,6 +52,13 @@ const ASTER_TRANSFER_FIELDS: readonly string[] = [
   AsterParam.USER,
 ]
 
+/**
+ * What a LaMarge send on Polymarket signs (D69): its operation's typed data (`Op`), whose domain names no contract, and
+ * the one operation it hashes, an internal transfer, in LaMarge's SDK's words.
+ */
+const OP_TYPE = "Op"
+const OP_INTERNAL_TRANSFER = "internalTransfer"
+
 /** The EIP-712 domain's own fields, in the order a wallet writes them: what the LaMarge SDK's checks expect named. */
 const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
   { name: "name", type: "string" },
@@ -95,7 +102,10 @@ const BPS = 10_000n
  */
 const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
   { appOrigin: "https://lebroker.dev.lamarge.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
+  // The same deployment under the Leneutre name it moves to: one host, one account process, one reserve.
+  { appOrigin: "https://app.leneutre.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
   { appOrigin: "https://lebroker.lamarge.trade", reserve: null },
+  { appOrigin: "https://app.dev.leneutre.trade", reserve: null },
 ]
 
 /**
@@ -125,6 +135,8 @@ export {
   CLOCK_SLACK_MS,
   DEPOSIT_WITHDRAWAL_ACTIONS,
   EIP712_DOMAIN_FIELDS,
+  OP_INTERNAL_TRANSFER,
+  OP_TYPE,
   GAS_RESERVE_DEPLOYMENTS,
   GAS_RESERVE_PAYMENT_MAX_USD,
   HYPERLIQUID_MAINNET,

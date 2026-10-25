@@ -10,15 +10,18 @@ import {
   decimalsOf,
   fillMemo,
   fromHex,
+  opHash,
   schemas,
   transferMessage,
 } from "@lamarge/sdk/protocol"
 import type { Address } from "viem"
 import {
   LIGHTER_KEY_INDEX,
+  SignaturePayloadKind,
   SignatureRequestKind,
   SignatureRequestReason,
   type LaMargeRequestContext,
+  type LaMargeSend,
   type LaMargeTake,
 } from "../lebroker/accounts/model"
 import { Network, VenueId } from "../lebroker/core/model"
@@ -1109,6 +1112,165 @@ describe("a LaMarge move", () => {
       domain: { name: "Permit2", chainId: 1, verifyingContract: "0x000000000022D473030F116dDEE9F6B43aC78BA3" },
     }
     expect(refusalOf(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit2 }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+  })
+})
+
+describe("a LaMarge send to another of the user's accounts on the same venue (D69)", () => {
+  const POLYMARKET_TOKEN = CHAINS.polymarket?.token ?? ""
+
+  /**
+   * A Polymarket send as LaMarge's SDK prepares it: the operation, and its typed data, whose `data` the operation's hash,
+   * timed when it was asked; its terms as the executor names them, 12.5 pUSD to the user's open sub-account.
+   */
+  function polymarketSend({
+    to = SUB,
+    amount = "12.5",
+    data,
+    ts = ASKED_AT,
+    send = {},
+  }: { to?: string; amount?: string; data?: string; ts?: number; send?: Partial<LaMargeSend> } = {}) {
+    const args = { account: MAIN, token: POLYMARKET_TOKEN, amount, to }
+    const typedData = {
+      domain: { name: "Polymarket", version: "1", chainId: 137 },
+      types: schemas.Op,
+      primaryType: "Op",
+      message: { data: data ?? opHash("internalTransfer", [args.account, args.token, args.amount, args.to]), salt: 7, ts },
+    }
+    const terms: LaMargeSend = { venue: "polymarket", recipient: SUB, amount: "12500000", op: { type: "internalTransfer", args }, ...send }
+    return requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData, send: terms })
+  }
+
+  /**
+   * The user's open sub-account, at another address than the fixtures': theirs, 0x2222…2222, is Hyperliquid's HYPE system
+   * address, which LaMarge's SDK never sends to.
+   */
+  const HYPERLIQUID_SUB = "0x6666666666666666666666666666666666666666"
+
+  /** A Hyperliquid send as LaMarge prepares it: `sendAsset` in HyperEVM's domain, to the recipient, 12.5 USDC. */
+  function hyperliquidSend({ to = HYPERLIQUID_SUB, recipient = HYPERLIQUID_SUB }: { to?: string; recipient?: string } = {}) {
+    const typedData = {
+      domain: {
+        name: "HyperliquidSignTransaction",
+        version: "1",
+        chainId: 999,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
+      },
+      types: schemas["HyperliquidTransaction:SendAsset"],
+      primaryType: "HyperliquidTransaction:SendAsset",
+      message: {
+        hyperliquidChain: "Mainnet",
+        destination: to.toLowerCase(),
+        sourceDex: "",
+        destinationDex: "",
+        token: HYPERLIQUID_USDC,
+        amount: "12.5",
+        fromSubAccount: "",
+        nonce: ASKED_AT,
+      },
+    }
+    const asked = requestOf({
+      kind: SignatureRequestKind.LAMARGE_MOVE,
+      typedData,
+      send: { venue: "hyperliquid", recipient, amount: "12500000" },
+    })
+    return {
+      ...asked,
+      accounts: asked.accounts.map(account => (account.address === SUB ? { ...account, address: HYPERLIQUID_SUB } : account)),
+    }
+  }
+
+  test("signs a Polymarket send of exactly its amount to one of the user's open sub-accounts, its hash rebuilt", () => {
+    const read = signableRequest(polymarketSend())
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
+    expect(read.ok && read.summary.chainId).toBe(137)
+    expect(read.ok && read.summary.lines.some(line => line.label === SignSummaryLabel.TO && line.value.startsWith("Sub-account 1"))).toBe(
+      true,
+    )
+  })
+
+  test("never sends to anyone but one of the user's open sub-accounts, whatever the request names", () => {
+    for (const recipient of [STRANGER, CLOSED_SUB, MAIN]) {
+      expect(refusalOf(polymarketSend({ to: recipient, send: { recipient } }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    }
+    expect(refusalOf(hyperliquidSend({ to: STRANGER, recipient: STRANGER }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+  })
+
+  test("refuses an operation to another account than the one it names, though it's the user's own", () => {
+    expect(refusalOf(polymarketSend({ to: STRANGER }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(hyperliquidSend({ to: STRANGER }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses any other amount than the one the request names", () => {
+    expect(refusalOf(polymarketSend({ amount: "13" }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(polymarketSend({ send: { amount: "12500001" } }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses a hash that isn't the operation's, an operation from another account, and a stale one", () => {
+    expect(refusalOf(polymarketSend({ data: `0x${"ab".repeat(32)}` }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    const fromStranger = polymarketSend()
+    const payload = fromStranger.request.payload
+    if (payload.kind === SignaturePayloadKind.TYPED_DATA && payload.send?.op !== undefined) {
+      payload.send.op.args.account = STRANGER
+    }
+    expect(refusalOf(fromStranger)).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(polymarketSend({ ts: ASKED_AT - 120_000 }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses a Polymarket send without the operation it hashes: its prompt shows only the hash", () => {
+    const blind = polymarketSend()
+    const payload = blind.request.payload
+    if (payload.kind === SignaturePayloadKind.TYPED_DATA && payload.send !== undefined) {
+      payload.send = { venue: payload.send.venue, recipient: payload.send.recipient, amount: payload.send.amount }
+    }
+    expect(refusalOf(blind)).toBe(SignableRefusal.NO_SEND_OP)
+  })
+
+  test("signs Hyperliquid's send to the user's open sub-account, never read as a withdrawal to Main", () => {
+    const read = signableRequest(hyperliquidSend())
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
+  })
+
+  /** An Aster send as LaMarge prepares it: Aster's transfer between wallets, under a send's own id (`s`, 32 hex digits). */
+  function asterSend({ to = SUB, recipient = SUB, id = `s${"0a".repeat(16)}` }: { to?: string; recipient?: string; id?: string } = {}) {
+    const msg = new URLSearchParams([
+      ["asset", "USDT"],
+      ["amount", "12.5"],
+      ["toAddress", to],
+      ["clientTranId", id],
+      ["nonce", String(ASKED_AT * 1000)],
+      ["user", MAIN],
+    ]).toString()
+    return requestOf({
+      kind: SignatureRequestKind.LAMARGE_MOVE,
+      typedData: asterMessage({ msg, chainId: ASTER_SIGN_CHAIN_IDS[Network.MAINNET] }),
+      send: { venue: "aster", recipient, amount: (125n * 10n ** 17n).toString() },
+    })
+  }
+
+  test("signs Aster's send of exactly its amount to one of the user's open sub-accounts", () => {
+    const read = signableRequest(asterSend())
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
+  })
+
+  test("refuses an Aster send to anyone else, to another account than it names, or under a fill's id", () => {
+    for (const recipient of [STRANGER, CLOSED_SUB, MAIN]) {
+      expect(refusalOf(asterSend({ to: recipient, recipient }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    }
+    expect(refusalOf(asterSend({ to: STRANGER }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(asterSend({ id: "0a".repeat(16) }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses a send's terms on typed data of another kind: a permit, a take's payment", () => {
+    for (const typedData of [permit(), payTake()]) {
+      for (const venue of ["hyperliquid", "polymarket"]) {
+        const asked = requestOf({
+          kind: SignatureRequestKind.LAMARGE_MOVE,
+          typedData,
+          send: { venue, recipient: SUB, amount: "12500000" },
+        })
+        expect(refusalOf(asked)).toStartWith(SignableRefusal.LAMARGE_CHECK)
+      }
+    }
   })
 })
 

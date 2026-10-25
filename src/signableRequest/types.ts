@@ -1,7 +1,9 @@
 import type { Typed } from "@lamarge/sdk/protocol"
 import type {
   GasPurchaseContext,
+  LaMargeOp,
   LaMargeRequestContext,
+  LaMargeSend,
   LaMargeTake,
   SignatureRequestReason,
   TypedDataPayload,
@@ -114,8 +116,21 @@ type AmountProps = { value: unknown; symbol: string }
 
 type ToAccountProps = { account: SignableAccount }
 
-/** Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked against. */
-type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
+/**
+ * Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked
+ * against; and a send's terms, null for none (D69).
+ */
+type LaMargeTypedRuleProps = TypedRuleProps & {
+  take: LaMargeTake | null
+  lamarge: LaMargeRequestContext | null
+  send: LaMargeSend | null
+}
+
+/** A LaMarge send's typed data, and its terms as the request names them. */
+type LaMargeSendRuleProps = LaMargeTypedRuleProps & { send: LaMargeSend }
+
+/** A send's typed data, and the Polymarket operation it hashes, when the request carries one. */
+type SendTypedProps = { typedData: TypedDataPayload; op: LaMargeOp | undefined }
 
 /** A message for a LaMarge move, and the take its request names, null for none. */
 type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
@@ -178,6 +193,8 @@ type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
   ApprovalsProps,
+  LaMargeSendRuleProps,
+  SendTypedProps,
   AppOriginProps,
   DeliveryVenueProps,
   DeploymentEscrowsProps,
