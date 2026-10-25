@@ -1,3 +1,4 @@
+import { MAX_FEE_BPS } from "@lamarge/sdk/protocol"
 import { z } from "zod"
 import { VenueId } from "../../core/model"
 import { SignaturePayloadKind } from "../enums"
@@ -16,7 +17,8 @@ const laMargeTake = z.object({
     to: z.string(),
     amount_in: z.string(),
     min_out: z.string(),
-    max_fee_bps: z.number().int().nonnegative().optional(),
+    /** The most taker fee the take accepts, in basis points: never above LaMarge's most (`MAX_FEE_BPS`). */
+    max_fee_bps: z.number().int().nonnegative().max(MAX_FEE_BPS).optional(),
   }),
   fills: z.array(
     z.object({

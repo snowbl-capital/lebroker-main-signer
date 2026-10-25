@@ -1052,6 +1052,49 @@ describe("a LaMarge send to another of the user's accounts on the same venue (D6
     const read = signableRequest(hyperliquidSend())
     expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
   })
+
+  /** An Aster send as LaMarge prepares it: Aster's transfer between wallets, under a send's own id (`s`, 32 hex digits). */
+  function asterSend({ to = SUB, recipient = SUB, id = `s${"0a".repeat(16)}` }: { to?: string; recipient?: string; id?: string } = {}) {
+    const msg = new URLSearchParams([
+      ["asset", "USDT"],
+      ["amount", "12.5"],
+      ["toAddress", to],
+      ["clientTranId", id],
+      ["nonce", String(ASKED_AT * 1000)],
+      ["user", MAIN],
+    ]).toString()
+    return requestOf({
+      kind: SignatureRequestKind.LAMARGE_MOVE,
+      typedData: asterMessage({ msg, chainId: ASTER_SIGN_CHAIN_IDS[Network.MAINNET] }),
+      send: { venue: "aster", recipient, amount: (125n * 10n ** 17n).toString() },
+    })
+  }
+
+  test("signs Aster's send of exactly its amount to one of the user's open sub-accounts", () => {
+    const read = signableRequest(asterSend())
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
+  })
+
+  test("refuses an Aster send to anyone else, to another account than it names, or under a fill's id", () => {
+    for (const recipient of [STRANGER, CLOSED_SUB, MAIN]) {
+      expect(refusalOf(asterSend({ to: recipient, recipient }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    }
+    expect(refusalOf(asterSend({ to: STRANGER }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    expect(refusalOf(asterSend({ id: "0a".repeat(16) }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
+  test("refuses a send's terms on typed data of another kind: a permit, a take's payment", () => {
+    for (const typedData of [permit(), payTake()]) {
+      for (const venue of ["hyperliquid", "polymarket"]) {
+        const asked = requestOf({
+          kind: SignatureRequestKind.LAMARGE_MOVE,
+          typedData,
+          send: { venue, recipient: SUB, amount: "12500000" },
+        })
+        expect(refusalOf(asked)).toStartWith(SignableRefusal.LAMARGE_CHECK)
+      }
+    }
+  })
 })
 
 describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
