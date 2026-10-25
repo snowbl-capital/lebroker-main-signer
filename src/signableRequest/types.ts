@@ -15,6 +15,12 @@ import type { SignableRefusal } from "./enums"
 
 type SignableAccount = Pick<AccountView, "id" | "name" | "kind" | "state" | "address">
 
+/**
+ * One of the user's accounts as the rules read it. `approved`: whether funds from Main may go to it, every account in
+ * the browser, only those Main's own address book names where the signing side reads it (D70).
+ */
+type RuleAccount = SignableAccount & { approved: boolean }
+
 type SignableRequestProps = {
   request: Pick<SignatureRequestView, "kind" | "reason" | "venue" | "accountId" | "createdAt" | "payload">
   /** Main: the signed-in user, whose wallet signs. */
@@ -34,6 +40,13 @@ type SignableRequestProps = {
    * Absent where none was read, and such a withdrawal is refused.
    */
   depositAddress?: ReadDepositAddress | undefined
+  /**
+   * The recipients Main's own key approves now in its address book (D70), each entry's signature checked by the signing
+   * side itself against Main's own address and its own deployment, the latest entry naming an address holding, never
+   * the service's word: funds from Main to another of the user's accounts go to one of them only. Absent in the
+   * browser, where the wallet's own prompt is the user's check.
+   */
+  approvedRecipients?: readonly string[] | undefined
   /** When it's read, in ms: now, unless said. */
   now?: number
 }
@@ -56,11 +69,11 @@ type Signable = { ok: true; summary: SignSummary } | { ok: false; refusal: strin
 type NotSignableProps = { refusal: string }
 
 /**
- * What every rule reads: the request, Main, the user's accounts, the wallet's chain, when it was asked and when it's
- * read, in ms. `askedAt` bounds what lebroker asks for a fixed time after it asks; `now` checks the windows the
- * request's contents name, which may close before the request leaves the banner.
+ * What every rule reads: the request, Main, the user's accounts with whether funds may go to each, the wallet's chain,
+ * when it was asked and when it's read, in ms. `askedAt` bounds what lebroker asks for a fixed time after it asks;
+ * `now` checks the windows the request's contents name, which may close before the request leaves the banner.
  */
-type RuleProps = Omit<SignableRequestProps, "now"> & { askedAt: number; now: number }
+type RuleProps = Omit<SignableRequestProps, "now" | "accounts"> & { accounts: readonly RuleAccount[]; askedAt: number; now: number }
 
 type TypedRuleProps = RuleProps & { typedData: TypedDataPayload }
 
@@ -76,7 +89,10 @@ type ExpectedTypesProps = {
 
 type QueryFieldsProps = { query: string; names: readonly string[] }
 
-type OwnAccountProps = { address: unknown; accounts: readonly SignableAccount[] }
+type OwnAccountProps = { address: unknown; accounts: readonly RuleAccount[] }
+
+/** The user's accounts as the service lists them, and the recipients Main's address book approves, where it's read. */
+type ApprovalsProps = Pick<SignableRequestProps, "accounts" | "approvedRecipients">
 
 type SameAddressProps = { address: unknown; other: string }
 
@@ -131,6 +147,15 @@ type DeploymentEscrowsProps = { deployment: LaMargeDeploymentPins }
 /** One payment of a take, as LaMarge's SDK reads it from the request. */
 type DeliveryVenueProps = { paid: Record<string, unknown> }
 
+/** A take's payments, as LaMarge's SDK reads them from the request. */
+type TakePaymentsProps = { payments: readonly Record<string, unknown>[] }
+
+/**
+ * A take's payments; the venue whose escrow they pay into, in whose token their amounts count; and the one venue they
+ * deliver on, in whose token what they bring back counts.
+ */
+type KeepsValueProps = TakePaymentsProps & { venue: string; delivery: string }
+
 /** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet (D51, phase 6). */
 type GasReservePin = { appOrigin: string; reserve: string | null }
 
@@ -167,6 +192,7 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  ApprovalsProps,
   LaMargeSendRuleProps,
   SendTypedProps,
   AppOriginProps,
@@ -185,6 +211,7 @@ export type {
   ExpectedDomainProps,
   ExpectedTypesProps,
   HexIndexProps,
+  KeepsValueProps,
   LaMargeCheckProps,
   LaMargeMessageRuleProps,
   LaMargeTypedProps,
@@ -196,6 +223,7 @@ export type {
   QueryFieldsProps,
   ReadDepositAddress,
   RefuseProps,
+  RuleAccount,
   RuleProps,
   SameAddressProps,
   SameDomainValueProps,
@@ -205,6 +233,7 @@ export type {
   SignSummary,
   StartedByProps,
   SummaryLine,
+  TakePaymentsProps,
   ToAccountProps,
   TypedRuleProps,
   UnitsProps,

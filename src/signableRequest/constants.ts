@@ -91,6 +91,9 @@ const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = [
 /** How long a LaMarge permit's deadline may run, in seconds, as lebroker's mover allows it. */
 const LAMARGE_PERMIT_SECONDS = 600
 
+/** Basis points in a whole. */
+const BPS = 10_000n
+
 /**
  * lebroker's gas reserve on each deployment, by the origin its app is served from (D51, phase 6): the one address
  * Main's payment for gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`),
@@ -128,6 +131,7 @@ const DEPOSIT_WITHDRAWAL_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
 export {
   ASTER_APPROVAL_FIELDS,
   ASTER_TRANSFER_FIELDS,
+  BPS,
   CLOCK_SLACK_MS,
   DEPOSIT_WITHDRAWAL_ACTIONS,
   EIP712_DOMAIN_FIELDS,

@@ -8,6 +8,7 @@ import type {
   SignatureRequestReason,
 } from "../../lebroker/accounts/model"
 import type { VenueId } from "../../lebroker/core/model"
+import type { Address } from "viem"
 import type { ReadDepositAddress, SignableRequestProps } from "../types"
 
 /** Typed data of any shape, bigints and all, as a venue's builder makes it. */
@@ -35,6 +36,8 @@ type RequestOfProps = {
   depositVenue?: VenueId | null
   /** That venue's address for Main, as the signing side read it from the venue; none read by default. */
   depositAddress?: ReadDepositAddress
+  /** The recipients Main's address book approves, as the Main signer reads it; none read, as in the browser, by default. */
+  approvedRecipients?: readonly string[]
   /** The origin of the deployment the request is signed on: lebroker's dev by default, whose gas reserve is pinned. */
   appOrigin?: string
   /** When it was asked, in ms. */
@@ -50,4 +53,7 @@ type WiredTypedData = Extract<SignableRequestProps["request"]["payload"], { kind
 
 type RegistrationMessageProps = { accountIndex: number; apiKeyIndex: number }
 
-export type { RegistrationMessageProps, RequestOfProps, WiredTypedData, WireProps }
+/** A Hyperliquid transfer from Main to `destination`, the sub-account by default, read with these approved recipients. */
+type TransferToProps = { approvedRecipients?: readonly string[]; destination?: Address }
+
+export type { RegistrationMessageProps, RequestOfProps, TransferToProps, WiredTypedData, WireProps }

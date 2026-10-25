@@ -10,6 +10,11 @@ type Config = {
    * rules accept it beside Arbitrum, as the browser does. Null: Arbitrum only. Sign-in names it too, Ethereum's when null.
    */
   chainId: number | null
+  /**
+   * The file of the address-book entries this signer checked (lebroker's D70), kept across restarts:
+   * MAIN_ADDRESS_BOOK_FILE, `~` expanded, or `address-book.json` in the key folder.
+   */
+  addressBookFile: string
 }
 
 type ReadConfigProps = { env: Readonly<Record<string, string | undefined>>; home: string }

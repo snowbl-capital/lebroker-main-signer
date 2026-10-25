@@ -3,6 +3,7 @@ enum EnvName {
   MAIN_KEYS_DIR = "MAIN_KEYS_DIR",
   MAIN_WALLETS = "MAIN_WALLETS",
   MAIN_CHAIN_ID = "MAIN_CHAIN_ID",
+  MAIN_ADDRESS_BOOK_FILE = "MAIN_ADDRESS_BOOK_FILE",
 }
 
 // Never quote a key back: these messages reach the terminal. A URL's host and a wallet's label are safe to name.

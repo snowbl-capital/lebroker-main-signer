@@ -2,6 +2,7 @@ import { createSiweMessage } from "viem/siwe"
 import { LogEvent, SessionStage } from "../log/enums"
 import { MAIN_SIGNER_RESOURCE } from "../lebroker/accounts/constants"
 import { accountsList } from "../lebroker/web/hooks/accounts/useAccountsQueryList/schema"
+import { addressBookList } from "../lebroker/web/hooks/addressBook/useAddressBookQueryList/schema"
 import { issuedNonce } from "../lebroker/web/hooks/session/useSessionMutationSignIn/schema"
 import { SIGN_IN_STATEMENT, SIGN_IN_TTL_MS } from "../lebroker/web/hooks/session/useSessionMutationSignIn/constants"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
@@ -132,6 +133,8 @@ function createApiClient({ baseUrl, wallet, chainId, log, fetch = globalThis.fet
       readAnswer({ response: await authed({ method: HttpMethod.GET, route: ApiRoute.SIGNATURE_REQUESTS }), schema: signatureRequestsList }),
     accounts: async () =>
       readAnswer({ response: await authed({ method: HttpMethod.GET, route: ApiRoute.ACCOUNTS }), schema: accountsList }),
+    addressBook: async () =>
+      readAnswer({ response: await authed({ method: HttpMethod.GET, route: ApiRoute.ADDRESS_BOOK }), schema: addressBookList }),
     sign: async ({ id, signature }) =>
       readAnswer({
         response: await authed({

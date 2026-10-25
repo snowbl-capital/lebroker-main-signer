@@ -62,9 +62,15 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     whole: true,
   },
   { mirror: "src/lebroker/accounts/typedDataFromWire/types.ts", source: "packages/accounts/src/typedDataFromWire/types.ts", whole: true },
+  ...["addressBookMessage", "addressBookMessage.test", "constants", "enums", "types"].map(name => ({
+    mirror: `src/lebroker/accounts/addressBookMessage/${name}.ts`,
+    source: `packages/accounts/src/addressBookMessage/${name}.ts`,
+    whole: true,
+  })),
   { mirror: "src/lebroker/signer/policy/enums.ts", source: "packages/signer/src/policy/enums.ts", whole: false },
   { mirror: "src/lebroker/signer/proof/constants.ts", source: "packages/signer/src/proof/constants.ts", whole: false },
   { mirror: "src/lebroker/signer/lighterPolicy/constants.ts", source: "packages/signer/src/lighterPolicy/constants.ts", whole: false },
+  { mirror: "src/lebroker/signer/lamargePolicy/constants.ts", source: "packages/signer/src/lamargePolicy/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/hyperliquid/constants.ts", source: "packages/venues/src/hyperliquid/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/hyperliquid/enums.ts", source: "packages/venues/src/hyperliquid/enums.ts", whole: false },
   {
@@ -98,6 +104,11 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     mirror: "src/lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types.ts",
     source: "apps/web/src/hooks/signatureRequests/useSignatureRequestsQueryList/types.ts",
     whole: false,
+  },
+  {
+    mirror: "src/lebroker/web/hooks/addressBook/useAddressBookQueryList/schema.ts",
+    source: "apps/web/src/hooks/addressBook/useAddressBookQueryList/schema.ts",
+    whole: true,
   },
   {
     mirror: "src/lebroker/web/hooks/accounts/useAccountsQueryList/schema.ts",

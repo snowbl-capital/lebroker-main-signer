@@ -1,4 +1,5 @@
-import type { ApiClient, Session } from "../api/types"
+import type { AddressBookRecord } from "../addressBookRecord/types"
+import type { AddressBookList, ApiClient, Session } from "../api/types"
 import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView } from "../lebroker/web/types"
@@ -27,6 +28,11 @@ type CreateWalletSignerProps = {
    * as the web reads its page's own, for the gas reserve that deployment pins (D51).
    */
   appOrigin: string
+  /**
+   * The address-book entries this machine checked, kept across restarts (lebroker's D70): the service's list adds to
+   * them, never takes from them. Shared by every wallet's signer.
+   */
+  record: AddressBookRecord
   log: Logger
   timers?: Timers
   now?: () => number
@@ -41,7 +47,24 @@ type WalletSigner = {
   stop: () => Promise<void>
 }
 
-type HandleProps = { request: SignatureRequestView; accounts: readonly AccountView[]; session: Session }
+/**
+ * `approved`: the recipients this wallet's own key approves now in its address book, each entry checked here (D70);
+ * null when the address book couldn't be read, and a request that needs it waits for the next pass.
+ */
+type HandleProps = {
+  request: SignatureRequestView
+  accounts: readonly AccountView[]
+  approved: readonly string[] | null
+  session: Session
+}
+
+/**
+ * The entries as the service lists them; the wallet's own address, the Main each must name and be signed by; and the
+ * deployment's host, which each must name.
+ */
+type VerifiedEntriesProps = { entries: AddressBookList["entries"]; main: string; deployment: string }
+
+type AsksAddressBookEntryProps = { request: SignatureRequestView }
 
 /** `reason`: the allowlist's refusal. `logged`: the request as the logs name it. */
 type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
@@ -57,6 +80,7 @@ type CreateDepositAddressReaderProps = { address: string; now: () => number }
 type DepositAddressReader = (props: DepositVenueOfProps) => Promise<ReadDepositAddress | undefined>
 
 export type {
+  AsksAddressBookEntryProps,
   CreateDepositAddressReaderProps,
   CreateWalletSignerProps,
   DeclineProps,
@@ -67,5 +91,6 @@ export type {
   HandleProps,
   SleepProps,
   Timers,
+  VerifiedEntriesProps,
   WalletSigner,
 }

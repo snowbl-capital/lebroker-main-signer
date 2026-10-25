@@ -1,8 +1,11 @@
 import { ApiError } from "../api/errors"
 import { readEvents } from "../eventStream/eventStream"
 import { LogEvent, StreamStage } from "../log/enums"
+import { approvedRecipientsOf, withinClock } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
 import { SignatureRequestState } from "../lebroker/accounts/model"
+import { SignableRefusal } from "../signableRequest/enums"
 import { signableRequest } from "../signableRequest/signableRequest"
+import type { Signable } from "../signableRequest/types"
 import { signPayload } from "../signPayload/signPayload"
 import {
   MAX_DECLINE_REASON,
@@ -14,9 +17,9 @@ import {
   STREAM_RETRY_FIRST_MS,
   STREAM_RETRY_MAX_MS,
 } from "./constants"
-import { FailedStep, ReadSubject } from "./enums"
+import { FailedStep, ReadSubject, SignerRefusal } from "./enums"
 import type { CreateWalletSignerProps, DeclineProps, HandleProps, WalletSigner } from "./types"
-import { createDepositAddressReader, errorText, runtimeTimers } from "./utils"
+import { asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers, verifiedEntries } from "./utils"
 
 /**
  * Signs one Main wallet's signature requests as they wait (D2, D37), and only those lebroker's allowlist accepts (D43):
@@ -29,11 +32,16 @@ function createWalletSigner({
   client,
   chainId,
   appOrigin,
+  record,
   log,
   timers = runtimeTimers,
   now = Date.now,
 }: CreateWalletSignerProps): WalletSigner {
   const stopping = new AbortController()
+  // The deployment the address book's entries must name (D70): LEBROKER_URL's host, as the web writes its page's own.
+  const deployment = new URL(appOrigin).host
+  // Whether the last read of the address book failed: logged once, until one succeeds.
+  let bookUnread = false
   // Requests this signer is done with: signed, or failed for good. Neither is looked at again.
   const done = new Set<string>()
   // Requests refused and logged: checked again on each pass, in case the user's accounts change, but told once.
@@ -49,17 +57,26 @@ function createWalletSigner({
   let stopPolling: (() => void) | null = null
   let watching: Promise<void> | null = null
 
-  async function handle({ request, accounts, session }: HandleProps): Promise<void> {
+  async function handle({ request, accounts, approved, session }: HandleProps): Promise<void> {
     const logged = { id: request.id, kind: request.kind, venue: request.venue }
-    const signable = signableRequest({
-      request,
-      user: session.user,
-      accounts,
-      walletChainId: chainId,
-      appOrigin,
-      // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
-      depositAddress: await readDepositAddress({ request }),
-    })
+    // Only the user approves a recipient, in their wallet (D70): this signer never signs an address-book entry.
+    const signable: Signable = asksAddressBookEntry({ request })
+      ? { ok: false, refusal: SignerRefusal.ADDRESS_BOOK_ENTRY }
+      : signableRequest({
+          request,
+          user: session.user,
+          accounts,
+          walletChainId: chainId,
+          appOrigin,
+          // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
+          depositAddress: await readDepositAddress({ request }),
+          // Funds from Main go to another account only when an entry this wallet's own key signed approves it (D70).
+          approvedRecipients: approved ?? [],
+        })
+    // Unread, the address book decides nothing: a request that needs it is neither signed nor declined this pass.
+    if (!signable.ok && approved === null && signable.refusal === SignableRefusal.NOT_IN_ADDRESS_BOOK) {
+      return
+    }
     if (!signable.ok) {
       if (!refused.has(request.id)) {
         refused.add(request.id)
@@ -124,6 +141,40 @@ function createWalletSigner({
     }
   }
 
+  /**
+   * The recipients this wallet's own key approves now (D70): the service's entries, each checked here, never its word,
+   * added to those this machine kept, and for each address the latest dated one holding. A withdrawal seen once holds
+   * though the service stops listing it; one dated past this machine's clock by more than `ADDRESS_BOOK_MAX_SKEW_MS`
+   * says nothing. Null when the address book can't be read: logged once until a read succeeds.
+   */
+  async function readApproved(): Promise<string[] | null> {
+    let listed
+    try {
+      listed = (await client.addressBook()).entries
+    } catch (error) {
+      if (!bookUnread) {
+        bookUnread = true
+        log({
+          event: LogEvent.READ_FAILED,
+          wallet: wallet.info,
+          fields: { subject: ReadSubject.ADDRESS_BOOK, error: errorText({ error }) },
+        })
+      }
+      return null
+    }
+    bookUnread = false
+    const main = wallet.info.address
+    try {
+      const checked = await verifiedEntries({ entries: listed, main, deployment })
+      // An entry dated past this machine's clock by more than the skew is never kept: it'd hold over every withdrawal after it.
+      await record.keep({ entries: checked.filter(entry => withinClock({ at: entry.content.at, now: now() })) })
+    } catch (error) {
+      // Kept for this run all the same; the file is written again on the next pass.
+      log({ event: LogEvent.FAILED, wallet: wallet.info, fields: { step: FailedStep.RECORD, error: errorText({ error }) } })
+    }
+    return approvedRecipientsOf({ statements: record.statementsOf({ main }), now: now() }).map(recipient => recipient.address)
+  }
+
   async function passOnce(): Promise<void> {
     lastPass = now()
     let listed
@@ -148,11 +199,12 @@ function createWalletSigner({
       log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.ACCOUNTS, error: errorText({ error }) } })
       return
     }
+    const approved = await readApproved()
     for (const request of waiting) {
       if (stopping.signal.aborted) {
         return
       }
-      await handle({ request, accounts, session })
+      await handle({ request, accounts, approved, session })
     }
   }
 

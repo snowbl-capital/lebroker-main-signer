@@ -1,5 +1,6 @@
 // What the mirrored rules read of lebroker's `@lebroker/accounts/model`: the same names, from the same files.
 export { LIGHTER_KEY_INDEX, LIGHTER_LAST_KEY_INDEX } from "./constants"
+export { AddressBookStatement } from "./addressBookMessage/enums"
 export {
   AccountKind,
   AccountState,
