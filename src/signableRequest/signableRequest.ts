@@ -15,7 +15,7 @@ import {
   hyperliquidWithdrawal,
 } from "./transferRules"
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
-import { refuse } from "./utils"
+import { refuse, withApprovals } from "./utils"
 
 /** A venue's delegated access, given or renewed (D2, D38): lebroker's agent, proxy or key, and nothing else. */
 function setupSummary(props: RuleProps): SignSummary {
@@ -162,7 +162,7 @@ function signableRequest(props: SignableRequestProps): Signable {
     if (!Number.isFinite(askedAt)) {
       refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
     }
-    const summary = summaryOf({ ...props, askedAt, now: props.now ?? Date.now() })
+    const summary = summaryOf({ ...props, accounts: withApprovals(props), askedAt, now: props.now ?? Date.now() })
     // Signed on the chain the wallet shows, or on one the wallet can be switched to: never another.
     if (summary.chainId !== null && summary.chainId !== props.walletChainId && !SIGNATURE_CHAIN_IDS.has(summary.chainId)) {
       refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })

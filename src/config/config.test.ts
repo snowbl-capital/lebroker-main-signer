@@ -47,6 +47,15 @@ describe("the wallets", () => {
   })
 })
 
+describe("MAIN_ADDRESS_BOOK_FILE", () => {
+  test("is the key folder's address-book.json unless said, `~` read as the home folder", () => {
+    expect(read({ LEBROKER_URL: "http://127.0.0.1:8190" }).addressBookFile).toBe(join(HOME, "wts", "address-book.json"))
+    expect(read({ LEBROKER_URL: "http://127.0.0.1:8190", MAIN_ADDRESS_BOOK_FILE: "~/signer/book.json" }).addressBookFile).toBe(
+      join(HOME, "signer", "book.json"),
+    )
+  })
+})
+
 describe("MAIN_CHAIN_ID", () => {
   test("is a positive whole number, or none", () => {
     expect(read({ LEBROKER_URL: "http://127.0.0.1:8190" }).chainId).toBeNull()
