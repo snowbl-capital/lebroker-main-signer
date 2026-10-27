@@ -7,7 +7,7 @@ import type { VenueDepositAddressProps } from "./types"
 
 /**
  * A venue's deposit address for Main's own address, read by the signing side itself from the venue, never from
- * lebroker (D49): Lighter's intent address on Arbitrum, made for Main's L1 address with no key, which credits Main's
+ * lebroker: Lighter's intent address on Arbitrum, made for Main's L1 address with no key, which credits Main's
  * Lighter account. A venue that has none, doesn't answer in time, or answers something else, throws: nothing is signed.
  */
 async function venueDepositAddress({ venue, address }: VenueDepositAddressProps): Promise<string> {

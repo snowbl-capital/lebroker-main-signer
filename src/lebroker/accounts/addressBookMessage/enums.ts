@@ -1,5 +1,5 @@
 /**
- * The fixed words of Main's address-book entry (D70), as the wallet shows them in clear: the app, the deployment it's
+ * The fixed words of Main's address-book entry, as the wallet shows them in clear: the app, the deployment it's
  * for, Main, what Main says of the recipients with their labels, and the date.
  */
 enum AddressBookLine {
@@ -31,7 +31,7 @@ enum AddressBookMessageError {
   TWICE = "An address book entry names each address once.",
   LABEL = "A recipient's label is 1 to 64 letters, digits, spaces or . _ ' ( ) # -, starting with a letter or a digit.",
   DATE = "An address book entry's date is a time.",
-  DEPLOYMENT = "An address book entry names the lebroker deployment it's for by its host, in lower case.",
+  DEPLOYMENT = "An address book entry names the leneutre deployment it's for by its host, in lower case.",
 }
 
 export { AddressBookLine, AddressBookMessageError, AddressBookStatement }

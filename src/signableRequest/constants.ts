@@ -52,6 +52,13 @@ const ASTER_TRANSFER_FIELDS: readonly string[] = [
   AsterParam.USER,
 ]
 
+/**
+ * What a LaMarge send on Polymarket signs: its operation's typed data (`Op`), whose domain names no contract, and
+ * the one operation it hashes, an internal transfer, in LaMarge's SDK's words.
+ */
+const OP_TYPE = "Op"
+const OP_INTERNAL_TRANSFER = "internalTransfer"
+
 /** The EIP-712 domain's own fields, in the order a wallet writes them: what the LaMarge SDK's checks expect named. */
 const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
   { name: "name", type: "string" },
@@ -88,14 +95,16 @@ const LAMARGE_PERMIT_SECONDS = 600
 const BPS = 10_000n
 
 /**
- * lebroker's gas reserve on each deployment, by the origin its app is served from (D51, phase 6): the one address
- * Main's payment for gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`),
- * never a request's word. Null until the deployment's reserve exists: Main buys no gas there, and no screen offers it.
- * A deployment not listed, a local stack's included, pins none.
+ * lebroker's gas reserve on each deployment, by the origin its app is served from: the one address Main's payment for
+ * gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`), never a request's
+ * word. Null until the deployment's reserve is funded: Main buys no gas there, and no screen offers it. A deployment
+ * not listed, a local stack's included, pins none.
  */
 const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
+  { appOrigin: "https://app.leneutre.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
+  // The same deployment under the name it moved from, which a Main signer may still name: one host, one reserve.
   { appOrigin: "https://lebroker.dev.lamarge.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
-  { appOrigin: "https://lebroker.lamarge.trade", reserve: null },
+  { appOrigin: "https://app.dev.leneutre.trade", reserve: null },
 ]
 
 /**
@@ -104,14 +113,14 @@ const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
  */
 const GAS_RESERVE_PAYMENT_MAX_USD = 20
 
-/** Hyperliquid names its network in every user-signed action: lebroker runs on mainnet only (D9). */
+/** Hyperliquid names its network in every user-signed action: lebroker runs on mainnet only. */
 const HYPERLIQUID_MAINNET = "Mainnet"
 
 /** The token Hyperliquid's transfers and withdrawals move. */
 const USDC = "USDC"
 
 /**
- * What Main's withdrawal straight into a venue's deposit address for Main does, by venue (D49): only the venues the
+ * What Main's withdrawal straight into a venue's deposit address for Main does, by venue: only the venues the
  * signer's least lists (`WITHDRAWAL_DEPOSIT_MIN_USD`) take one.
  */
 const DEPOSIT_WITHDRAWAL_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
@@ -127,6 +136,8 @@ export {
   EIP712_DOMAIN_FIELDS,
   GAS_RESERVE_DEPLOYMENTS,
   GAS_RESERVE_PAYMENT_MAX_USD,
+  OP_INTERNAL_TRANSFER,
+  OP_TYPE,
   HYPERLIQUID_MAINNET,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,

@@ -36,7 +36,7 @@ describe("venueDepositAddress", () => {
     await expect(venueDepositAddress({ venue: VenueId.LIGHTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.UNREAD)
   })
 
-  test("reads nothing for a venue lebroker opens no account on with a withdrawal", async () => {
+  test("reads nothing for a venue leneutre opens no account on with a withdrawal", async () => {
     const fetched = spyOn(globalThis, "fetch")
     await expect(venueDepositAddress({ venue: VenueId.ASTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.NONE)
     expect(fetched).not.toHaveBeenCalled()

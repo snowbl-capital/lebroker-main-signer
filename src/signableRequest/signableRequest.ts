@@ -17,7 +17,7 @@ import {
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
 import { refuse, withApprovals } from "./utils"
 
-/** A venue's delegated access, given or renewed (D2, D38): lebroker's agent, proxy or key, and nothing else. */
+/** A venue's delegated access, given or renewed: lebroker's agent, proxy or key, and nothing else. */
 function setupSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
   if (payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE) {
@@ -42,7 +42,7 @@ function setupSummary(props: RuleProps): SignSummary {
 }
 
 /**
- * A transfer from Main to one of the user's own sub-accounts (D19, D32), where its destination can be read before it's
+ * A transfer from Main to one of the user's own sub-accounts, where its destination can be read before it's
  * signed. Polymarket Perps signs a hash of its command, which can't be: the browser refuses it.
  */
 function transferSummary(props: RuleProps): SignSummary {
@@ -65,8 +65,8 @@ function transferSummary(props: RuleProps): SignSummary {
 }
 
 /**
- * A withdrawal of Main's, to Main's own wallet only (D3, D31); or Hyperliquid's straight into a venue's deposit address
- * for Main, which opens Main's account there (D49), where the request names that venue.
+ * A withdrawal of Main's, to Main's own wallet only; or Hyperliquid's straight into a venue's deposit address
+ * for Main, which opens Main's account there, where the request names that venue.
  */
 function withdrawalSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -91,8 +91,8 @@ function withdrawalSummary(props: RuleProps): SignSummary {
 }
 
 /**
- * Main's payment to lebroker's gas reserve for gas sent to its wallet (D51, phase 6): from Main's Hyperliquid account,
- * readable before it's signed, to the reserve this deployment pins only.
+ * Main's payment to lebroker's gas reserve for gas sent to its wallet: from Main's Hyperliquid account, readable before
+ * it's signed, to the reserve this deployment pins only.
  */
 function gasPurchaseSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -117,11 +117,17 @@ function accountModeSummary(props: RuleProps): SignSummary {
   return hyperliquidUnifiedAccount({ ...props, typedData: payload.typedData })
 }
 
-/** A LaMarge move out of one of Main's venues (D2, D20). */
+/** A LaMarge move out of one of Main's venues. */
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
   return payload.kind === SignaturePayloadKind.TYPED_DATA
-    ? laMargeTyped({ ...props, typedData: payload.typedData, take: payload.take ?? null, lamarge: payload.lamarge ?? null })
+    ? laMargeTyped({
+        ...props,
+        typedData: payload.typedData,
+        take: payload.take ?? null,
+        lamarge: payload.lamarge ?? null,
+        send: payload.send ?? null,
+      })
     : laMargeMessage({ ...props, message: payload.message, take: payload.take ?? null, lamarge: payload.lamarge ?? null })
 }
 
@@ -149,10 +155,10 @@ function summaryOf(props: RuleProps): SignSummary {
 }
 
 /**
- * Whether Main's wallet may sign a request, read from the request alone (D2): a strict allowlist of what lebroker asks
+ * Whether Main's wallet may sign a request, read from the request alone: a strict allowlist of what lebroker asks
  * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, or the gas
- * reserve the asking deployment pins (D51), and the one
- * chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as a compromised host would, is refused before the
+ * reserve the asking deployment pins, and the one chain it may be signed on, the wallet's own or one of
+ * `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as a compromised host would, is refused before the
  * wallet opens, and the summary says what is signed in place of the service's words.
  */
 function signableRequest(props: SignableRequestProps): Signable {

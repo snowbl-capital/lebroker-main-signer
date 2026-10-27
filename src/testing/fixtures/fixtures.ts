@@ -12,7 +12,7 @@ import { Network, VenueId } from "../../lebroker/core/model"
 import { HYPERLIQUID_AGENT_NAME, HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC } from "../../lebroker/venues/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { createLogger } from "../../log/log"
-import { DEV_GAS_RESERVE, wire } from "../../signableRequest/testing/fixtures"
+import { LIVE_GAS_RESERVE, wire } from "../../signableRequest/testing/fixtures"
 import {
   hyperliquidApproveAgentRequest,
   hyperliquidSendAssetRequest,
@@ -124,10 +124,10 @@ function transferRequest({ id, accountId, destination, askedAt = Date.now() }: T
   return requestOf({ id, accountId, kind: SignatureRequestKind.TRANSFER, typedData, createdAt: askedAt })
 }
 
-/** Main's payment of $0.15 to lebroker's dev gas reserve, for gas on Arbitrum, as the executor's gas purchase asks it. */
+/** Main's payment of $0.15 to lebroker's live gas reserve, for gas on Arbitrum, as the executor's gas purchase asks it. */
 function gasPaymentRequest({ id, accountId, askedAt = Date.now() }: GasPaymentProps): SignatureRequestView {
   const typedData = hyperliquidSendAssetRequest({
-    destination: DEV_GAS_RESERVE,
+    destination: LIVE_GAS_RESERVE,
     sourceDex: HYPERLIQUID_SEND_DEX,
     destinationDex: HYPERLIQUID_SEND_DEX,
     token: HYPERLIQUID_USDC,

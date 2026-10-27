@@ -1,7 +1,7 @@
 import { TAKER_API_KEYS } from "@lamarge/sdk/protocol"
 
 /**
- * The first API key index lebroker's own key may take on each account's Lighter account (D6): one key per account.
+ * The first API key index lebroker's own key may take on each account's Lighter account: one key per account.
  * Lighter's own apps take indexes 0 to 3, and LaMarge's keys 254 in production and 253 in development
  * (`TAKER_API_KEYS`); other tools tend to take the low ones after them, and a self-hosted executor 200. A registration
  * replaces whatever key stands at its index, so lebroker registers its own at the first index from 200 to 252 where

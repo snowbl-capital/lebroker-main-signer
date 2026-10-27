@@ -1,7 +1,7 @@
 import { ChainId } from "./enums"
 import type { ChainInfo } from "./types"
 
-/** Each chain margin crosses between venues, or the gas reserve sends gas on, by its id. */
+/** Each chain margin crosses between venues, by its id. */
 const CHAINS: Record<ChainId, ChainInfo> = {
   [ChainId.ETHEREUM]: { id: ChainId.ETHEREUM, name: "Ethereum", nativeSymbol: "ETH", explorerUrl: "https://etherscan.io" },
   [ChainId.BSC]: { id: ChainId.BSC, name: "BSC", nativeSymbol: "BNB", explorerUrl: "https://bscscan.com" },

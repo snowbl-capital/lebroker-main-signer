@@ -1,48 +1,50 @@
-/** Why the browser refuses to sign a request: before the wallet opens, nothing is signed (D2). */
+/** Why the browser refuses to sign a request: before the wallet opens, nothing is signed. */
 enum SignableRefusal {
-  UNKNOWN_KIND = "lebroker never asks Main to sign this kind of request.",
-  UNKNOWN_VENUE = "lebroker never asks Main to sign this for this venue.",
-  UNKNOWN_SHAPE = "This request isn't one lebroker builds: its signing domain or its fields are not the expected ones.",
-  UNKNOWN_CHAIN = "This request names a chain lebroker never signs on.",
+  UNKNOWN_KIND = "leneutre never asks Main to sign this kind of request.",
+  UNKNOWN_VENUE = "leneutre never asks Main to sign this for this venue.",
+  UNKNOWN_SHAPE = "This request isn't one leneutre builds: its signing domain or its fields are not the expected ones.",
+  UNKNOWN_CHAIN = "This request names a chain leneutre never signs on.",
   OTHER_MAIN = "This request names another wallet than your Main.",
   OTHER_ACCOUNT = "This request is for another account than the one it names.",
   NOT_YOUR_ACCOUNT = "This request sends funds to an address that isn't one of your accounts.",
-  /** Where the signing side reads Main's address book (D70): the Main signer, never the browser. */
+  /** Where the signing side reads Main's address book: the Main signer, never the browser. */
   NOT_IN_ADDRESS_BOOK = "This request sends funds to an account your address book doesn't approve: approve it in Settings, Address book, or sign it in your wallet.",
-  NOT_LEBROKER_AGENT = "This request approves an agent that isn't lebroker's.",
-  NOT_LEBROKER_KEY = "This request registers a key at an index lebroker doesn't use.",
-  WITHDRAW_PERMISSION = "This request gives an agent more than trading: lebroker's agent never withdraws.",
-  TOO_LONG = "This request lasts longer than lebroker ever asks.",
+  NOT_LEBROKER_AGENT = "This request approves an agent that isn't leneutre's.",
+  NOT_LEBROKER_KEY = "This request registers a key at an index leneutre doesn't use.",
+  WITHDRAW_PERMISSION = "This request gives an agent more than trading: leneutre's agent never withdraws.",
+  TOO_LONG = "This request lasts longer than leneutre ever asks.",
   OPAQUE = "This request can't be read before it's signed, so the browser won't sign it.",
   LAMARGE_CHECK = "LaMarge's checks refused this request:",
   NO_TAKE = "This transfer pays someone else, and names no LaMarge take whose maker it pays.",
   NOT_TAKE_ACCOUNTS = "This Lighter transfer goes between other accounts than Main's and the maker's its LaMarge take names.",
-  UNKNOWN_DEPLOYMENT = "This request doesn't say which LaMarge it's for, or names one lebroker doesn't sign for.",
+  UNKNOWN_DEPLOYMENT = "This request doesn't say which LaMarge it's for, or names one leneutre doesn't sign for.",
   NOT_MAIN_LIGHTER_ACCOUNT = "This request registers LaMarge's key on another Lighter account than Main's.",
   OTHER_DEPLOYMENT_KEY = "This request registers LaMarge's key at another deployment's index than the one it's for.",
   OTHER_DEPLOYMENT_ESCROW = "This request names another LaMarge escrow than the one of the deployment it's for.",
   NOT_TAKE_RECIPIENT = "This LaMarge take delivers to another address than your Main.",
   NOT_TAKE_DELIVERY = "This LaMarge take delivers another token than its venue's own on its chain, or on more than one chain.",
-  TAKE_LOSS = "This LaMarge take brings back less than lebroker ever lets a take lose of what it pays.",
-  NO_GAS_RESERVE = "lebroker has no gas reserve pinned for this deployment: Main buys no gas here.",
-  NOT_GAS_RESERVE = "This payment goes to an address that isn't lebroker's gas reserve for this deployment.",
-  GAS_OVER_CAP = "This payment is more than lebroker's gas reserve is ever paid at once.",
-  /** Main's withdrawal straight into a venue's deposit address for Main (D49): only where it opens Main's account. */
-  DEPOSIT_VENUE = "This withdrawal pays a venue lebroker never opens Main's account on with a withdrawal.",
+  TAKE_LOSS = "This LaMarge take brings back less than leneutre ever lets a take lose of what it pays.",
+  NO_GAS_RESERVE = "leneutre has no gas reserve pinned for this deployment: Main buys no gas here.",
+  NOT_GAS_RESERVE = "This payment goes to an address that isn't leneutre's gas reserve for this deployment.",
+  GAS_OVER_CAP = "This payment is more than leneutre's gas reserve is ever paid at once.",
+  /** Main's withdrawal straight into a venue's deposit address for Main: only where it opens Main's account. */
+  DEPOSIT_VENUE = "This withdrawal pays a venue leneutre never opens Main's account on with a withdrawal.",
   DEPOSIT_TOO_SMALL = "This withdrawal is less than the venue opens an account from once Hyperliquid's fee is out.",
   DEPOSIT_UNREAD = "The venue's deposit address for your Main couldn't be read just now: nothing was signed.",
   NOT_DEPOSIT_ADDRESS = "This withdrawal pays an address that isn't the venue's deposit address for your Main.",
+  /** A LaMarge send on Polymarket, whose wallet prompt shows a hash, without the operation it hashes. */
+  NO_SEND_OP = "This Polymarket send doesn't carry the operation its signature hashes, so the browser can't check it.",
   /** Main's Hyperliquid account switched to a mode (D66): only ever to unified. */
   NOT_UNIFIED = "This request switches Main's Hyperliquid account to another mode than unified.",
 }
 
 /** The words of a request's decoded summary, shown before Sign. */
 enum SignSummaryText {
-  APPROVE_HYPERLIQUID_AGENT = "Approve lebroker's Hyperliquid agent to trade for Main",
-  APPROVE_ASTER_AGENT = "Approve lebroker's Aster agent to trade perps for Main, never to withdraw",
-  APPROVE_POLYMARKET_PROXY = "Approve lebroker's Polymarket Perps proxy to trade for Main",
+  APPROVE_HYPERLIQUID_AGENT = "Approve leneutre's Hyperliquid agent to trade for Main",
+  APPROVE_ASTER_AGENT = "Approve leneutre's Aster agent to trade perps for Main, never to withdraw",
+  APPROVE_POLYMARKET_PROXY = "Approve leneutre's Polymarket Perps proxy to trade for Main",
   PROVE_LIGHTER_ACCOUNT = "Prove that this Lighter account is Main's",
-  REGISTER_LIGHTER_KEY = "Register lebroker's trading key on Main's Lighter account",
+  REGISTER_LIGHTER_KEY = "Register leneutre's trading key on Main's Lighter account",
   TRANSFER = "Transfer funds from Main to one of your accounts",
   WITHDRAW_TO_MAIN = "Withdraw funds to Main's own wallet",
   WITHDRAW_INTO_LIGHTER = "Withdraw funds from Main's Hyperliquid straight into Main's own Lighter account, which opens it",
@@ -55,11 +57,12 @@ enum SignSummaryText {
   LAMARGE_ASTER_AGENT = "Approve LaMarge's Aster agent to move Main's margin to Spot, never to withdraw",
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
-  /** Followed by the amount, then what it buys: "Pay lebroker's gas reserve $0.15 for gas on Arbitrum". */
-  PAY_GAS_RESERVE = "Pay lebroker's gas reserve",
+  LAMARGE_SEND = "Send funds from Main to one of your sub-accounts on the same venue, through LaMarge",
+  /** Followed by the amount, then what it buys: "Pay leneutre's gas reserve $0.15 for gas on Arbitrum". */
+  PAY_GAS_RESERVE = "Pay leneutre's gas reserve",
   FOR_GAS_ON = "for gas on",
-  /** lebroker's gas reserve as a payment's destination, followed by its short address. */
-  GAS_RESERVE = "lebroker's gas reserve",
+  /** The gas reserve as a payment's destination, followed by its short address. */
+  GAS_RESERVE = "leneutre's gas reserve",
 }
 
 enum SignSummaryLabel {

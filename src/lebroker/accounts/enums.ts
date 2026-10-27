@@ -1,4 +1,4 @@
-/** What the wallet that signs in is (D31): a contract wallet's Main delegates nothing on the venues. */
+/** What the wallet that signs in is: a contract wallet's Main delegates nothing on the venues. */
 enum WalletKind {
   EOA = "eoa",
   CONTRACT = "contract",
@@ -7,7 +7,7 @@ enum WalletKind {
 enum AccountKind {
   /** The signed-in wallet itself: we never hold its key. */
   MAIN = "main",
-  /** A key the signer generated and holds (D3). */
+  /** A key the signer generated and holds. */
   SUB = "sub",
 }
 
@@ -15,7 +15,7 @@ enum AccountState {
   /** Its slot reserved, its key not made yet by the signer. */
   CREATING = "creating",
   OPEN = "open",
-  /** Emptied and closed by its user (D18): its slot is free again, its key's deletion scheduled. */
+  /** Emptied and closed by its user: its slot is free again, its key's deletion scheduled. */
   CLOSED = "closed",
 }
 
@@ -24,31 +24,31 @@ enum UserAccess {
   /** Signed in, not admitted yet: sent to `/access` from every page but the public ones. */
   PENDING = "pending",
   ADMITTED = "admitted",
-  /** Admitted, then suspended by an operator (D30): lebroker changes nothing for them until it is lifted. */
+  /** Admitted, then suspended by an operator: lebroker changes nothing for them until it is lifted. */
   SUSPENDED = "suspended",
 }
 
-/** What Main is asked to sign (D37). */
+/** What Main is asked to sign. */
 enum SignatureRequestKind {
-  /** A venue's delegated access, given the first time (D38). */
+  /** A venue's delegated access, given the first time. */
   VENUE_SETUP = "venue-setup",
-  /** A venue's delegated access, given again before it ends (D2). */
+  /** A venue's delegated access, given again before it ends. */
   VENUE_RENEWAL = "venue-renewal",
   /** A LaMarge move out of one of Main's venues, which its delegated key can't sign. */
   LAMARGE_MOVE = "lamarge-move",
-  /** A transfer from Main to another account inside a venue (D19). */
+  /** A transfer from Main to another account inside a venue. */
   TRANSFER = "transfer",
   WITHDRAWAL = "withdrawal",
   /**
    * Main's payment to lebroker's gas reserve, from its own Hyperliquid account, for gas the reserve then sends to its
-   * wallet (D51, phase 6).
+   * wallet.
    */
   GAS_PURCHASE = "gas-purchase",
   /** Main's own venue account switched to the mode lebroker runs it in: Hyperliquid's unified account (D66). */
   ACCOUNT_MODE = "account-mode",
 }
 
-/** Why it's asked (D37). */
+/** Why it's asked. */
 enum SignatureRequestReason {
   /** The user set a venue up. */
   SETUP = "setup",

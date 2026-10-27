@@ -10,7 +10,6 @@ enum VenueId {
   POLYMARKET_PERPS = "polymarket-perps",
   ASTER = "aster",
   LIGHTER = "lighter",
-  EXTENDED = "extended",
 }
 
 export { Network, VenueId }

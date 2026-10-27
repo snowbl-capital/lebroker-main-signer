@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { signaturePayload, SignatureRequestKind, SignatureRequestReason, SignatureRequestState } from "../../../../accounts/model"
 
-/** A request waiting for Main (D37), as the banner and its dialog read it. */
+/** A request waiting for Main, as the bell and the signature dialog read it. */
 const signatureRequestView = z.object({
   id: z.string(),
   accountId: z.string(),

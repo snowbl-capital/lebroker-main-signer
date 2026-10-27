@@ -1,6 +1,6 @@
 import { ESCROW_DEPLOYMENTS, type DeploymentManifest } from "@lamarge/sdk/protocol"
 import { AccountKind, AccountState } from "../lebroker/accounts/model"
-import { isRecord, shortAddress } from "../lebroker/core/model"
+import { shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
 import { GAS_RESERVE_DEPLOYMENTS } from "./constants"
@@ -89,7 +89,7 @@ function queryFields({ query, names }: QueryFieldsProps): Record<string, string>
 
 /**
  * The open sub-account of the user's at an address: funds from Main go to the user's own accounts only, and, where the
- * signing side reads Main's address book, to one an entry signed by Main's own key approves (D70). Every rule that
+ * signing side reads Main's address book, to one an entry signed by Main's own key approves. Every rule that
  * sends from Main to another account passes here.
  */
 function ownSubAccount({ address, accounts }: OwnAccountProps) {
@@ -108,7 +108,7 @@ function ownSubAccount({ address, accounts }: OwnAccountProps) {
 }
 
 /**
- * The user's accounts, each with whether funds from Main may go to it (D70): every one where no address book is read,
+ * The user's accounts, each with whether funds from Main may go to it: every one where no address book is read,
  * as in the browser, only those whose address an approved recipient names otherwise. Set here, whatever the accounts
  * said before.
  */
@@ -156,11 +156,6 @@ function until({ ms }: UntilProps): string {
   return formatDate({ iso: new Date(ms).toISOString() })
 }
 
-/** A record of a decoded value, or a refusal. */
-function recordOf({ value }: ValueProps): Record<string, unknown> {
-  return isRecord(value) ? value : refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
-}
-
 /** A decimal amount as a venue writes it, with its token: what the summary shows. */
 function amount({ value, symbol }: AmountProps): string {
   if (typeof value !== "string" || !/^\d{1,18}(\.\d{1,18})?$/.test(value)) {
@@ -174,7 +169,7 @@ function toAccount({ account }: ToAccountProps): string {
   return account.address === null ? account.name : `${account.name} (${shortAddress({ address: account.address })})`
 }
 
-/** lebroker's gas reserve the deployment at this origin pins (D51, phase 6); null where it pins none. */
+/** lebroker's gas reserve the deployment at this origin pins; null where it pins none. */
 function pinnedGasReserve({ appOrigin }: AppOriginProps): string | null {
   return GAS_RESERVE_DEPLOYMENTS.find(pin => pin.appOrigin === appOrigin)?.reserve ?? null
 }
@@ -209,7 +204,6 @@ export {
   ownSubAccount,
   pinnedGasReserve,
   queryFields,
-  recordOf,
   refuse,
   text,
   toAccount,

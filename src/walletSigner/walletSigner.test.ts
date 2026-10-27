@@ -21,7 +21,7 @@ import {
 import { Network, VenueId } from "../lebroker/core/model"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
 import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
-import { LEBROKER_DEV } from "../signableRequest/testing/fixtures"
+import { LEBROKER_LIVE } from "../signableRequest/testing/fixtures"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
 import {
@@ -265,13 +265,13 @@ describe("Main's address book (lebroker's D70)", () => {
     expect(ctx.api.declines).toEqual([{ requestId: "book-3", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
   })
 
-  test("an entry Main signed for another deployment approves nothing here: signed on dev, never read on production", async () => {
-    const ctx = await setUp({ appOrigin: LEBROKER_DEV })
-    await approve({ ctx, recipients: [SUB], deployment: "lebroker.lamarge.trade" })
+  test("an entry Main signed for another deployment approves nothing here: signed on dev, never read on live", async () => {
+    const ctx = await setUp({ appOrigin: LEBROKER_LIVE })
+    await approve({ ctx, recipients: [SUB], deployment: "app.dev.leneutre.trade" })
     ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-13", accountId: ctx.mainId, destination: SUB }) })
     await ctx.signer.pass()
     expect(ctx.api.declines).toEqual([{ requestId: "book-13", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
-    await approve({ ctx, recipients: [SUB], deployment: new URL(LEBROKER_DEV).host })
+    await approve({ ctx, recipients: [SUB], deployment: new URL(LEBROKER_LIVE).host })
     await ctx.signer.pass()
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-13"])
   })
@@ -447,7 +447,7 @@ describe("Main's address book (lebroker's D70)", () => {
 
 describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
   test("is signed for the deployment that pins the reserve, LEBROKER_URL's, and logged as what it pays", async () => {
-    const ctx = await setUp({ appOrigin: LEBROKER_DEV })
+    const ctx = await setUp({ appOrigin: LEBROKER_LIVE })
     ctx.api.addRequest({ userId: ctx.user.id, request: gasPaymentRequest({ id: "req-g1", accountId: ctx.mainId }) })
     await ctx.signer.pass()
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g1"])
