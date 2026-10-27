@@ -1,4 +1,4 @@
-/** lebroker's agent's name on every Main: it never changes, so each renewal replaces it and takes no second slot (D2). */
+/** lebroker's agent's name on every Main: it never changes, so each renewal replaces it and takes no second slot. */
 const LEBROKER_AGENT_NAME = "lebroker"
 
 /** The longest an agent may last: 180 days was accepted, 181 refused (tested on mainnet, 18 October 2026). */

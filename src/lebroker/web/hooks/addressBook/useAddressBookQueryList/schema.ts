@@ -2,7 +2,7 @@ import { AddressBookStatement } from "../../../../accounts/model"
 import { z } from "zod"
 
 /**
- * One entry of the user's address book (D70), as the service keeps it: the message Main signed in clear, its signature,
+ * One entry of the user's address book, as the service keeps it: the message Main signed in clear, its signature,
  * whether it approves its recipients or withdraws their approval, the deployment it names, and when. The service's
  * word only: the Main signer checks each signature itself.
  */

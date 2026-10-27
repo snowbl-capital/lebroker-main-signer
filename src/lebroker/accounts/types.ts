@@ -9,8 +9,11 @@ type TypedDataPayload = {
   message: Record<string, unknown>
 }
 
-/** A take's terms as LaMarge's API answered them, in its own field names: what its SDK checks a take's payment against. */
-type LaMargeTakeInput = { from: string; to: string; amount_in: string; min_out: string }
+/**
+ * A take's terms as LaMarge's API answered them, in its own field names: what its SDK checks a take's payment against.
+ * `max_fee_bps`: the highest taker fee it accepts, absent without consent, which then pays none.
+ */
+type LaMargeTakeInput = { from: string; to: string; amount_in: string; min_out: string; max_fee_bps?: number | undefined }
 
 /** One fill of a take as LaMarge's API answered it: its maker's recipient, what it pays and delivers, and its windows. */
 type LaMargeTakeFill = {
@@ -31,6 +34,8 @@ type LaMargeTakeFill = {
   t1: string
   t2: string
   delivery_to?: string | null | undefined
+  /** The taker fee the fill carries, which its `swap_id` says too; absent from a server before fees. */
+  taker_fee?: string | undefined
 }
 
 /**
@@ -53,16 +58,28 @@ type LaMargeTake = { input: LaMargeTakeInput; fills: LaMargeTakeFill[]; lighter?
  */
 type LaMargeRequestContext = { appOrigin: string; lighterAccountIndex?: number | undefined }
 
+/** A Polymarket operation as LaMarge prepared it, its strings exactly as sent: what its typed data's `data` hashes. */
+type LaMargeOp = { type: string; args: { account: string; token: string; amount: string; to: string } }
+
 /**
- * What a payment to lebroker's gas reserve buys (D51, phase 6): gas on this chain, sent to Main's own wallet once
+ * A LaMarge send from Main to another of the user's accounts on the same venue, as the mover asked LaMarge for it:
+ * the venue, by LaMarge's id, the recipient, the exact amount in the venue token's base units, and on Polymarket the
+ * operation whose hash Main's wallet signs. The service's word: the signing side holds the recipient to the user's own
+ * accounts, and rebuilds and checks what's signed against the rest (`checkSend`).
+ */
+type LaMargeSend = { venue: string; recipient: string; amount: string; op?: LaMargeOp | undefined }
+
+/**
+ * What a payment to lebroker's gas reserve buys: gas on this chain, sent to Main's own wallet once
  * paid. The service's word, for the summary: what's signed is the payment alone.
  */
 type GasPurchaseContext = { chainId: number }
 
 /**
  * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
- * `lamarge`, for a LaMarge request, the deployment it's for; `gas`, for a payment to lebroker's gas reserve, what it buys;
- * `depositVenue`, for a withdrawal paid straight into a venue's deposit address for Main, which opens Main's account
+ * `lamarge`, for a LaMarge request, the deployment it's for; `send`, for a LaMarge send to another of the user's
+ * accounts, its terms; `gas`, for a payment to lebroker's gas reserve, what it buys; `depositVenue`, for a withdrawal
+ * paid straight into a venue's deposit address for Main, which opens Main's account
  * there, that venue: the signing side reads the address itself from the venue before it signs, never the request's word.
  */
 type SignaturePayload =
@@ -73,6 +90,7 @@ type SignaturePayload =
       lamarge?: LaMargeRequestContext | undefined
       gas?: GasPurchaseContext | undefined
       depositVenue?: VenueId | undefined
+      send?: LaMargeSend | undefined
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE
@@ -84,7 +102,9 @@ type SignaturePayload =
 export type {
   GasPurchaseContext,
   LaMargeLighterAccounts,
+  LaMargeOp,
   LaMargeRequestContext,
+  LaMargeSend,
   LaMargeTake,
   LaMargeTakeFill,
   LaMargeTakeInput,

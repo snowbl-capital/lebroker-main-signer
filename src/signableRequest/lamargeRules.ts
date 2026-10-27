@@ -10,6 +10,7 @@ import {
   checkLighterTakeIntent,
   checkLoginChallenge,
   checkPermit,
+  checkSend,
   checkWithdrawal,
   decimalsOf,
   fromHex,
@@ -19,13 +20,14 @@ import {
   transferMessage,
   uint,
   withdrawalCost,
+  type TransferTyped,
   type Typed,
 } from "@lamarge/sdk/protocol"
 import { SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE, MAX_TAKE_LOSS_BPS } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS } from "./constants"
+import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, OP_INTERNAL_TRANSFER, OP_TYPE } from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
   ChainOfProps,
@@ -35,9 +37,11 @@ import type {
   HexIndexProps,
   KeepsValueProps,
   LaMargeMessageRuleProps,
+  LaMargeSendRuleProps,
   LaMargeTypedProps,
   LaMargeTypedRuleProps,
   LighterTakeProps,
+  SendTypedProps,
   SignSummary,
   StartedByProps,
   SummaryLine,
@@ -45,7 +49,7 @@ import type {
   UnitsProps,
   VenueOfProps,
 } from "./types"
-import { chainOf, deploymentEscrows, isAddress, laMargeCheck, refuse, text } from "./utils"
+import { chainOf, deploymentEscrows, isAddress, laMargeCheck, ownSubAccount, refuse, text, toAccount, wholeNumber } from "./utils"
 
 /**
  * Typed data as LaMarge's SDK checks it: its domain's four fields and none more, the chain id a number, and the domain's
@@ -73,6 +77,69 @@ function sdkTyped({ typedData }: ChainOfProps): Typed {
       verifyingContract: text({ value: typedData.domain.verifyingContract }),
     },
     message: typedData.message,
+  }
+}
+
+/**
+ * A send's typed data as LaMarge's SDK checks it: on Polymarket, its operation's typed data (`Op`), whose domain names
+ * no contract, with the operation the request carries, which the SDK hashes again and compares to what's signed. Without
+ * one, a Polymarket send can't be read, and is refused; any other venue's is typed data as any LaMarge request's.
+ */
+function sendTyped({ typedData, op }: SendTypedProps): TransferTyped {
+  if (typedData.primaryType !== OP_TYPE) {
+    return sdkTyped({ typedData })
+  }
+  if (op === undefined || op.type !== OP_INTERNAL_TRANSFER) {
+    return refuse({ refusal: SignableRefusal.NO_SEND_OP })
+  }
+  const names = Object.keys(typedData.domain)
+  if (names.some(name => !EIP712_DOMAIN_FIELDS.some(field => field.name === name)) || names.includes("verifyingContract")) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+  }
+  return {
+    types: {
+      EIP712Domain: EIP712_DOMAIN_FIELDS.filter(field => names.includes(field.name)),
+      ...Object.fromEntries(
+        Object.entries(typedData.types)
+          .filter(entry => entry[0] !== "EIP712Domain")
+          .map(entry => [entry[0], [...entry[1]]]),
+      ),
+    },
+    primaryType: OP_TYPE,
+    domain: {
+      name: text({ value: typedData.domain.name }),
+      version: text({ value: typedData.domain.version }),
+      chainId: chainOf({ typedData }),
+    },
+    message: {
+      data: text({ value: typedData.message.data }),
+      salt: wholeNumber({ value: typedData.message.salt }),
+      ts: wholeNumber({ value: typedData.message.ts }),
+    },
+    op: { type: OP_INTERNAL_TRANSFER, args: op.args },
+  }
+}
+
+/**
+ * A LaMarge send from Main to another of the user's accounts on the same venue: only to one of the user's own open
+ * sub-accounts, the recipient read from the user's accounts, never the request's word alone. LaMarge's SDK then rebuilds
+ * and checks what's signed against that recipient and the amount the request names (`checkSend`), from Main's own
+ * account: on Polymarket, where the wallet shows only a hash, the operation the request carries, whose account, token,
+ * amount and recipient it checks, and whose hash must be the one signed.
+ */
+function send({ typedData, user, accounts, now, request, send: asked }: LaMargeSendRuleProps): SignSummary {
+  const to = ownSubAccount({ address: asked.recipient, accounts })
+  const typed = sendTyped({ typedData, op: asked.op })
+  const sent = laMargeCheck({ check: () => BigInt(asked.amount) })
+  laMargeCheck({ check: () => checkSend(typed, asked.venue, user.address, text({ value: to.address }), sent, now / 1000) })
+  return {
+    action: SignSummaryText.LAMARGE_SEND,
+    lines: [
+      { label: SignSummaryLabel.AMOUNT, value: units({ value: sent, venue: asked.venue }) },
+      { label: SignSummaryLabel.TO, value: toAccount({ account: to }) },
+      ...startedBy({ reason: request.reason }),
+    ],
+    chainId: typed.domain.chainId,
   }
 }
 
@@ -139,7 +206,7 @@ function units({ value, venue }: UnitsProps): string {
 
 /**
  * The permit LaMarge's escrow takes Main's token with, only on moves Main signs: its pinned token, and the escrow of
- * the deployment the request is for (D20).
+ * the deployment the request is for.
  */
 function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
@@ -246,7 +313,7 @@ function startedBy({ reason }: StartedByProps): SummaryLine[] {
 
 /**
  * A LaMarge take paid inside Aster: with one paid inside Lighter, the only case where Main pays someone who isn't one of
- * the user's accounts, the maker who fills the take, peer to peer, before LaMarge releases what Main receives (D20). Only a transfer of exactly
+ * the user's accounts, the maker who fills the take, peer to peer, before LaMarge releases what Main receives. Only a transfer of exactly
  * the take's one fill, from Main, to that fill's maker recipient, under its id, with Main its taker and receiver, within
  * its windows, as LaMarge's SDK checks a take's payment (`checkAsterTakeIntent`). The take is the request's, as
  * LaMarge's API answered it: no maker's signature binds its recipient, so the summary names it.
@@ -280,7 +347,7 @@ function hexIndex({ hex }: HexIndexProps): number {
 
 /**
  * A LaMarge take paid inside Lighter: as inside Aster, Main pays the maker who fills the take, peer to peer, before
- * LaMarge releases what Main receives (D20), by Lighter's owner message for the transfer LaMarge's key sends from Main's
+ * LaMarge releases what Main receives, by Lighter's owner message for the transfer LaMarge's key sends from Main's
  * account. Only that message as LaMarge's SDK writes it, read field by field and written again the same: LaMarge's key
  * at its pinned index, USDC between collateral routes, on Lighter's chain. It goes from Main's Lighter account to the
  * maker's, as the take names them, and pays exactly the take's one fill, under its id, with Main its taker and receiver,
@@ -355,11 +422,15 @@ function asterMessage(props: LaMargeTypedProps): SignSummary {
 }
 
 /**
- * What Main signs for a LaMarge move (D2, D20): only what LaMarge's own SDK checks against its pinned deployment, and
+ * What Main signs for a LaMarge move: only what LaMarge's own SDK checks against its pinned deployment, and
  * whose funds go to its pinned escrow, back to Main, or, for a take paid inside Aster or Lighter, to the maker who
  * fills it.
  */
 function laMargeTyped(props: LaMargeTypedRuleProps): SignSummary {
+  // A send to another account names its terms: held to them, never read as a withdrawal to Main.
+  if (props.send !== null) {
+    return send({ ...props, send: props.send })
+  }
   const typed = sdkTyped(props)
   switch (typed.primaryType) {
     case LaMargeWord.PERMIT_TYPE:

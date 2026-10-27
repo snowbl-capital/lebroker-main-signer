@@ -2,7 +2,7 @@ import { z } from "zod"
 import { accountView } from "../../../schema"
 
 /**
- * A closed sub-account funds reached before its key went (D18): when the key goes, in ms since the epoch, and what it
+ * A closed sub-account funds reached before its key went: when the key goes, in ms since the epoch, and what it
  * holds in all, in dollars. Main keeps it before then, or the funds are lost with the key.
  */
 const fundedClosedAccount = accountView.extend({ keyDeletionAt: z.number(), heldUsd: z.number() })

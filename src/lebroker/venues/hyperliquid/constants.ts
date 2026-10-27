@@ -36,8 +36,7 @@ const SEND_ASSET_TYPES = {
 } as const
 
 /**
- * `sendAsset` moves USDC from spot to spot (D19, tested on mainnet on 18 October 2026, on a unified account). Its token
- * is named as Hyperliquid's API spells it: name and token id.
+ * The spot balance, as `sendAsset` names it: a send spot to spot works on mainnet from a unified account. Its token is named as Hyperliquid's API spells it: name and token id.
  */
 const SEND_ASSET_DEX = "spot"
 

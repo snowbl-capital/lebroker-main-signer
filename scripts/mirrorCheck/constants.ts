@@ -37,8 +37,8 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     whole: true,
   })),
   ...["constants", "enums", "types"].map(name => ({
-    mirror: `src/lebroker/core/bridges/${name}.ts`,
-    source: `packages/core/src/bridges/${name}.ts`,
+    mirror: `src/lebroker/core/chains/${name}.ts`,
+    source: `packages/core/src/chains/${name}.ts`,
     whole: false,
   })),
   { mirror: "src/lebroker/core/enums.ts", source: "packages/core/src/enums.ts", whole: false },

@@ -5,7 +5,7 @@ import type { AddressBookStatement } from "./enums"
 type AddressBookRecipient = { address: Address; label: string }
 
 /**
- * What an address-book entry says (D70): the deployment it's for, by host; Main, checksummed; whether it approves its
+ * What an address-book entry says: the deployment it's for, by host; Main, checksummed; whether it approves its
  * recipients or withdraws their approval; and when, in ms.
  */
 type AddressBookContent = {

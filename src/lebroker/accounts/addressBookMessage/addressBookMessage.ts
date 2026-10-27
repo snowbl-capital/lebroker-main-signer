@@ -73,7 +73,7 @@ function contentProblem({ content }: ContentProblemProps): AddressBookMessageErr
 }
 
 /**
- * Main's address-book entry (D70), as its wallet signs it in clear (EIP-191): the app, the deployment it's for by its
+ * Main's address-book entry, as its wallet signs it in clear (EIP-191): the app, the deployment it's for by its
  * host, Main, whether Main approves the recipients or withdraws their approval, each recipient's label and full
  * checksummed address, one a line, and the date. Throws the first problem of what's asked.
  */
@@ -187,7 +187,7 @@ function canonicalSignature({ signature }: CanonicalSignatureProps): Hex | null 
 }
 
 /**
- * The entry Main's own key signed (D70): the message reads as an entry, names exactly this Main and this deployment,
+ * The entry Main's own key signed: the message reads as an entry, names exactly this Main and this deployment,
  * and its EIP-191 signature recovers to that Main. Null otherwise. A key's signature only, checked with no call out: a
  * contract wallet's is checked on its chain, by whoever can read it.
  */
@@ -206,14 +206,14 @@ async function verifiedAddressBookEntry({
 }
 
 /**
- * Whether an entry's date is within the reader's own clock (D70): no more than `ADDRESS_BOOK_MAX_SKEW_MS` past it. One
+ * Whether an entry's date is within the reader's own clock: no more than `ADDRESS_BOOK_MAX_SKEW_MS` past it. One
  * dated later is ignored and never kept: a far-future approval would otherwise hold over every withdrawal after it.
  */
 function withinClock({ at, now }: WithinClockProps): boolean {
   return at <= now + ADDRESS_BOOK_MAX_SKEW_MS
 }
 
-/** Whether one entry holds over another naming the same address (D70): dated later, or a withdrawal dated as an approval. */
+/** Whether one entry holds over another naming the same address: dated later, or a withdrawal dated as an approval. */
 function holdsOver({ said, kept }: HoldsOverProps): boolean {
   return (
     said.at > kept.at ||
@@ -222,7 +222,7 @@ function holdsOver({ said, kept }: HoldsOverProps): boolean {
 }
 
 /**
- * The recipients approved now (D70): for each address, the latest dated entry naming it holds, an approval or its
+ * The recipients approved now: for each address, the latest dated entry naming it holds, an approval or its
  * withdrawal; a withdrawal dated the same as an approval holds over it. Addresses matched whatever their case. An entry
  * dated past the reader's clock by more than the skew says nothing.
  */

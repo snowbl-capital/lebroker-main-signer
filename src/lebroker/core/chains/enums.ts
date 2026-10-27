@@ -1,4 +1,4 @@
-/** The EVM chains margin crosses between venues, and those the gas reserve sends gas on (D51), by chain id. */
+/** The EVM chains margin crosses between venues, by chain id. */
 enum ChainId {
   ETHEREUM = 1,
   BSC = 56,

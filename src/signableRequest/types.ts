@@ -1,7 +1,9 @@
 import type { Typed } from "@lamarge/sdk/protocol"
 import type {
   GasPurchaseContext,
+  LaMargeOp,
   LaMargeRequestContext,
+  LaMargeSend,
   LaMargeTake,
   SignatureRequestReason,
   TypedDataPayload,
@@ -15,7 +17,7 @@ type SignableAccount = Pick<AccountView, "id" | "name" | "kind" | "state" | "add
 
 /**
  * One of the user's accounts as the rules read it. `approved`: whether funds from Main may go to it, every account in
- * the browser, only those Main's own address book names where the signing side reads it (D70).
+ * the browser, only those Main's own address book names where the signing side reads it.
  */
 type RuleAccount = SignableAccount & { approved: boolean }
 
@@ -29,17 +31,17 @@ type SignableRequestProps = {
   walletChainId: number | null
   /**
    * The origin of the lebroker deployment that asks, as the signing side knows it, never the request's word: the
-   * page's own, or the service the Main signer signs for. Which gas reserve a payment for gas may go to (D51).
+   * page's own, or the service the Main signer signs for. Which gas reserve a payment for gas may go to.
    */
   appOrigin: string
   /**
-   * For Main's withdrawal straight into a venue's deposit address for Main (D49), that address as the signing side read
+   * For Main's withdrawal straight into a venue's deposit address for Main, that address as the signing side read
    * it itself from the venue the request names, for Main's own address, just before it signs: never the request's word.
    * Absent where none was read, and such a withdrawal is refused.
    */
   depositAddress?: ReadDepositAddress | undefined
   /**
-   * The recipients Main's own key approves now in its address book (D70), each entry's signature checked by the signing
+   * The recipients Main's own key approves now in its address book, each entry's signature checked by the signing
    * side itself against Main's own address and its own deployment, the latest entry naming an address holding, never
    * the service's word: funds from Main to another of the user's accounts go to one of them only. Absent in the
    * browser, where the wallet's own prompt is the user's check.
@@ -114,8 +116,21 @@ type AmountProps = { value: unknown; symbol: string }
 
 type ToAccountProps = { account: SignableAccount }
 
-/** Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked against. */
-type LaMargeTypedRuleProps = TypedRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
+/**
+ * Typed data for a LaMarge move, and the take its request names, null for none: what a take's payment is checked
+ * against; and a send's terms, null for none.
+ */
+type LaMargeTypedRuleProps = TypedRuleProps & {
+  take: LaMargeTake | null
+  lamarge: LaMargeRequestContext | null
+  send: LaMargeSend | null
+}
+
+/** A LaMarge send's typed data, and its terms as the request names them. */
+type LaMargeSendRuleProps = LaMargeTypedRuleProps & { send: LaMargeSend }
+
+/** A send's typed data, and the Polymarket operation it hashes, when the request carries one. */
+type SendTypedProps = { typedData: TypedDataPayload; op: LaMargeOp | undefined }
 
 /** A message for a LaMarge move, and the take its request names, null for none. */
 type LaMargeMessageRuleProps = MessageRuleProps & { take: LaMargeTake | null; lamarge: LaMargeRequestContext | null }
@@ -141,7 +156,7 @@ type TakePaymentsProps = { payments: readonly Record<string, unknown>[] }
  */
 type KeepsValueProps = TakePaymentsProps & { venue: string; delivery: string }
 
-/** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet (D51, phase 6). */
+/** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet. */
 type GasReservePin = { appOrigin: string; reserve: string | null }
 
 /** A lebroker deployment, by its app's origin. */
@@ -177,6 +192,8 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  LaMargeSendRuleProps,
+  SendTypedProps,
   ApprovalsProps,
   AppOriginProps,
   DeliveryVenueProps,
@@ -211,7 +228,6 @@ export type {
   SameAddressProps,
   SameDomainValueProps,
   Signable,
-  SignableAccount,
   SignableRequestProps,
   SignSummary,
   StartedByProps,

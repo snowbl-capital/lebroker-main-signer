@@ -3,7 +3,7 @@ const SUB_ACCOUNT_PROOF_DOMAIN = { name: "lebroker", version: "1", chainId: 1 } 
 
 /**
  * Main's proof that a Lighter account is its own: the index a transfer from a sub-account may send to. Lighter assigns
- * the index, and the signer reads no venue (D14), so only Main's word binds it.
+ * the index, and the signer reads no venue, so only Main's word binds it.
  */
 const MAIN_LIGHTER_ACCOUNT_PROOF_TYPES = {
   MainLighterAccount: [

@@ -19,7 +19,6 @@ const OTHER = privateKeyToAccount(generatePrivateKey())
 const SUB_1 = "0x2222222222222222222222222222222222222abc"
 const SUB_2 = "0x3333333333333333333333333333333333333def"
 
-/** The deployment the entries are for, by host. */
 const DEPLOYMENT = "lebroker.dev.lamarge.trade"
 
 /** 25 October 2026, noon UTC. */
@@ -36,7 +35,7 @@ const ENTRY = {
   at: AT,
 }
 
-describe("Main's address-book entry (D70)", () => {
+describe("Main's address-book entry", () => {
   test("names the app, the deployment, Main, each recipient's label and full checksummed address, and the date, as the wallet shows it", () => {
     expect(addressBookMessage(ENTRY)).toBe(
       [
@@ -173,7 +172,7 @@ describe("Main's address-book entry (D70)", () => {
   })
 })
 
-describe("the recipients approved now (D70)", () => {
+describe("the recipients approved now", () => {
   const approve = { statement: AddressBookStatement.APPROVE, recipients: [{ address: SUB_1, label: "Sub-account 1" }] }
   const withdraw = { ...approve, statement: AddressBookStatement.WITHDRAW }
 

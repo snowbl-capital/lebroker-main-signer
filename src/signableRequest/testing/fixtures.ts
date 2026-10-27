@@ -21,11 +21,11 @@ const MAIN_ACCOUNT_ID = "account-main"
 /** LaMarge's production, as the executor names the deployment a LaMarge request is for. */
 const LAMARGE_PRODUCTION = { appOrigin: "https://app.lamarge.trade" }
 
-/** lebroker's dev deployment, whose gas reserve the allowlist pins (D51, phase 6): the page the requests are signed on. */
-const LEBROKER_DEV = "https://lebroker.dev.lamarge.trade"
+/** lebroker's live deployment, whose gas reserve the allowlist pins: the page the requests are signed on. */
+const LEBROKER_LIVE = "https://app.leneutre.trade"
 
-/** lebroker's dev gas reserve, as its account process logged it. */
-const DEV_GAS_RESERVE: Address = "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F"
+/** That deployment's gas reserve, as its account process logged it. */
+const LIVE_GAS_RESERVE: Address = "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F"
 
 /** When the requests were asked: 19 October 2026, noon UTC. */
 const ASKED_AT = Date.UTC(2026, 9, 19, 12)
@@ -62,6 +62,7 @@ function requestOf({
   reason = SignatureRequestReason.MOVE,
   take,
   lamarge = LAMARGE_PRODUCTION,
+  send,
   gas = null,
   depositVenue = null,
   depositAddress,
@@ -69,7 +70,7 @@ function requestOf({
   askedAt = ASKED_AT,
   now = askedAt,
   main = MAIN,
-  appOrigin = LEBROKER_DEV,
+  appOrigin = LEBROKER_LIVE,
 }: RequestOfProps): SignableRequestProps {
   const named = { ...(take === undefined ? {} : { take }), ...(lamarge === null ? {} : { lamarge }) }
   return {
@@ -85,6 +86,7 @@ function requestOf({
               kind: SignaturePayloadKind.TYPED_DATA,
               typedData: wire({ typedData }),
               ...named,
+              ...(send === undefined ? {} : { send }),
               ...(gas === null ? {} : { gas }),
               ...(depositVenue === null ? {} : { depositVenue }),
             }
@@ -110,9 +112,9 @@ export {
   AGENT,
   ASKED_AT,
   CLOSED_SUB,
-  DEV_GAS_RESERVE,
   LAMARGE_PRODUCTION,
-  LEBROKER_DEV,
+  LEBROKER_LIVE,
+  LIVE_GAS_RESERVE,
   MAIN,
   MAIN_ACCOUNT_ID,
   STRANGER,

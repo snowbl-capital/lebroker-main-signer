@@ -55,7 +55,7 @@ function hyperliquidChain({ typedData, walletChainId }: TypedRuleProps): number 
 }
 
 /**
- * Hyperliquid's `sendAsset` of USDC from Main to one of the user's own sub-accounts (D19), between the balances where
+ * Hyperliquid's `sendAsset` of USDC from Main to one of the user's own sub-accounts, between the balances where
  * each account's mode keeps its collateral: spot, or the main dex's perps.
  */
 function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
@@ -82,10 +82,10 @@ function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
 }
 
 /**
- * Main's payment to lebroker's gas reserve for gas sent to its wallet (D51, phase 6): Hyperliquid's `sendAsset` of USDC
- * from Main's own balances, on mainnet, to the reserve this deployment pins only, never an address the request names
- * alone, and at most the signer's hard cap on a payment. The chain it buys gas on is the service's word, said as such:
- * the payment is what's signed.
+ * Main's payment to lebroker's gas reserve for gas sent to its wallet: Hyperliquid's `sendAsset` of USDC from Main's
+ * own balances, on mainnet, to the reserve this deployment pins only, never an address the request names alone, and
+ * at most the signer's hard cap on a payment. The chain it buys gas on is the service's word, said as such: the payment
+ * is what's signed.
  */
 function hyperliquidGasPayment(props: GasPaymentRuleProps): SignSummary {
   const chainId = hyperliquidChain(props)
@@ -122,7 +122,7 @@ function hyperliquidGasPayment(props: GasPaymentRuleProps): SignSummary {
   }
 }
 
-/** Aster's Spot transfer of USDT, signed by Main's wallet, to one of the user's own sub-accounts (D32). */
+/** Aster's Spot transfer of USDT, signed by Main's wallet, to one of the user's own sub-accounts. */
 function asterTransfer({ typedData, user, accounts }: TypedRuleProps): SignSummary {
   const chainId = ASTER_SIGN_CHAIN_IDS[Network.MAINNET]
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId } })
@@ -145,7 +145,7 @@ function asterTransfer({ typedData, user, accounts }: TypedRuleProps): SignSumma
   }
 }
 
-/** Hyperliquid's `withdraw3`, to Main's own address only (D3, D31). */
+/** Hyperliquid's `withdraw3`, to Main's own address only. */
 function hyperliquidWithdrawal(props: TypedRuleProps): SignSummary {
   const chainId = hyperliquidChain(props)
   expectTypes({ typedData: props.typedData, types: HYPERLIQUID_WITHDRAW_TYPES, primaryType: "HyperliquidTransaction:Withdraw" })
@@ -161,7 +161,7 @@ function hyperliquidWithdrawal(props: TypedRuleProps): SignSummary {
 
 /**
  * Hyperliquid's `withdraw3` of Main's straight into a venue's deposit address for Main, which opens Main's account there
- * from inside lebroker with no gas (D49): a venue the signer's least lists, at least that least, on mainnet, and only to
+ * from inside lebroker with no gas: a venue the signer's least lists, at least that least, on mainnet, and only to
  * the address the signing side read itself from that venue for Main's own address just now. An address the request
  * names alone is never taken: Lighter's intent address credits whichever L1 address it was made for.
  */
@@ -195,7 +195,7 @@ function hyperliquidDepositWithdrawal(props: DepositWithdrawalRuleProps): SignSu
   }
 }
 
-/** Aster's withdrawal, signed by Main, to Main's own address only (D3, D31). */
+/** Aster's withdrawal, signed by Main, to Main's own address only. */
 function asterWithdrawal({ typedData, user }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: ASTER_WITHDRAWAL_DOMAIN })
   expectTypes({ typedData, types: ASTER_WITHDRAWAL_TYPES, primaryType: "Action" })

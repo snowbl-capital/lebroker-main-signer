@@ -37,7 +37,7 @@ function delegate({ address, main }: DelegateProps): string {
 
 /**
  * Hyperliquid: Main approves lebroker's named agent for 180 days at most, on the chain its wallet shows or one lebroker
- * signs on, which the wallet is switched to (D2, D38).
+ * signs on, which the wallet is switched to.
  */
 function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedRuleProps): SignSummary {
   const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, ...SIGNATURE_CHAIN_IDS] })
@@ -64,7 +64,7 @@ function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedR
   }
 }
 
-/** Aster: Main approves lebroker's agent to trade perps, never Spot, never to withdraw, for 180 days at most (D2). */
+/** Aster: Main approves lebroker's agent to trade perps, never Spot, never to withdraw, for 180 days at most. */
 function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId: ASTER_APPROVAL_CHAIN_ID } })
   expectTypes({ typedData, types: ASTER_MESSAGE_TYPES, primaryType: "Message" })
@@ -98,7 +98,7 @@ function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummar
   }
 }
 
-/** Polymarket Perps: Main approves lebroker's proxy for a week at most (D2, D14). */
+/** Polymarket Perps: Main approves lebroker's proxy for a week at most. */
 function polymarketApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: POLYMARKET_SIGN_DOMAIN })
   expectTypes({ typedData, types: POLYMARKET_CREATE_PROXY_TYPES, primaryType: "CreateProxy" })
@@ -115,7 +115,7 @@ function polymarketApproval({ typedData, user, askedAt }: TypedRuleProps): SignS
   }
 }
 
-/** Lighter, first: Main proves the Lighter account is its own, for its own account, a day at most (D6). */
+/** Lighter, first: Main proves the Lighter account is its own, for its own account, a day at most. */
 function lighterProof({ typedData, user, request, askedAt }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: SUB_ACCOUNT_PROOF_DOMAIN })
   expectTypes({ typedData, types: MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, primaryType: "MainLighterAccount" })
@@ -133,7 +133,7 @@ function lighterProof({ typedData, user, request, askedAt }: TypedRuleProps): Si
   }
 }
 
-/** Lighter, then: Main signs the registration of lebroker's key, at one of its own indexes only, 200 to 252 (D6). */
+/** Lighter, then: Main signs the registration of lebroker's key, at one of its own indexes only, 200 to 252. */
 function lighterRegistration({ message }: MessageRuleProps): SignSummary {
   const read = LIGHTER_REGISTRATION_MESSAGE.exec(message) ?? refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   const apiKeyIndex = Number.parseInt(read[3] ?? "", 16)

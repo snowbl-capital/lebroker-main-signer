@@ -1,5 +1,5 @@
-import { CHAINS } from "../../bridges/constants"
-import type { ChainInfo } from "../../bridges/types"
+import { CHAINS } from "../../chains/constants"
+import type { ChainInfo } from "../../chains/types"
 import type { ChainInfoProps } from "./types"
 
 /** A chain lebroker knows, by its id: its name, its own token's symbol and its explorer; none for any other. */

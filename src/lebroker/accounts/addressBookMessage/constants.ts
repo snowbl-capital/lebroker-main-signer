@@ -4,7 +4,7 @@ import { AddressBookLine, AddressBookStatement } from "./enums"
 const ADDRESS_BOOK_MAX_RECIPIENTS = 20
 
 /**
- * How far past a reader's own clock an entry may be dated, in ms (D70): clocks a few minutes apart still agree, and an
+ * How far past a reader's own clock an entry may be dated, in ms: clocks a few minutes apart still agree, and an
  * entry dated later is ignored and never kept, so no far-future date holds over the withdrawals signed after it.
  */
 const ADDRESS_BOOK_MAX_SKEW_MS = 10 * 60 * 1000
