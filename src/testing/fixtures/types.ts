@@ -1,7 +1,8 @@
 import type { Address, Hex } from "viem"
-import type { AddressBookStatement, GasPurchaseContext, SignatureRequestKind } from "../../lebroker/accounts/model"
+import type { AddressBookStatement, SignatureRequestKind } from "../../lebroker/accounts/model"
 import type { SignatureRequestState } from "../../lebroker/accounts/model"
 import type { VenueId } from "../../lebroker/core/model"
+import type { AsterAgentKind } from "../../signableRequest/testing/builders/enums"
 import type { LogEvent } from "../../log/enums"
 import type { Logger } from "../../log/types"
 import type { Timers } from "../../walletSigner/types"
@@ -19,8 +20,6 @@ type RequestProps = {
   /** The typed data asked, as a venue's builder makes it; or a personal message. */
   typedData?: unknown
   message?: string
-  /** What a payment to the gas reserve says it buys, beside its typed data; none by default. */
-  gas?: GasPurchaseContext
   /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
   depositVenue?: VenueId
   state?: SignatureRequestState
@@ -34,7 +33,19 @@ type ApprovalProps = { id: string; accountId: string; agent: Address; askedAt?: 
 
 type TransferProps = { id: string; accountId: string; destination: Address; askedAt?: number }
 
-type GasPaymentProps = { id: string; accountId: string; askedAt?: number }
+/**
+ * Main's approval of one of lebroker's Aster agents: `user`, the Main it's for; `kind`, the agent, whose name and
+ * permissions it asks as lebroker's builder writes them; `query`, fields changed after, by name.
+ */
+type AsterApprovalProps = {
+  id: string
+  accountId: string
+  user: Address
+  agent: Address
+  kind: AsterAgentKind
+  query?: Record<string, string>
+  askedAt?: number
+}
 
 /** A log line as JSON, read back. */
 type LoggedLine = Record<string, unknown>
@@ -83,8 +94,8 @@ export type {
   AddressBookContext,
   ApprovalProps,
   ApproveProps,
+  AsterApprovalProps,
   FakeUserOfProps,
-  GasPaymentProps,
   LogCollector,
   LoggedLine,
   ManualTimers,

@@ -128,7 +128,7 @@ describe("Main's Hyperliquid account switched to unified mode (D66)", () => {
   })
 
   test("is never signed asked as anything else, nor for no venue", () => {
-    for (const kind of [SignatureRequestKind.WITHDRAWAL, SignatureRequestKind.GAS_PURCHASE, SignatureRequestKind.LAMARGE_MOVE]) {
+    for (const kind of [SignatureRequestKind.WITHDRAWAL, SignatureRequestKind.TRANSFER, SignatureRequestKind.LAMARGE_MOVE]) {
       expect(refusalOf(unify({ kind }))).not.toBeNull()
     }
     expect(refusalOf(unify({ venue: null }))).not.toBeNull()

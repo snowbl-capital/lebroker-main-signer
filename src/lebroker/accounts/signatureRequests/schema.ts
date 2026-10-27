@@ -64,16 +64,12 @@ const laMargeRequestContext = z.object({
   lighterAccountIndex: z.number().int().nonnegative().optional(),
 })
 
-/** What a payment to lebroker's gas reserve buys (`GasPurchaseContext`). */
-const gasPurchaseContext = z.object({ chainId: z.number().int().positive() })
-
 const signaturePayload = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal(SignaturePayloadKind.TYPED_DATA),
     typedData: typedDataPayload,
     take: laMargeTake.optional(),
     lamarge: laMargeRequestContext.optional(),
-    gas: gasPurchaseContext.optional(),
     depositVenue: z.enum(VenueId).optional(),
     send: laMargeSend.optional(),
   }),

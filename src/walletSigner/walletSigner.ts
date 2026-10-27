@@ -67,7 +67,6 @@ function createWalletSigner({
           user: session.user,
           accounts,
           walletChainId: chainId,
-          appOrigin,
           // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
           depositAddress: await readDepositAddress({ request }),
           // Funds from Main go to another account only when an entry this wallet's own key signed approves it (D70).

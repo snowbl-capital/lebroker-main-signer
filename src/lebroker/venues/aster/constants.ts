@@ -16,6 +16,12 @@ const AGENT_NAME = "lebroker"
 const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
 
 /**
+ * The conversion agent's name: an agent of its own, beside the trading and the withdrawal ones and LaMarge's, whose
+ * names it never takes, since Aster keeps one agent per name on an account and an approval under a name replaces it.
+ */
+const CONVERT_AGENT_NAME = "lebroker-convert"
+
+/**
  * What the owner signs to withdraw: an `Action` on the destination chain's id, its field names with their spaces, as
  * Aster's site and LaMarge sign it. lebroker withdraws USDC to Arbitrum, tested on mainnet on 18 October 2026.
  */
@@ -49,6 +55,7 @@ export {
   AGENT_NAME,
   AGENT_TTL_MS,
   APPROVAL_CHAIN_ID,
+  CONVERT_AGENT_NAME,
   MARGIN_ASSET,
   MESSAGE_TYPES,
   SIGN_CHAIN_IDS,

@@ -1,6 +1,5 @@
 import type { Typed } from "@lamarge/sdk/protocol"
 import type {
-  GasPurchaseContext,
   LaMargeOp,
   LaMargeRequestContext,
   LaMargeSend,
@@ -11,7 +10,7 @@ import type {
 import type { VenueId } from "../lebroker/core/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SessionUser } from "../lebroker/web/types"
-import type { SignableRefusal } from "./enums"
+import type { SignableRefusal, SignSummaryText } from "./enums"
 
 type SignableAccount = Pick<AccountView, "id" | "name" | "kind" | "state" | "address">
 
@@ -29,11 +28,6 @@ type SignableRequestProps = {
   accounts: readonly SignableAccount[]
   /** The chain the wallet shows; null when it says none. */
   walletChainId: number | null
-  /**
-   * The origin of the lebroker deployment that asks, as the signing side knows it, never the request's word: the
-   * page's own, or the service the Main signer signs for. Which gas reserve a payment for gas may go to.
-   */
-  appOrigin: string
   /**
    * For Main's withdrawal straight into a venue's deposit address for Main, that address as the signing side read
    * it itself from the venue the request names, for Main's own address, just before it signs: never the request's word.
@@ -112,6 +106,9 @@ type ValueProps = { value: unknown }
 
 type DelegateProps = { address: unknown; main: string }
 
+/** One of lebroker's agents on Aster: its name, its Spot and perps permissions as the query writes them, its summary. */
+type AsterAgentTerms = { name: string; spot: string; perp: string; action: SignSummaryText }
+
 type AmountProps = { value: unknown; symbol: string }
 
 type ToAccountProps = { account: SignableAccount }
@@ -156,17 +153,8 @@ type TakePaymentsProps = { payments: readonly Record<string, unknown>[] }
  */
 type KeepsValueProps = TakePaymentsProps & { venue: string; delivery: string }
 
-/** lebroker's gas reserve on one deployment, by its app's origin: null where it has none yet. */
-type GasReservePin = { appOrigin: string; reserve: string | null }
-
-/** A lebroker deployment, by its app's origin. */
-type AppOriginProps = { appOrigin: string }
-
 /** Main's withdrawal, and the venue whose deposit address for Main it says it pays straight. */
 type DepositWithdrawalRuleProps = TypedRuleProps & { depositVenue: VenueId }
-
-/** Main's payment to the gas reserve, and what the service says it buys, null when it says nothing. */
-type GasPaymentRuleProps = TypedRuleProps & { gas: GasPurchaseContext | null }
 
 /** The LaMarge deployment a request says it's for, null when it says none. */
 type DeploymentOfProps = { lamarge: LaMargeRequestContext | null }
@@ -192,15 +180,13 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  AsterAgentTerms,
   LaMargeSendRuleProps,
   SendTypedProps,
   ApprovalsProps,
-  AppOriginProps,
   DeliveryVenueProps,
   DeploymentEscrowsProps,
   DeploymentOfProps,
-  GasPaymentRuleProps,
-  GasReservePin,
   LaMargeDeploymentPins,
   AllowedChainProps,
   AmountProps,

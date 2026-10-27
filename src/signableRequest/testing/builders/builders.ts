@@ -1,7 +1,6 @@
 // The typed data lebroker's service asks Main to sign, built as `@lebroker/venues/model`'s builders build it, from the
 // same domains and types: what the allowlist's tests check it against. Tests only.
 import {
-  ASTER_AGENT_NAME,
   ASTER_APPROVAL_CHAIN_ID,
   ASTER_MESSAGE_TYPES,
   ASTER_SIGN_DOMAIN,
@@ -14,7 +13,7 @@ import {
   POLYMARKET_CREATE_PROXY_TYPES,
   POLYMARKET_SIGN_DOMAIN,
 } from "../../../lebroker/venues/model"
-import { ASTER_WITHDRAWAL_AGENT_NAME, WIRE_DECIMALS } from "./constants"
+import { ASTER_AGENT_NAMES, WIRE_DECIMALS } from "./constants"
 import { AsterAgentKind } from "./enums"
 import type {
   AgentApprovalRequestProps,
@@ -88,19 +87,21 @@ function hyperliquidWithdrawRequest({ destination, amount, time, network, signat
   })
 }
 
-/** An Aster agent's approval, its query in the order Aster signs it, on Aster's approval chain. */
+/**
+ * An Aster agent's approval, its query in the order Aster signs it, on Aster's approval chain: the trading agent trades
+ * perps, the conversion agent Spot, the withdrawal agent only withdraws.
+ */
 function asterAgentApprovalRequest({ kind, user, agent, nonce, expiry }: AgentApprovalRequestProps) {
-  const withdrawal = kind === AsterAgentKind.WITHDRAWAL
   const query = new URLSearchParams({
     user,
     nonce,
-    agentName: withdrawal ? ASTER_WITHDRAWAL_AGENT_NAME : ASTER_AGENT_NAME,
+    agentName: ASTER_AGENT_NAMES[kind],
     agentAddress: agent,
     expired: String(expiry),
     signatureChainId: String(ASTER_APPROVAL_CHAIN_ID),
-    canSpotTrade: "false",
-    canPerpTrade: String(!withdrawal),
-    canWithdraw: String(withdrawal),
+    canSpotTrade: String(kind === AsterAgentKind.CONVERT),
+    canPerpTrade: String(kind === AsterAgentKind.TRADING),
+    canWithdraw: String(kind === AsterAgentKind.WITHDRAWAL),
   }).toString()
   return {
     query,
