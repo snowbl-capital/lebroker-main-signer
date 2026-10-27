@@ -1,9 +1,16 @@
 import { ASTER_TRANSFER_CHAIN_ID, CHAINS, ENVIRONMENT_SLOTS } from "@lamarge/sdk/protocol"
 import { Network, VenueId } from "../lebroker/core/model"
-import { AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
-import { ASTER_APPROVAL_CHAIN_ID, ASTER_SIGN_CHAIN_IDS, ASTER_WITHDRAWAL_DOMAIN, POLYMARKET_SIGN_DOMAIN } from "../lebroker/venues/model"
+import { AsterBoolean, AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
+import {
+  ASTER_AGENT_NAME,
+  ASTER_APPROVAL_CHAIN_ID,
+  ASTER_CONVERT_AGENT_NAME,
+  ASTER_SIGN_CHAIN_IDS,
+  ASTER_WITHDRAWAL_DOMAIN,
+  POLYMARKET_SIGN_DOMAIN,
+} from "../lebroker/venues/model"
 import { LaMargeWord, SignSummaryText } from "./enums"
-import type { GasReservePin, LaMargeDeploymentPins } from "./types"
+import type { AsterAgentTerms, LaMargeDeploymentPins } from "./types"
 
 /** Hyperliquid's own chain for its user-signed actions, which lebroker names when the wallet shows none (Arbitrum). */
 const HYPERLIQUID_DEFAULT_SIGNATURE_CHAIN_ID = 42161
@@ -29,7 +36,21 @@ const SIGNATURE_CHAIN_IDS: ReadonlySet<number> = new Set([
 /** What the host's clock may run ahead of the browser's when it sets an end: an approval never lasts longer than this beyond its term. */
 const CLOCK_SLACK_MS = 60 * 60 * 1000
 
-/** Main's approval of lebroker's trading agent on Aster: exactly these parameters, in this order. */
+/**
+ * lebroker's agents Main approves on Aster, by name, each with its own permissions and what Main reads it does: the
+ * trading agent trades perps, the conversion agent converts USDC to USDT on Spot before a move. Neither withdraws.
+ */
+const ASTER_AGENT_TERMS: readonly AsterAgentTerms[] = [
+  { name: ASTER_AGENT_NAME, spot: AsterBoolean.FALSE, perp: AsterBoolean.TRUE, action: SignSummaryText.APPROVE_ASTER_AGENT },
+  {
+    name: ASTER_CONVERT_AGENT_NAME,
+    spot: AsterBoolean.TRUE,
+    perp: AsterBoolean.FALSE,
+    action: SignSummaryText.APPROVE_ASTER_CONVERT_AGENT,
+  },
+]
+
+/** Main's approval of one of lebroker's agents on Aster: exactly these parameters, in this order. */
 const ASTER_APPROVAL_FIELDS: readonly string[] = [
   AsterParam.USER,
   AsterParam.NONCE,
@@ -94,25 +115,6 @@ const LAMARGE_PERMIT_SECONDS = 600
 /** Basis points in a whole. */
 const BPS = 10_000n
 
-/**
- * lebroker's gas reserve on each deployment, by the origin its app is served from: the one address Main's payment for
- * gas may go to there, as that deployment's account process logged it (`executor.gas_reserve`), never a request's
- * word. Null until the deployment's reserve is funded: Main buys no gas there, and no screen offers it. A deployment
- * not listed, a local stack's included, pins none.
- */
-const GAS_RESERVE_DEPLOYMENTS: readonly GasReservePin[] = [
-  { appOrigin: "https://app.leneutre.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
-  // The same deployment under the name it moved from, which a Main signer may still name: one host, one reserve.
-  { appOrigin: "https://lebroker.dev.lamarge.trade", reserve: "0x4453CFBC9f590229396E6D70c7CA552F6dC87A1F" },
-  { appOrigin: "https://app.dev.leneutre.trade", reserve: null },
-]
-
-/**
- * The most Main pays the gas reserve at once, in USDC: the signer's hard cap on a gas purchase's payment
- * (`GAS_PURCHASE_MAX_USD`), which its settings sit under.
- */
-const GAS_RESERVE_PAYMENT_MAX_USD = 20
-
 /** Hyperliquid names its network in every user-signed action: lebroker runs on mainnet only. */
 const HYPERLIQUID_MAINNET = "Mainnet"
 
@@ -128,14 +130,13 @@ const DEPOSIT_WITHDRAWAL_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
 }
 
 export {
+  ASTER_AGENT_TERMS,
   ASTER_APPROVAL_FIELDS,
   ASTER_TRANSFER_FIELDS,
   BPS,
   CLOCK_SLACK_MS,
   DEPOSIT_WITHDRAWAL_ACTIONS,
   EIP712_DOMAIN_FIELDS,
-  GAS_RESERVE_DEPLOYMENTS,
-  GAS_RESERVE_PAYMENT_MAX_USD,
   OP_INTERNAL_TRANSFER,
   OP_TYPE,
   HYPERLIQUID_MAINNET,

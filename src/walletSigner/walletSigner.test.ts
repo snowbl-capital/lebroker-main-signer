@@ -21,13 +21,13 @@ import {
 import { Network, VenueId } from "../lebroker/core/model"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
 import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
-import { LEBROKER_LIVE } from "../signableRequest/testing/fixtures"
+import { AsterAgentKind } from "../signableRequest/testing/builders/enums"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
 import {
   approvalRequest,
+  asterApprovalRequest,
   fakeUserOf,
-  gasPaymentRequest,
   lighterWithdrawalRequest,
   logCollector,
   manualTimers,
@@ -43,6 +43,9 @@ import { createWalletSigner } from "./walletSigner"
 const AGENT = privateKeyToAccount(generatePrivateKey()).address
 const SUB = privateKeyToAccount(generatePrivateKey()).address
 const STRANGER = privateKeyToAccount(generatePrivateKey()).address
+
+/** lebroker's live deployment, as `LEBROKER_URL` names it. */
+const LEBROKER_LIVE = "https://app.leneutre.trade"
 
 const opened: FakeApi[] = []
 
@@ -445,27 +448,89 @@ describe("Main's address book (lebroker's D70)", () => {
   })
 })
 
-describe("a payment to lebroker's gas reserve (D51, phase 6)", () => {
-  test("is signed for the deployment that pins the reserve, LEBROKER_URL's, and logged as what it pays", async () => {
-    const ctx = await setUp({ appOrigin: LEBROKER_LIVE })
-    ctx.api.addRequest({ userId: ctx.user.id, request: gasPaymentRequest({ id: "req-g1", accountId: ctx.mainId }) })
+describe("Main's approval of lebroker's agents on Aster (lebroker #535)", () => {
+  test("the conversion agent's, Spot only under its own name, is signed and logged in its own words, as the trading agent's is in its own", async () => {
+    const ctx = await setUp()
+    const main = ctx.wallet.info.address
+    const convert = asterApprovalRequest({ id: "aster-1", accountId: ctx.mainId, user: main, agent: AGENT, kind: AsterAgentKind.CONVERT })
+    const trading = asterApprovalRequest({ id: "aster-2", accountId: ctx.mainId, user: main, agent: AGENT, kind: AsterAgentKind.TRADING })
+    ctx.api.addRequest({ userId: ctx.user.id, request: convert })
+    ctx.api.addRequest({ userId: ctx.user.id, request: trading })
     await ctx.signer.pass()
-    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g1"])
-    expect(ctx.logs.read().find(line => line.event === LogEvent.SIGNED)).toMatchObject({
-      requestId: "req-g1",
-      kind: "gas-purchase",
-      action: `${SignSummaryText.PAY_GAS_RESERVE} $0.15 ${SignSummaryText.FOR_GAS_ON} Arbitrum`,
-      chainId: 42161,
+    expect(ctx.api.declines).toEqual([])
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["aster-1", "aster-2"])
+    const payload = convert.payload
+    if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+      throw new Error("typed data expected")
+    }
+    expect(new URLSearchParams(String(payload.typedData.message.msg)).get("agentName")).toBe("lebroker-convert")
+    const signer = await recoverTypedDataAddress({
+      ...typedDataFromWire({ payload: payload.typedData }),
+      signature: ctx.api.submissions[0]?.signature ?? "0x",
     })
+    expect(signer).toBe(main)
+    const signed = ctx.logs.read().filter(line => line.event === LogEvent.SIGNED)
+    expect(signed.map(line => [line.requestId, line.venue, line.action, line.chainId])).toEqual([
+      ["aster-1", VenueId.ASTER, SignSummaryText.APPROVE_ASTER_CONVERT_AGENT, 56],
+      ["aster-2", VenueId.ASTER, SignSummaryText.APPROVE_ASTER_AGENT, 56],
+    ])
   })
 
-  test("is refused, and told to lebroker, for a deployment that pins none, such as a local stack", async () => {
+  test("the conversion agent's is refused with any permission but Spot alone, or under another name, and told to lebroker", async () => {
     const ctx = await setUp()
-    ctx.api.addRequest({ userId: ctx.user.id, request: gasPaymentRequest({ id: "req-g2", accountId: ctx.mainId }) })
-    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "req-g3", accountId: ctx.mainId, agent: AGENT }) })
+    const cases = [
+      { query: { canPerpTrade: "true" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { canSpotTrade: "false" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      // The trading agent's permissions under the conversion agent's name.
+      { query: { canSpotTrade: "false", canPerpTrade: "true" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { canWithdraw: "true" }, refusal: SignableRefusal.WITHDRAW_PERMISSION },
+      // Spot alone, but under the trading agent's name, which Aster would replace with it.
+      { query: { agentName: "lebroker" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { agentName: "lebroker-convert-2" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "LaMarge" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+    ]
+    for (const [index, { query }] of cases.entries()) {
+      const request = asterApprovalRequest({
+        id: `convert-${String(index)}`,
+        accountId: ctx.mainId,
+        user: ctx.wallet.info.address,
+        agent: AGENT,
+        kind: AsterAgentKind.CONVERT,
+        query,
+      })
+      ctx.api.addRequest({ userId: ctx.user.id, request })
+    }
     await ctx.signer.pass()
-    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["req-g3"])
-    expect(ctx.api.declines).toEqual([{ requestId: "req-g2", reason: SignableRefusal.NO_GAS_RESERVE }])
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual(cases.map(({ refusal }, index) => ({ requestId: `convert-${String(index)}`, reason: refusal })))
+  })
+
+  test("the trading agent's is refused with Spot, or under another name, and told to lebroker", async () => {
+    const ctx = await setUp()
+    const cases = [
+      { query: { canSpotTrade: "true" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      // The conversion agent's permissions under the trading agent's name.
+      { query: { canSpotTrade: "true", canPerpTrade: "false" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      // Perps alone, but under the conversion agent's name.
+      { query: { agentName: "lebroker-convert" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { agentName: "lebroker-withdraw" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "lebroker-referrals" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "LaMarge" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+    ]
+    for (const [index, { query }] of cases.entries()) {
+      const request = asterApprovalRequest({
+        id: `trading-${String(index)}`,
+        accountId: ctx.mainId,
+        user: ctx.wallet.info.address,
+        agent: AGENT,
+        kind: AsterAgentKind.TRADING,
+        query,
+      })
+      ctx.api.addRequest({ userId: ctx.user.id, request })
+    }
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual(cases.map(({ refusal }, index) => ({ requestId: `trading-${String(index)}`, reason: refusal })))
   })
 })
 

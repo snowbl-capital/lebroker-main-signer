@@ -12,8 +12,9 @@ import { Network, VenueId } from "../../lebroker/core/model"
 import { HYPERLIQUID_AGENT_NAME, HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC } from "../../lebroker/venues/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { createLogger } from "../../log/log"
-import { LIVE_GAS_RESERVE, wire } from "../../signableRequest/testing/fixtures"
+import { wire } from "../../signableRequest/testing/fixtures"
 import {
+  asterAgentApprovalRequest,
   hyperliquidApproveAgentRequest,
   hyperliquidSendAssetRequest,
   hyperliquidWithdrawRequest,
@@ -21,8 +22,8 @@ import {
 import type { FakeUser } from "../fakeApi/types"
 import type {
   ApprovalProps,
+  AsterApprovalProps,
   FakeUserOfProps,
-  GasPaymentProps,
   LogCollector,
   LoggedLine,
   MatchesProps,
@@ -62,7 +63,6 @@ function requestOf({
   venue = VenueId.HYPERLIQUID,
   typedData,
   message,
-  gas,
   depositVenue,
   state = SignatureRequestState.WAITING,
   createdAt = Date.now(),
@@ -89,7 +89,6 @@ function requestOf({
         ? {
             kind: SignaturePayloadKind.TYPED_DATA,
             typedData: wire({ typedData }),
-            ...(gas === undefined ? {} : { gas }),
             ...(depositVenue === undefined ? {} : { depositVenue }),
           }
         : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message },
@@ -124,19 +123,38 @@ function transferRequest({ id, accountId, destination, askedAt = Date.now() }: T
   return requestOf({ id, accountId, kind: SignatureRequestKind.TRANSFER, typedData, createdAt: askedAt })
 }
 
-/** Main's payment of $0.15 to lebroker's live gas reserve, for gas on Arbitrum, as the executor's gas purchase asks it. */
-function gasPaymentRequest({ id, accountId, askedAt = Date.now() }: GasPaymentProps): SignatureRequestView {
-  const typedData = hyperliquidSendAssetRequest({
-    destination: LIVE_GAS_RESERVE,
-    sourceDex: HYPERLIQUID_SEND_DEX,
-    destinationDex: HYPERLIQUID_SEND_DEX,
-    token: HYPERLIQUID_USDC,
-    amount: 0.15,
-    nonce: askedAt,
-    network: Network.MAINNET,
-    signatureChainId: 42161,
+/**
+ * Main's approval of one of lebroker's Aster agents for 180 days, as the executor asks it, the query's own order kept:
+ * `query` changes some of its fields in what's signed, as a service gone wrong would.
+ */
+function asterApprovalRequest({
+  id,
+  accountId,
+  user,
+  agent,
+  kind,
+  query = {},
+  askedAt = Date.now(),
+}: AsterApprovalProps): SignatureRequestView {
+  const typedData = asterAgentApprovalRequest({
+    kind,
+    user,
+    agent,
+    nonce: String(askedAt * 1000),
+    expiry: askedAt + 180 * DAY_MS,
+    now: askedAt,
   }).typedData
-  return requestOf({ id, accountId, kind: SignatureRequestKind.GAS_PURCHASE, typedData, gas: { chainId: 42161 }, createdAt: askedAt })
+  const params = new URLSearchParams(typedData.message.msg)
+  for (const [name, value] of Object.entries(query)) {
+    params.set(name, value)
+  }
+  return requestOf({
+    id,
+    accountId,
+    venue: VenueId.ASTER,
+    typedData: { ...typedData, message: { msg: params.toString() } },
+    createdAt: askedAt,
+  })
 }
 
 /** Main's Hyperliquid withdrawal of 6 USDC on Arbitrum, said to pay Main's own Lighter intent address (D49). */
@@ -216,4 +234,13 @@ function manualTimers(): ManualTimers {
   }
 }
 
-export { approvalRequest, fakeUserOf, gasPaymentRequest, lighterWithdrawalRequest, logCollector, manualTimers, requestOf, transferRequest }
+export {
+  approvalRequest,
+  asterApprovalRequest,
+  fakeUserOf,
+  lighterWithdrawalRequest,
+  logCollector,
+  manualTimers,
+  requestOf,
+  transferRequest,
+}

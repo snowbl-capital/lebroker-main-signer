@@ -3,14 +3,12 @@ import { AccountKind, AccountState } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
-import { GAS_RESERVE_DEPLOYMENTS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import type {
   AllowedChainProps,
   AmountProps,
   ApprovalsProps,
-  AppOriginProps,
   AtMostProps,
   ChainOfProps,
   DeploymentEscrowsProps,
@@ -169,11 +167,6 @@ function toAccount({ account }: ToAccountProps): string {
   return account.address === null ? account.name : `${account.name} (${shortAddress({ address: account.address })})`
 }
 
-/** lebroker's gas reserve the deployment at this origin pins; null where it pins none. */
-function pinnedGasReserve({ appOrigin }: AppOriginProps): string | null {
-  return GAS_RESERVE_DEPLOYMENTS.find(pin => pin.appOrigin === appOrigin)?.reserve ?? null
-}
-
 /**
  * A LaMarge deployment's own escrows, as LaMarge's SDK reviews them: its reviewed deployments of every environment, held
  * to those the deployment pins. What a request for it may name as its escrow, never another environment's.
@@ -202,7 +195,6 @@ export {
   isAddress,
   laMargeCheck,
   ownSubAccount,
-  pinnedGasReserve,
   queryFields,
   refuse,
   text,

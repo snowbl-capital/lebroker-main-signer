@@ -39,11 +39,6 @@ enum SignatureRequestKind {
   /** A transfer from Main to another account inside a venue. */
   TRANSFER = "transfer",
   WITHDRAWAL = "withdrawal",
-  /**
-   * Main's payment to lebroker's gas reserve, from its own Hyperliquid account, for gas the reserve then sends to its
-   * wallet.
-   */
-  GAS_PURCHASE = "gas-purchase",
   /** Main's own venue account switched to the mode lebroker runs it in: Hyperliquid's unified account (D66). */
   ACCOUNT_MODE = "account-mode",
 }

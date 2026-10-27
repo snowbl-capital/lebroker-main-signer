@@ -6,7 +6,6 @@ const WHOLE_SIGNABLE = [
   "constants.ts",
   "enums.ts",
   "errors.ts",
-  "gasReserve.test.ts",
   "lamargeRules.ts",
   "setupRules.ts",
   "signableRequest.ts",

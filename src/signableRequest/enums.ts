@@ -12,6 +12,7 @@ enum SignableRefusal {
   NOT_LEBROKER_AGENT = "This request approves an agent that isn't leneutre's.",
   NOT_LEBROKER_KEY = "This request registers a key at an index leneutre doesn't use.",
   WITHDRAW_PERMISSION = "This request gives an agent more than trading: leneutre's agent never withdraws.",
+  OTHER_PERMISSIONS = "This request gives leneutre's agent other permissions than the ones it uses.",
   TOO_LONG = "This request lasts longer than leneutre ever asks.",
   OPAQUE = "This request can't be read before it's signed, so the browser won't sign it.",
   LAMARGE_CHECK = "LaMarge's checks refused this request:",
@@ -24,9 +25,6 @@ enum SignableRefusal {
   NOT_TAKE_RECIPIENT = "This LaMarge take delivers to another address than your Main.",
   NOT_TAKE_DELIVERY = "This LaMarge take delivers another token than its venue's own on its chain, or on more than one chain.",
   TAKE_LOSS = "This LaMarge take brings back less than leneutre ever lets a take lose of what it pays.",
-  NO_GAS_RESERVE = "leneutre has no gas reserve pinned for this deployment: Main buys no gas here.",
-  NOT_GAS_RESERVE = "This payment goes to an address that isn't leneutre's gas reserve for this deployment.",
-  GAS_OVER_CAP = "This payment is more than leneutre's gas reserve is ever paid at once.",
   /** Main's withdrawal straight into a venue's deposit address for Main: only where it opens Main's account. */
   DEPOSIT_VENUE = "This withdrawal pays a venue leneutre never opens Main's account on with a withdrawal.",
   DEPOSIT_TOO_SMALL = "This withdrawal is less than the venue opens an account from once Hyperliquid's fee is out.",
@@ -42,6 +40,7 @@ enum SignableRefusal {
 enum SignSummaryText {
   APPROVE_HYPERLIQUID_AGENT = "Approve leneutre's Hyperliquid agent to trade for Main",
   APPROVE_ASTER_AGENT = "Approve leneutre's Aster agent to trade perps for Main, never to withdraw",
+  APPROVE_ASTER_CONVERT_AGENT = "Let leneutre convert USDC to USDT on Aster's Spot market for Main: no perps trading, no withdrawal",
   APPROVE_POLYMARKET_PROXY = "Approve leneutre's Polymarket Perps proxy to trade for Main",
   PROVE_LIGHTER_ACCOUNT = "Prove that this Lighter account is Main's",
   REGISTER_LIGHTER_KEY = "Register leneutre's trading key on Main's Lighter account",
@@ -58,11 +57,6 @@ enum SignSummaryText {
   LAMARGE_LIGHTER_KEY = "Register LaMarge's key on Main's Lighter account",
   LAMARGE_SIGN_IN = "Sign in to LaMarge with Main",
   LAMARGE_SEND = "Send funds from Main to one of your sub-accounts on the same venue, through LaMarge",
-  /** Followed by the amount, then what it buys: "Pay leneutre's gas reserve $0.15 for gas on Arbitrum". */
-  PAY_GAS_RESERVE = "Pay leneutre's gas reserve",
-  FOR_GAS_ON = "for gas on",
-  /** The gas reserve as a payment's destination, followed by its short address. */
-  GAS_RESERVE = "leneutre's gas reserve",
 }
 
 enum SignSummaryLabel {
@@ -83,8 +77,6 @@ enum SignSummaryLabel {
   MAKER_LIGHTER = "Maker's Lighter account",
   LIGHTER_FEE = "Lighter's fee",
   STARTED_BY = "Started by",
-  /** The chain the gas a payment buys is sent on, to Main's wallet. */
-  GAS_ON = "Gas on",
   /** The venue's deposit address for Main, as the signing side read it from the venue itself. */
   DEPOSIT_ADDRESS = "Deposit address, read from the venue",
 }

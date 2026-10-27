@@ -6,14 +6,7 @@ import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
 import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval } from "./setupRules"
-import {
-  asterTransfer,
-  asterWithdrawal,
-  hyperliquidDepositWithdrawal,
-  hyperliquidGasPayment,
-  hyperliquidTransfer,
-  hyperliquidWithdrawal,
-} from "./transferRules"
+import { asterTransfer, asterWithdrawal, hyperliquidDepositWithdrawal, hyperliquidTransfer, hyperliquidWithdrawal } from "./transferRules"
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
 import { refuse, withApprovals } from "./utils"
 
@@ -90,21 +83,6 @@ function withdrawalSummary(props: RuleProps): SignSummary {
   }
 }
 
-/**
- * Main's payment to lebroker's gas reserve for gas sent to its wallet: from Main's Hyperliquid account, readable before
- * it's signed, to the reserve this deployment pins only.
- */
-function gasPurchaseSummary(props: RuleProps): SignSummary {
-  const payload = props.request.payload
-  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
-    return refuse({ refusal: SignableRefusal.OPAQUE })
-  }
-  if (props.request.venue !== VenueId.HYPERLIQUID) {
-    return refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
-  }
-  return hyperliquidGasPayment({ ...props, typedData: payload.typedData, gas: payload.gas ?? null })
-}
-
 /** Main's own venue account switched to the mode lebroker runs it in (D66): Hyperliquid's unified account only. */
 function accountModeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -145,8 +123,6 @@ function summaryOf(props: RuleProps): SignSummary {
       return withdrawalSummary(props)
     case SignatureRequestKind.LAMARGE_MOVE:
       return laMargeSummary(props)
-    case SignatureRequestKind.GAS_PURCHASE:
-      return gasPurchaseSummary(props)
     case SignatureRequestKind.ACCOUNT_MODE:
       return accountModeSummary(props)
     default:
@@ -156,10 +132,10 @@ function summaryOf(props: RuleProps): SignSummary {
 
 /**
  * Whether Main's wallet may sign a request, read from the request alone: a strict allowlist of what lebroker asks
- * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, or the gas
- * reserve the asking deployment pins, and the one chain it may be signed on, the wallet's own or one of
- * `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as a compromised host would, is refused before the
- * wallet opens, and the summary says what is signed in place of the service's words.
+ * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, and the one
+ * chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as
+ * a compromised host would, is refused before the wallet opens, and the summary says what is signed in place of the
+ * service's words.
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {

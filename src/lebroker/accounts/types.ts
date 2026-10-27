@@ -70,16 +70,10 @@ type LaMargeOp = { type: string; args: { account: string; token: string; amount:
 type LaMargeSend = { venue: string; recipient: string; amount: string; op?: LaMargeOp | undefined }
 
 /**
- * What a payment to lebroker's gas reserve buys: gas on this chain, sent to Main's own wallet once
- * paid. The service's word, for the summary: what's signed is the payment alone.
- */
-type GasPurchaseContext = { chainId: number }
-
-/**
  * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
  * `lamarge`, for a LaMarge request, the deployment it's for; `send`, for a LaMarge send to another of the user's
- * accounts, its terms; `gas`, for a payment to lebroker's gas reserve, what it buys; `depositVenue`, for a withdrawal
- * paid straight into a venue's deposit address for Main, which opens Main's account
+ * accounts, its terms; `depositVenue`, for a withdrawal paid straight into a venue's deposit address for Main, which
+ * opens Main's account
  * there, that venue: the signing side reads the address itself from the venue before it signs, never the request's word.
  */
 type SignaturePayload =
@@ -88,7 +82,6 @@ type SignaturePayload =
       typedData: TypedDataPayload
       take?: LaMargeTake | undefined
       lamarge?: LaMargeRequestContext | undefined
-      gas?: GasPurchaseContext | undefined
       depositVenue?: VenueId | undefined
       send?: LaMargeSend | undefined
     }
@@ -100,7 +93,6 @@ type SignaturePayload =
     }
 
 export type {
-  GasPurchaseContext,
   LaMargeLighterAccounts,
   LaMargeOp,
   LaMargeRequestContext,

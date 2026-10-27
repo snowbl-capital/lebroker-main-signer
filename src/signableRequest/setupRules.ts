@@ -8,7 +8,6 @@ import {
   SUB_ACCOUNT_PROOF_DOMAIN,
 } from "../lebroker/signer/model"
 import {
-  ASTER_AGENT_NAME,
   ASTER_AGENT_TTL_MS,
   ASTER_APPROVAL_CHAIN_ID,
   ASTER_MESSAGE_TYPES,
@@ -22,7 +21,7 @@ import {
   POLYMARKET_PROXY_TTL_MS,
   POLYMARKET_SIGN_DOMAIN,
 } from "../lebroker/venues/model"
-import { ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS } from "./constants"
+import { ASTER_AGENT_TERMS, ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
 import type { DelegateProps, MessageRuleProps, SignSummary, TypedRuleProps } from "./types"
 import { allowedChain, atMost, chainOf, expectDomain, expectTypes, isAddress, queryFields, refuse, text, until, wholeNumber } from "./utils"
@@ -64,7 +63,12 @@ function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedR
   }
 }
 
-/** Aster: Main approves lebroker's agent to trade perps, never Spot, never to withdraw, for 180 days at most. */
+/**
+ * Aster: Main approves one of lebroker's agents for 180 days at most, never to withdraw, each under its own name with
+ * its own permissions alone: the trading agent trades perps, never Spot; the conversion agent trades Spot, a move's
+ * conversion of USDC to USDT, never perps. Aster keeps one agent per name, so an approval under another name would
+ * revoke another's.
+ */
 function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId: ASTER_APPROVAL_CHAIN_ID } })
   expectTypes({ typedData, types: ASTER_MESSAGE_TYPES, primaryType: "Message" })
@@ -72,15 +76,12 @@ function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummar
   if (!isAddress({ address: fields.user, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
   }
-  if (fields.agentName !== ASTER_AGENT_NAME) {
-    refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
-  }
-  if (
-    fields.canWithdraw !== AsterBoolean.FALSE ||
-    fields.canSpotTrade !== AsterBoolean.FALSE ||
-    fields.canPerpTrade !== AsterBoolean.TRUE
-  ) {
+  const terms = ASTER_AGENT_TERMS.find(entry => entry.name === fields.agentName) ?? refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
+  if (fields.canWithdraw !== AsterBoolean.FALSE) {
     refuse({ refusal: SignableRefusal.WITHDRAW_PERMISSION })
+  }
+  if (fields.canSpotTrade !== terms.spot || fields.canPerpTrade !== terms.perp) {
+    refuse({ refusal: SignableRefusal.OTHER_PERMISSIONS })
   }
   if (fields.signatureChainId !== String(ASTER_APPROVAL_CHAIN_ID)) {
     refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
@@ -89,7 +90,7 @@ function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummar
   atMost({ value: expiry, max: askedAt + ASTER_AGENT_TTL_MS + CLOCK_SLACK_MS })
   const agent = delegate({ address: fields.agentAddress, main: user.address })
   return {
-    action: SignSummaryText.APPROVE_ASTER_AGENT,
+    action: terms.action,
     lines: [
       { label: SignSummaryLabel.AGENT, value: shortAddress({ address: agent }) },
       { label: SignSummaryLabel.VALID_UNTIL, value: until({ ms: expiry }) },
