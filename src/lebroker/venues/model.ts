@@ -32,6 +32,12 @@ export {
 } from "./aster/constants"
 export {
   CREATE_PROXY_TYPES as POLYMARKET_CREATE_PROXY_TYPES,
+  OP_TYPES as POLYMARKET_OP_TYPES,
   PROXY_TTL_MS as POLYMARKET_PROXY_TTL_MS,
   SIGN_DOMAIN as POLYMARKET_SIGN_DOMAIN,
 } from "./polymarket/constants"
+export {
+  deleteProxyOp as polymarketDeleteProxyOp,
+  opHash as polymarketOpHash,
+  opTypedData as polymarketOpTypedData,
+} from "./polymarket/signing"

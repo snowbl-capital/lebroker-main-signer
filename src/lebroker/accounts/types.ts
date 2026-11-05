@@ -70,7 +70,13 @@ type LaMargeOp = { type: string; args: { account: string; token: string; amount:
 type LaMargeSend = { venue: string; recipient: string; amount: string; op?: LaMargeOp | undefined }
 
 /**
- * What Main's wallet signs for a request; `take`, for a LaMarge take's payment inside a venue, the take it pays;
+ * A key of lebroker's that Main's signature deletes on a venue, as a Polymarket Perps proxy whose deletion is signed as
+ * a hash alone: the signing side rebuilds that hash from it before it signs.
+ */
+type KeyDeletion = { venue: VenueId; key: string }
+
+/**
+ * What Main's wallet signs for a request; `deletes`, for a venue's renewal, the old key it deletes first; `take`, for a LaMarge take's payment inside a venue, the take it pays;
  * `lamarge`, for a LaMarge request, the deployment it's for; `send`, for a LaMarge send to another of the user's
  * accounts, its terms; `depositVenue`, for a withdrawal paid straight into a venue's deposit address for Main, which
  * opens Main's account
@@ -84,6 +90,7 @@ type SignaturePayload =
       lamarge?: LaMargeRequestContext | undefined
       depositVenue?: VenueId | undefined
       send?: LaMargeSend | undefined
+      deletes?: KeyDeletion | undefined
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE
@@ -93,6 +100,7 @@ type SignaturePayload =
     }
 
 export type {
+  KeyDeletion,
   LaMargeLighterAccounts,
   LaMargeOp,
   LaMargeRequestContext,

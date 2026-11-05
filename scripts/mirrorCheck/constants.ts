@@ -79,6 +79,11 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   },
   { mirror: "src/lebroker/venues/aster/constants.ts", source: "packages/venues/src/aster/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/polymarket/constants.ts", source: "packages/venues/src/polymarket/constants.ts", whole: false },
+  ...["enums", "signing", "types"].map(name => ({
+    mirror: `src/lebroker/venues/polymarket/${name}.ts`,
+    source: `packages/venues/src/polymarket/${name}.ts`,
+    whole: false,
+  })),
   { mirror: "src/lebroker/venues/lighter/constants.ts", source: "packages/venues/src/lighter/constants.ts", whole: false },
   {
     mirror: "src/lebroker/signer/depositAddresses/constants.ts",

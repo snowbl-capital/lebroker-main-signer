@@ -32,6 +32,8 @@ enum SignableRefusal {
   NOT_DEPOSIT_ADDRESS = "This withdrawal pays an address that isn't the venue's deposit address for your Main.",
   /** A LaMarge send on Polymarket, whose wallet prompt shows a hash, without the operation it hashes. */
   NO_SEND_OP = "This Polymarket send doesn't carry the operation its signature hashes, so the browser can't check it.",
+  NO_DELETED_PROXY = "This Polymarket proxy deletion doesn't name the proxy its signature hashes, so the browser can't check it.",
+  OTHER_DELETION = "This Polymarket proxy deletion signs another operation than the deletion of the proxy it names.",
   /** Main's Hyperliquid account switched to a mode (D66): only ever to unified. */
   NOT_UNIFIED = "This request switches Main's Hyperliquid account to another mode than unified.",
 }
@@ -42,6 +44,7 @@ enum SignSummaryText {
   APPROVE_ASTER_AGENT = "Approve leneutre's Aster agent to trade perps for Main, never to withdraw",
   APPROVE_ASTER_CONVERT_AGENT = "Let leneutre convert USDC to USDT on Aster's Spot market for Main: no perps trading, no withdrawal",
   APPROVE_POLYMARKET_PROXY = "Approve leneutre's Polymarket Perps proxy to trade for Main",
+  DELETE_POLYMARKET_PROXY = "Delete an older Polymarket Perps proxy of Main's, to make room for the next",
   PROVE_LIGHTER_ACCOUNT = "Prove that this Lighter account is Main's",
   REGISTER_LIGHTER_KEY = "Register leneutre's trading key on Main's Lighter account",
   TRANSFER = "Transfer funds from Main to one of your accounts",

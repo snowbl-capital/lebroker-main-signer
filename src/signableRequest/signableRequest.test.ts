@@ -41,6 +41,7 @@ import {
   hyperliquidWithdrawRequest,
   polymarketCreateProxyTypedData,
 } from "./testing/builders/builders"
+import { polymarketDeleteProxyOp, polymarketOpTypedData } from "../lebroker/venues/model"
 import { AsterAgentKind } from "./testing/builders/enums"
 import { SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import { signableRequest } from "./signableRequest"
@@ -460,6 +461,25 @@ describe("a venue's setup", () => {
     expect(signableRequest(requestOf({ venue: VenueId.POLYMARKET_PERPS, typedData: week })).ok).toBe(true)
     const month = polymarketCreateProxyTypedData({ proxy: AGENT, expiry: ASKED_AT + 30 * DAY_MS, salt: 1, ts: ASKED_AT })
     expect(refusalOf(requestOf({ venue: VenueId.POLYMARKET_PERPS, typedData: month }))).toBe(SignableRefusal.TOO_LONG)
+  })
+
+  test("signs Polymarket's deletion of the proxy the request names only, never Main's, never another operation", () => {
+    const deletion = polymarketOpTypedData({ op: polymarketDeleteProxyOp({ proxy: AGENT }), salt: 1, ts: ASKED_AT })
+    const deletes = { venue: VenueId.POLYMARKET_PERPS, key: AGENT }
+    const kind = SignatureRequestKind.VENUE_RENEWAL
+    const read = signableRequest(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: deletion, deletes }))
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.DELETE_POLYMARKET_PROXY)
+    // The hash alone is signed: without the proxy it deletes, or naming another, it can't be checked.
+    expect(refusalOf(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: deletion }))).toBe(SignableRefusal.NO_DELETED_PROXY)
+    const other = { venue: VenueId.POLYMARKET_PERPS, key: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" }
+    expect(refusalOf(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: deletion, deletes: other }))).toBe(
+      SignableRefusal.OTHER_DELETION,
+    )
+    const ofMain = polymarketOpTypedData({ op: polymarketDeleteProxyOp({ proxy: MAIN }), salt: 1, ts: ASKED_AT })
+    const mainDeleted = { venue: VenueId.POLYMARKET_PERPS, key: MAIN }
+    expect(refusalOf(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: ofMain, deletes: mainDeleted }))).toBe(
+      SignableRefusal.UNKNOWN_SHAPE,
+    )
   })
 
   test("signs Lighter's proof for Main's own account, and its key's registration at leneutre's indexes only, 200 to 252", () => {

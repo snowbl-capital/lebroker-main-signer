@@ -1,11 +1,11 @@
 import { AccountKind, SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
 import { hyperliquidUnifiedAccount } from "./accountModeRules"
-import { SIGNATURE_CHAIN_IDS } from "./constants"
+import { OP_TYPE, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
-import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval } from "./setupRules"
+import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval, polymarketDeletion } from "./setupRules"
 import { asterTransfer, asterWithdrawal, hyperliquidDepositWithdrawal, hyperliquidTransfer, hyperliquidWithdrawal } from "./transferRules"
 import type { RuleProps, Signable, SignableRequestProps, SignSummary } from "./types"
 import { refuse, withApprovals } from "./utils"
@@ -25,7 +25,9 @@ function setupSummary(props: RuleProps): SignSummary {
     case VenueId.ASTER:
       return asterApproval(typed)
     case VenueId.POLYMARKET_PERPS:
-      return polymarketApproval(typed)
+      return payload.typedData.primaryType === OP_TYPE
+        ? polymarketDeletion({ ...typed, deletes: payload.deletes })
+        : polymarketApproval(typed)
     case VenueId.LIGHTER:
       return lighterProof(typed)
     case null:

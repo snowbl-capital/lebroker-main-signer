@@ -57,6 +57,7 @@ function requestOf({
   take,
   lamarge = LAMARGE_PRODUCTION,
   send,
+  deletes,
   depositVenue = null,
   depositAddress,
   approvedRecipients,
@@ -79,6 +80,7 @@ function requestOf({
               typedData: wire({ typedData }),
               ...named,
               ...(send === undefined ? {} : { send }),
+              ...(deletes === undefined ? {} : { deletes }),
               ...(depositVenue === null ? {} : { depositVenue }),
             }
           : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },
