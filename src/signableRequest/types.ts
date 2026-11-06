@@ -1,5 +1,6 @@
 import type { Typed } from "@lamarge/sdk/protocol"
 import type {
+  KeyDeletion,
   LaMargeOp,
   LaMargeRequestContext,
   LaMargeSend,
@@ -72,6 +73,9 @@ type RuleProps = Omit<SignableRequestProps, "now" | "accounts"> & { accounts: re
 type TypedRuleProps = RuleProps & { typedData: TypedDataPayload }
 
 type MessageRuleProps = RuleProps & { message: string }
+
+/** A Polymarket proxy's deletion: the key the request says it deletes, whose hash the typed data must sign. */
+type PolymarketDeletionProps = TypedRuleProps & { deletes: KeyDeletion | undefined }
 
 type ExpectedDomainProps = { typedData: TypedDataPayload; domain: Readonly<Record<string, unknown>> }
 
@@ -180,6 +184,7 @@ type UnitsProps = { value: bigint; venue: string }
 type LaMargeCheckProps<T> = { check: () => T }
 
 export type {
+  PolymarketDeletionProps,
   AsterAgentTerms,
   LaMargeSendRuleProps,
   SendTypedProps,

@@ -72,6 +72,7 @@ const signaturePayload = z.discriminatedUnion("kind", [
     lamarge: laMargeRequestContext.optional(),
     depositVenue: z.enum(VenueId).optional(),
     send: laMargeSend.optional(),
+    deletes: z.object({ venue: z.enum(VenueId), key: z.string() }).optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),

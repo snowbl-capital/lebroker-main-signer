@@ -17,6 +17,7 @@ export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"
 export type {
   LaMargeOp,
   LaMargeRequestContext,
+  KeyDeletion,
   LaMargeSend,
   LaMargeTake,
   LaMargeTakeFill,

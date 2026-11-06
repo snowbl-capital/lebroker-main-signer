@@ -1,5 +1,6 @@
 import type {
   LaMargeRequestContext,
+  KeyDeletion,
   LaMargeSend,
   LaMargeTake,
   SignaturePayloadKind,
@@ -29,6 +30,8 @@ type RequestOfProps = {
   lamarge?: LaMargeRequestContext | null
   /** A LaMarge send's terms, beside its typed data; none by default. */
   send?: LaMargeSend
+  /** The key a renewal says it deletes first, beside its typed data; none by default. */
+  deletes?: KeyDeletion
   /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
   depositVenue?: VenueId | null
   /** That venue's address for Main, as the signing side read it from the venue; none read by default. */

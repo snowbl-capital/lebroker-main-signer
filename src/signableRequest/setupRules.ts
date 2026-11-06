@@ -1,5 +1,5 @@
 import { isLighterKeyIndex } from "../lebroker/accounts/model"
-import { shortAddress } from "../lebroker/core/model"
+import { shortAddress, VenueId } from "../lebroker/core/model"
 import {
   AsterBoolean,
   LIGHTER_REGISTRATION_MESSAGE,
@@ -18,12 +18,16 @@ import {
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_VALID_UNTIL,
   POLYMARKET_CREATE_PROXY_TYPES,
+  POLYMARKET_OP_TYPES,
   POLYMARKET_PROXY_TTL_MS,
   POLYMARKET_SIGN_DOMAIN,
+  polymarketDeleteProxyOp,
+  polymarketOpHash,
 } from "../lebroker/venues/model"
+import { getAddress } from "viem"
 import { ASTER_AGENT_TERMS, ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
-import type { DelegateProps, MessageRuleProps, SignSummary, TypedRuleProps } from "./types"
+import type { DelegateProps, MessageRuleProps, PolymarketDeletionProps, SignSummary, TypedRuleProps } from "./types"
 import { allowedChain, atMost, chainOf, expectDomain, expectTypes, isAddress, queryFields, refuse, text, until, wholeNumber } from "./utils"
 
 /** An agent or proxy lebroker's signer made: an address, never Main's own. */
@@ -116,6 +120,26 @@ function polymarketApproval({ typedData, user, askedAt }: TypedRuleProps): SignS
   }
 }
 
+/**
+ * Polymarket Perps, before a renewal: Main deletes an older proxy, never Main itself. The wallet shows only the hash of
+ * the deletion, so it's rebuilt from the proxy the request names, and must be the one signed.
+ */
+function polymarketDeletion({ typedData, user, deletes }: PolymarketDeletionProps): SignSummary {
+  expectDomain({ typedData, domain: POLYMARKET_SIGN_DOMAIN })
+  expectTypes({ typedData, types: POLYMARKET_OP_TYPES, primaryType: "Op" })
+  const named = deletes?.venue === VenueId.POLYMARKET_PERPS ? deletes.key : refuse({ refusal: SignableRefusal.NO_DELETED_PROXY })
+  const proxy = getAddress(delegate({ address: named, main: user.address }))
+  const signed = text({ value: typedData.message.data }).toLowerCase()
+  if (signed !== polymarketOpHash({ op: polymarketDeleteProxyOp({ proxy }) }).toLowerCase()) {
+    refuse({ refusal: SignableRefusal.OTHER_DELETION })
+  }
+  return {
+    action: SignSummaryText.DELETE_POLYMARKET_PROXY,
+    lines: [{ label: SignSummaryLabel.PROXY, value: shortAddress({ address: proxy }) }],
+    chainId: POLYMARKET_SIGN_DOMAIN.chainId,
+  }
+}
+
 /** Lighter, first: Main proves the Lighter account is its own, for its own account, a day at most. */
 function lighterProof({ typedData, user, request, askedAt }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: SUB_ACCOUNT_PROOF_DOMAIN })
@@ -151,4 +175,4 @@ function lighterRegistration({ message }: MessageRuleProps): SignSummary {
   }
 }
 
-export { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval }
+export { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval, polymarketDeletion }
