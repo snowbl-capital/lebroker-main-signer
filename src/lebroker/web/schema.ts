@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { AccountKind, AccountState, UserAccess, WalletKind } from "../accounts/model"
+import { AccountKind, AccountState, UserAccess, WalletKind, grantPolicies } from "../accounts/model"
 
 /** Who signed in to the hosted service: their id, Main's address, their wallet's kind and their access. */
 const sessionUser = z.object({
@@ -20,4 +20,14 @@ const accountView = z.object({
   active: z.boolean(),
 })
 
-export { accountView, sessionUser }
+/** What a grantee may do on a sub-account shared with them, feature by feature. */
+const sharedAccess = z.object({ ownerAddress: z.string(), policies: grantPolicies })
+
+/** A sub-account another user shares with this one: its owner's Main, and what this user may do there. */
+const sharedAccountView = accountView.extend({
+  ...sharedAccess.shape,
+  // The owner's Main, where a move of funds from it goes; null when the owner has none open.
+  ownerMainId: z.string().nullable(),
+})
+
+export { accountView, sessionUser, sharedAccess, sharedAccountView }

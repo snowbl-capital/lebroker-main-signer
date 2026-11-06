@@ -2,7 +2,7 @@ import type { AddressBookRecord } from "../addressBookRecord/types"
 import type { AddressBookList, ApiClient, Session } from "../api/types"
 import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
-import type { AccountView } from "../lebroker/web/types"
+import type { AccountView, SharedAccountView } from "../lebroker/web/types"
 import type { ReadDepositAddress } from "../signableRequest/types"
 import type { WalletKey } from "../wallets/wallets"
 
@@ -48,12 +48,14 @@ type WalletSigner = {
 }
 
 /**
- * `approved`: the recipients this wallet's own key approves now in its address book, each entry checked here (D70);
- * null when the address book couldn't be read, and a request that needs it waits for the next pass.
+ * `accounts`, `shared`: the user's own accounts and the sub-accounts other users share with them, as the service lists
+ * them now. `approved`: the recipients this wallet's own key approves now in its address book, each entry checked
+ * here (D70); null when the address book couldn't be read, and a request that needs it waits for the next pass.
  */
 type HandleProps = {
   request: SignatureRequestView
   accounts: readonly AccountView[]
+  shared: readonly SharedAccountView[]
   approved: readonly string[] | null
   session: Session
 }

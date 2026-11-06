@@ -186,7 +186,9 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
       case `${HttpMethod.GET} ${ApiRoute.SESSION}`:
         return json({ body: sessionBody({ user }) })
       case `${HttpMethod.GET} ${ApiRoute.ACCOUNTS}`:
-        return json({ body: { activeAccountId: user.accounts[0]?.id ?? null, accounts: user.accounts, closed: [] } })
+        return json({
+          body: { activeAccountId: user.accounts[0]?.id ?? null, accounts: user.accounts, closed: [], shared: user.shared ?? [] },
+        })
       case `${HttpMethod.GET} ${ApiRoute.SIGNATURE_REQUESTS}`: {
         const open = (requests.get(user.id) ?? []).filter(
           own => own.state === SignatureRequestState.WAITING || own.state === SignatureRequestState.DEFERRED,

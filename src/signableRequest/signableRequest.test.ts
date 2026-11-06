@@ -48,10 +48,12 @@ import { signableRequest } from "./signableRequest"
 import {
   AGENT,
   ASKED_AT,
+  CLOSED_SHARED_SUB,
   CLOSED_SUB,
   LAMARGE_PRODUCTION,
   MAIN,
   MAIN_ACCOUNT_ID,
+  SHARED_SUB,
   STRANGER,
   SUB,
   USER_ID,
@@ -541,6 +543,29 @@ describe("a transfer from Main", () => {
     )
   })
 
+  test("sends to an open sub-account another user shares with the user, as the service lists it, named with its owner", () => {
+    const read = signableRequest(
+      requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData: sendAsset({ destination: SHARED_SUB }) }),
+    )
+    expect(read.ok && read.summary.lines.map(line => line.value)).toEqual(["25 USDC", "Hedges of 0x8888…8888 (0x7777…7777)", "42161"])
+    const aster = requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.ASTER, typedData: asterTransfer({ to: SHARED_SUB }) })
+    expect(signableRequest(aster).ok).toBe(true)
+    // One shared but closed, or none shared with the user: refused as a stranger.
+    const closed = requestOf({
+      kind: SignatureRequestKind.TRANSFER,
+      venue: VenueId.HYPERLIQUID,
+      typedData: sendAsset({ destination: CLOSED_SHARED_SUB }),
+    })
+    expect(refusalOf(closed)).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    const none = requestOf({
+      kind: SignatureRequestKind.TRANSFER,
+      venue: VenueId.HYPERLIQUID,
+      typedData: sendAsset({ destination: SHARED_SUB }),
+      shared: [],
+    })
+    expect(refusalOf(none)).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+  })
+
   test("refuses a destination that isn't one of the user's open sub-accounts", () => {
     for (const destination of [STRANGER, CLOSED_SUB, MAIN]) {
       const props = requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData: sendAsset({ destination }) })
@@ -591,9 +616,14 @@ describe("Main's address book, where the Main signer reads it", () => {
   })
 
   test("never sends to an address the user's accounts don't list as an open sub-account, though the address book names it", () => {
-    for (const destination of [STRANGER, CLOSED_SUB, MAIN]) {
+    for (const destination of [STRANGER, CLOSED_SUB, CLOSED_SHARED_SUB, MAIN]) {
       expect(refusalOf(transferTo({ destination, approvedRecipients: [destination] }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
     }
+  })
+
+  test("sends to a sub-account shared with the user only once an entry of Main's own approves it: a grant alone reaches nobody", () => {
+    expect(refusalOf(transferTo({ destination: SHARED_SUB, approvedRecipients: [SUB] }))).toBe(SignableRefusal.NOT_IN_ADDRESS_BOOK)
+    expect(signableRequest(transferTo({ destination: SHARED_SUB, approvedRecipients: [SHARED_SUB] })).ok).toBe(true)
   })
 
   test("leaves the browser as it was: with no address book read, the wallet's own prompt is the user's check", () => {
@@ -1093,11 +1123,15 @@ describe("a LaMarge send to another of the user's accounts on the same venue", (
     )
   })
 
-  test("never sends to anyone but one of the user's open sub-accounts, whatever the request names", () => {
-    for (const recipient of [STRANGER, CLOSED_SUB, MAIN]) {
+  test("never sends to anyone but one of the user's open sub-accounts, or one shared with them, whatever the request names", () => {
+    for (const recipient of [STRANGER, CLOSED_SUB, CLOSED_SHARED_SUB, MAIN]) {
       expect(refusalOf(polymarketSend({ to: recipient, send: { recipient } }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
     }
     expect(refusalOf(hyperliquidSend({ to: STRANGER, recipient: STRANGER }))).toBe(SignableRefusal.NOT_YOUR_ACCOUNT)
+    const shared = signableRequest(polymarketSend({ to: SHARED_SUB, send: { recipient: SHARED_SUB } }))
+    expect(shared.ok && shared.summary.lines.some(line => line.label === SignSummaryLabel.TO && line.value.startsWith("Hedges of"))).toBe(
+      true,
+    )
   })
 
   test("refuses an operation to another account than the one it names, though it's the user's own", () => {

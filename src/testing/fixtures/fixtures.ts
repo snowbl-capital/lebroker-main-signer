@@ -3,6 +3,8 @@
 import {
   AccountKind,
   AccountState,
+  GrantAccess,
+  GrantFeature,
   SignatureRequestKind,
   SignatureRequestReason,
   SignatureRequestState,
@@ -35,8 +37,33 @@ import type {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** A user with Main and one open sub-account, as the service lists them. */
-function fakeUserOf({ id, address, subAddress }: FakeUserOfProps): FakeUser {
+/** A user with Main and one open sub-account, as the service lists them, and a sub-account shared with them when said. */
+function fakeUserOf({ id, address, subAddress, sharedAddress, ownerAddress }: FakeUserOfProps): FakeUser {
+  const shared =
+    sharedAddress === undefined || ownerAddress === undefined
+      ? []
+      : [
+          {
+            id: `${id}-shared-1`,
+            name: "Hedges",
+            kind: AccountKind.SUB,
+            slot: 1,
+            address: sharedAddress,
+            state: AccountState.OPEN,
+            active: false,
+            ownerAddress,
+            ownerMainId: `${id}-owner-main`,
+            policies: {
+              [GrantFeature.STRATEGIES]: GrantAccess.READ,
+              [GrantFeature.EXECUTOR_RULES]: GrantAccess.READ,
+              [GrantFeature.MARGIN_KEEPER]: GrantAccess.READ,
+              [GrantFeature.MARGIN_MOVES]: GrantAccess.READ,
+              [GrantFeature.VENUES]: GrantAccess.READ,
+              [GrantFeature.NOTIFICATIONS]: GrantAccess.READ,
+              [GrantFeature.MOVE_FUNDS_TO_MAIN]: GrantAccess.READ,
+            },
+          },
+        ]
   return {
     id,
     address,
@@ -52,6 +79,7 @@ function fakeUserOf({ id, address, subAddress }: FakeUserOfProps): FakeUser {
         active: false,
       },
     ],
+    shared,
   }
 }
 

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { accountView } from "../../../schema"
+import { accountView, sharedAccountView } from "../../../schema"
 
 /**
  * A closed sub-account funds reached before its key went: when the key goes, in ms since the epoch, and what it
@@ -7,11 +7,15 @@ import { accountView } from "../../../schema"
  */
 const fundedClosedAccount = accountView.extend({ keyDeletionAt: z.number(), heldUsd: z.number() })
 
-/** The user's accounts, Main first then by number, the one the session shows, and their closed sub-accounts funds reached. */
+/**
+ * The user's accounts, Main first then by number, the one the session shows, their closed sub-accounts funds reached,
+ * and the sub-accounts other users share with them.
+ */
 const accountsList = z.object({
   activeAccountId: z.string().nullable(),
   accounts: z.array(accountView),
   closed: z.array(fundedClosedAccount).default([]),
+  shared: z.array(sharedAccountView).default([]),
 })
 
 /** One account, as creating or closing it answers. */

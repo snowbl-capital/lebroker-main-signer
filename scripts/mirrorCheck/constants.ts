@@ -44,6 +44,7 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   { mirror: "src/lebroker/accounts/enums.ts", source: "packages/accounts/src/enums.ts", whole: false },
   { mirror: "src/lebroker/accounts/constants.ts", source: "packages/accounts/src/constants.ts", whole: false },
   { mirror: "src/lebroker/accounts/types.ts", source: "packages/accounts/src/types.ts", whole: false },
+  { mirror: "src/lebroker/accounts/grants/schema.ts", source: "packages/accounts/src/grants/schema.ts", whole: false },
   {
     mirror: "src/lebroker/accounts/signatureRequests/schema.ts",
     source: "packages/accounts/src/signatureRequests/schema.ts",
@@ -94,6 +95,11 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   { mirror: "src/lebroker/web/types.ts", source: "apps/web/src/types.ts", whole: false },
   { mirror: "src/lebroker/web/helpers/sameAddress/sameAddress.ts", source: "apps/web/src/helpers/sameAddress/sameAddress.ts", whole: true },
   { mirror: "src/lebroker/web/helpers/sameAddress/types.ts", source: "apps/web/src/helpers/sameAddress/types.ts", whole: true },
+  ...["sharedAccountName", "constants", "types"].map(name => ({
+    mirror: `src/lebroker/web/helpers/sharedAccountName/${name}.ts`,
+    source: `apps/web/src/helpers/sharedAccountName/${name}.ts`,
+    whole: true,
+  })),
   ...["venueDepositAddress", "venueDepositAddress.test", "enums", "schema", "types"].map(name => ({
     mirror: `src/lebroker/web/helpers/venueDepositAddress/${name}.ts`,
     source: `apps/web/src/helpers/venueDepositAddress/${name}.ts`,

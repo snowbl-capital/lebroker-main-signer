@@ -49,7 +49,7 @@ import type {
   UnitsProps,
   VenueOfProps,
 } from "./types"
-import { chainOf, deploymentEscrows, isAddress, laMargeCheck, ownSubAccount, refuse, text, toAccount, wholeNumber } from "./utils"
+import { chainOf, deploymentEscrows, isAddress, laMargeCheck, recipientSubAccount, refuse, text, toAccount, wholeNumber } from "./utils"
 
 /**
  * Typed data as LaMarge's SDK checks it: its domain's four fields and none more, the chain id a number, and the domain's
@@ -121,14 +121,14 @@ function sendTyped({ typedData, op }: SendTypedProps): TransferTyped {
 }
 
 /**
- * A LaMarge send from Main to another of the user's accounts on the same venue: only to one of the user's own open
- * sub-accounts, the recipient read from the user's accounts, never the request's word alone. LaMarge's SDK then rebuilds
- * and checks what's signed against that recipient and the amount the request names (`checkSend`), from Main's own
- * account: on Polymarket, where the wallet shows only a hash, the operation the request carries, whose account, token,
- * amount and recipient it checks, and whose hash must be the one signed.
+ * A LaMarge send from Main to another account on the same venue: only to one of the user's own open sub-accounts, or
+ * one shared with them, the recipient read from the accounts the service lists, never the request's word alone.
+ * LaMarge's SDK then rebuilds and checks what's signed against that recipient and the amount the request names
+ * (`checkSend`), from Main's own account: on Polymarket, where the wallet shows only a hash, the operation the request
+ * carries, whose account, token, amount and recipient it checks, and whose hash must be the one signed.
  */
 function send({ typedData, user, accounts, now, request, send: asked }: LaMargeSendRuleProps): SignSummary {
-  const to = ownSubAccount({ address: asked.recipient, accounts })
+  const to = recipientSubAccount({ address: asked.recipient, accounts })
   const typed = sendTyped({ typedData, op: asked.op })
   const sent = laMargeCheck({ check: () => BigInt(asked.amount) })
   laMargeCheck({ check: () => checkSend(typed, asked.venue, user.address, text({ value: to.address }), sent, now / 1000) })

@@ -43,6 +43,9 @@ import { createWalletSigner } from "./walletSigner"
 const AGENT = privateKeyToAccount(generatePrivateKey()).address
 const SUB = privateKeyToAccount(generatePrivateKey()).address
 const STRANGER = privateKeyToAccount(generatePrivateKey()).address
+/** A sub-account another user shares with Main's user, and that user's own Main. */
+const SHARED_SUB = privateKeyToAccount(generatePrivateKey()).address
+const OWNER = privateKeyToAccount(generatePrivateKey()).address
 
 /** lebroker's live deployment, as `LEBROKER_URL` names it. */
 const LEBROKER_LIVE = "https://app.leneutre.trade"
@@ -64,11 +67,19 @@ function recordFile(): string {
   return path
 }
 
-/** One Main wallet, a throwaway key, signed in to a fake service of its own, with its address book's record. */
-async function setUp({ label = "main", userId = "user-1", appOrigin, now, recordPath = recordFile() }: SetUpProps = {}) {
+/**
+ * One Main wallet, a throwaway key, signed in to a fake service of its own, with its address book's record; with a
+ * sub-account another user shares with it when `shared` says so.
+ */
+async function setUp({ label = "main", userId = "user-1", appOrigin, now, recordPath = recordFile(), shared = false }: SetUpProps = {}) {
   const key = generatePrivateKey()
   const wallet = new WalletKey({ key, label })
-  const user = fakeUserOf({ id: userId, address: wallet.info.address, subAddress: SUB })
+  const user = fakeUserOf({
+    id: userId,
+    address: wallet.info.address,
+    subAddress: SUB,
+    ...(shared ? { sharedAddress: SHARED_SUB, ownerAddress: OWNER } : {}),
+  })
   const api = createFakeApi({ users: [user] })
   opened.push(api)
   const logs = logCollector()
@@ -235,6 +246,37 @@ describe("Main's address book (lebroker's D70)", () => {
     ctx.api.addRequest({ userId: ctx.user.id, request: transferRequest({ id: "book-2", accountId: ctx.mainId, destination: SUB }) })
     await ctx.signer.pass()
     expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["book-2"])
+  })
+
+  test("a transfer to a sub-account another user shares with Main's user is signed once an entry approves it, never on the grant alone", async () => {
+    const ctx = await setUp({ shared: true })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: transferRequest({ id: "shared-1", accountId: ctx.mainId, destination: SHARED_SUB }),
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "shared-1", reason: SignableRefusal.NOT_IN_ADDRESS_BOOK }])
+    await approve({ ctx, recipients: [SHARED_SUB] })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: transferRequest({ id: "shared-2", accountId: ctx.mainId, destination: SHARED_SUB }),
+    })
+    // The refused request is read again on each pass: once the entry approves it, it's signed with the new one.
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["shared-1", "shared-2"])
+    expect(ctx.logs.read().find(line => line.event === LogEvent.SIGNED && line.requestId === "shared-2")).toMatchObject({
+      action: SignSummaryText.TRANSFER,
+    })
+    // Not shared with the user, the same address is a stranger's, whatever the address book says.
+    const alone = await setUp({ userId: "user-2" })
+    await approve({ ctx: alone, recipients: [SHARED_SUB] })
+    alone.api.addRequest({
+      userId: alone.user.id,
+      request: transferRequest({ id: "shared-3", accountId: alone.mainId, destination: SHARED_SUB }),
+    })
+    await alone.signer.pass()
+    expect(alone.api.declines).toEqual([{ requestId: "shared-3", reason: SignableRefusal.NOT_YOUR_ACCOUNT }])
   })
 
   test("an entry another key signed, one naming another Main, or the service's word alone, approves nothing", async () => {
