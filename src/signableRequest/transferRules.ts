@@ -24,7 +24,7 @@ import {
   expectDomain,
   expectTypes,
   isAddress,
-  ownSubAccount,
+  recipientSubAccount,
   queryFields,
   refuse,
   text,
@@ -46,8 +46,8 @@ function hyperliquidChain({ typedData, walletChainId }: TypedRuleProps): number 
 }
 
 /**
- * Hyperliquid's `sendAsset` of USDC from Main to one of the user's own sub-accounts, between the balances where
- * each account's mode keeps its collateral: spot, or the main dex's perps.
+ * Hyperliquid's `sendAsset` of USDC from Main to one of the user's own sub-accounts, or one shared with them, between
+ * the balances where each account's mode keeps its collateral: spot, or the main dex's perps.
  */
 function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
   const chainId = hyperliquidChain(props)
@@ -60,7 +60,7 @@ function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
   ) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   }
-  const to = ownSubAccount({ address: props.typedData.message.destination, accounts: props.accounts })
+  const to = recipientSubAccount({ address: props.typedData.message.destination, accounts: props.accounts })
   return {
     action: SignSummaryText.TRANSFER,
     lines: [
@@ -72,7 +72,7 @@ function hyperliquidTransfer(props: TypedRuleProps): SignSummary {
   }
 }
 
-/** Aster's Spot transfer of USDT, signed by Main's wallet, to one of the user's own sub-accounts. */
+/** Aster's Spot transfer of USDT, signed by Main's wallet, to one of the user's own sub-accounts or one shared with them. */
 function asterTransfer({ typedData, user, accounts }: TypedRuleProps): SignSummary {
   const chainId = ASTER_SIGN_CHAIN_IDS[Network.MAINNET]
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId } })
@@ -84,7 +84,7 @@ function asterTransfer({ typedData, user, accounts }: TypedRuleProps): SignSumma
   if (fields.asset !== ASTER_MARGIN_ASSET) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   }
-  const to = ownSubAccount({ address: fields.toAddress, accounts })
+  const to = recipientSubAccount({ address: fields.toAddress, accounts })
   return {
     action: SignSummaryText.TRANSFER,
     lines: [

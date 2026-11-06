@@ -3,6 +3,7 @@ import { AccountKind, AccountState } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
+import { sharedAccountName } from "../lebroker/web/helpers/sharedAccountName/sharedAccountName"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import type {
@@ -15,8 +16,8 @@ import type {
   ExpectedDomainProps,
   ExpectedTypesProps,
   LaMargeCheckProps,
-  OwnAccountProps,
   QueryFieldsProps,
+  RecipientSubAccountProps,
   RefuseProps,
   RuleAccount,
   SameAddressProps,
@@ -86,18 +87,18 @@ function queryFields({ query, names }: QueryFieldsProps): Record<string, string>
 }
 
 /**
- * The open sub-account of the user's at an address: funds from Main go to the user's own accounts only, and, where the
- * signing side reads Main's address book, to one an entry signed by Main's own key approves. Every rule that
- * sends from Main to another account passes here.
+ * The open sub-account at an address funds from Main may go to: one of the user's own, or one shared with them, as
+ * the service lists them, and, where the signing side reads Main's address book, only one an entry signed by Main's
+ * own key approves. Every rule that sends from Main to another account passes here.
  */
-function ownSubAccount({ address, accounts }: OwnAccountProps) {
+function recipientSubAccount({ address, accounts }: RecipientSubAccountProps) {
   const account =
     accounts.find(
-      own =>
-        own.kind === AccountKind.SUB &&
-        own.state === AccountState.OPEN &&
-        own.address !== null &&
-        isAddress({ address, other: own.address }),
+      listed =>
+        listed.kind === AccountKind.SUB &&
+        listed.state === AccountState.OPEN &&
+        listed.address !== null &&
+        isAddress({ address, other: listed.address }),
     ) ?? refuse({ refusal: SignableRefusal.NOT_YOUR_ACCOUNT })
   if (!account.approved) {
     refuse({ refusal: SignableRefusal.NOT_IN_ADDRESS_BOOK })
@@ -106,12 +107,13 @@ function ownSubAccount({ address, accounts }: OwnAccountProps) {
 }
 
 /**
- * The user's accounts, each with whether funds from Main may go to it: every one where no address book is read,
- * as in the browser, only those whose address an approved recipient names otherwise. Set here, whatever the accounts
- * said before.
+ * The accounts funds from Main may go to, each with whether they may: the user's own, then the sub-accounts shared
+ * with them, each named with its owner; approved, every one where no address book is read, as in the browser, only
+ * those whose address an approved recipient names otherwise. Set here, whatever the accounts said before.
  */
-function withApprovals({ accounts, approvedRecipients }: ApprovalsProps): RuleAccount[] {
-  return accounts.map(account => ({
+function withApprovals({ accounts, shared = [], approvedRecipients }: ApprovalsProps): RuleAccount[] {
+  const listed = [...accounts, ...shared.map(account => ({ ...account, name: sharedAccountName({ account }) }))]
+  return listed.map(account => ({
     ...account,
     approved: approvedRecipients === undefined || approvedRecipients.some(other => isAddress({ address: account.address, other })),
   }))
@@ -194,7 +196,7 @@ export {
   expectTypes,
   isAddress,
   laMargeCheck,
-  ownSubAccount,
+  recipientSubAccount,
   queryFields,
   refuse,
   text,

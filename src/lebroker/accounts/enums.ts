@@ -76,9 +76,36 @@ enum SignaturePayloadKind {
   PERSONAL_MESSAGE = "personal-message",
 }
 
+/**
+ * What a grantee may do on a sub-account shared with them, feature by feature: the fields Main's
+ * `SubAccountAccess` approval names, in its order.
+ */
+enum GrantFeature {
+  /** The bots and their features. */
+  STRATEGIES = "strategies",
+  /** Grants nothing since executor rules went: it stays a field of the approval Main signs. */
+  EXECUTOR_RULES = "executorRules",
+  MARGIN_KEEPER = "marginKeeper",
+  /** Margin moved between the account's own venues, through LaMarge. */
+  MARGIN_MOVES = "marginMoves",
+  /** The venues' setup and settings. */
+  VENUES = "venues",
+  NOTIFICATIONS = "notifications",
+  /** Moves of funds from the sub-account to its Main, and no other: a grantee never moves funds anywhere else. */
+  MOVE_FUNDS_TO_MAIN = "moveFundsToMain",
+}
+
+/** How far a grantee goes in a feature: seeing it, or changing it too. */
+enum GrantAccess {
+  READ = "read",
+  WRITE = "write",
+}
+
 export {
   AccountKind,
   AccountState,
+  GrantAccess,
+  GrantFeature,
   SignaturePayloadKind,
   SignatureRequestKind,
   SignatureRequestReason,

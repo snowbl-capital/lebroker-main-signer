@@ -15,6 +15,10 @@ const SUB: Address = "0x2222222222222222222222222222222222222222"
 const CLOSED_SUB: Address = "0x3333333333333333333333333333333333333333"
 const STRANGER: Address = "0x4444444444444444444444444444444444444444"
 const AGENT: Address = "0x5555555555555555555555555555555555555555"
+/** A sub-account another user shares with the user, open; its owner's Main; and one shared with them but closed. */
+const SHARED_SUB: Address = "0x7777777777777777777777777777777777777777"
+const OWNER: Address = "0x8888888888888888888888888888888888888888"
+const CLOSED_SHARED_SUB: Address = "0x9999999999999999999999999999999999999999"
 const USER_ID = "user-1"
 const MAIN_ACCOUNT_ID = "account-main"
 
@@ -28,6 +32,19 @@ const ACCOUNTS: SignableRequestProps["accounts"] = [
   { id: MAIN_ACCOUNT_ID, name: "Main", kind: AccountKind.MAIN, state: AccountState.OPEN, address: MAIN },
   { id: "account-sub-1", name: "Sub-account 1", kind: AccountKind.SUB, state: AccountState.OPEN, address: SUB },
   { id: "account-sub-2", name: "Sub-account 2", kind: AccountKind.SUB, state: AccountState.CLOSED, address: CLOSED_SUB },
+]
+
+/** The sub-accounts another user shares with the user, as the service lists them beside their own: one open, one closed. */
+const SHARED: NonNullable<SignableRequestProps["shared"]> = [
+  { id: "account-shared-1", name: "Hedges", kind: AccountKind.SUB, state: AccountState.OPEN, address: SHARED_SUB, ownerAddress: OWNER },
+  {
+    id: "account-shared-2",
+    name: "Closed",
+    kind: AccountKind.SUB,
+    state: AccountState.CLOSED,
+    address: CLOSED_SHARED_SUB,
+    ownerAddress: OWNER,
+  },
 ]
 
 /** Typed data as the service sends it: every bigint as its decimal string, `EIP712Domain` left out (`wireTypedData`). */
@@ -61,6 +78,7 @@ function requestOf({
   depositVenue = null,
   depositAddress,
   approvedRecipients,
+  shared = SHARED,
   askedAt = ASKED_AT,
   now = askedAt,
   main = MAIN,
@@ -87,6 +105,7 @@ function requestOf({
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
+    shared,
     walletChainId,
     ...(depositAddress === undefined ? {} : { depositAddress }),
     ...(approvedRecipients === undefined ? {} : { approvedRecipients }),
@@ -103,10 +122,13 @@ function registrationMessage({ accountIndex, apiKeyIndex }: RegistrationMessageP
 export {
   AGENT,
   ASKED_AT,
+  CLOSED_SHARED_SUB,
   CLOSED_SUB,
   LAMARGE_PRODUCTION,
   MAIN,
   MAIN_ACCOUNT_ID,
+  OWNER,
+  SHARED_SUB,
   STRANGER,
   SUB,
   USER_ID,

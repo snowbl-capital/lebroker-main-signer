@@ -4,6 +4,8 @@ export { AddressBookStatement } from "./addressBookMessage/enums"
 export {
   AccountKind,
   AccountState,
+  GrantAccess,
+  GrantFeature,
   SignaturePayloadKind,
   SignatureRequestKind,
   SignatureRequestReason,
@@ -11,6 +13,7 @@ export {
   UserAccess,
   WalletKind,
 } from "./enums"
+export { grantPolicies } from "./grants/schema"
 export { isLighterKeyIndex } from "./lighterKeyIndex/lighterKeyIndex"
 export { laMargeTake, signaturePayload, typedDataPayload } from "./signatureRequests/schema"
 export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"

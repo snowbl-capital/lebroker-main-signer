@@ -9,7 +9,8 @@ import type { Timers } from "../../walletSigner/types"
 import type { WalletKey } from "../../wallets/wallets"
 import type { FakeApi, FakeUser } from "../fakeApi/types"
 
-type FakeUserOfProps = { id: string; address: Address; subAddress: Address }
+/** `sharedAddress`: an open sub-account another user shares with them, `ownerAddress` its owner's Main; none by default. */
+type FakeUserOfProps = { id: string; address: Address; subAddress: Address; sharedAddress?: Address; ownerAddress?: Address }
 
 type RequestProps = {
   id: string
@@ -68,9 +69,10 @@ type ManualTimers = Timers & { tick: () => void }
 
 /**
  * One Main wallet's signer under test: `appOrigin`, the deployment it signs for, the fake service's own origin unless
- * said, as `LEBROKER_URL`'s is; `recordPath`, the file of its address book's record, a fresh one unless said.
+ * said, as `LEBROKER_URL`'s is; `recordPath`, the file of its address book's record, a fresh one unless said;
+ * `shared`, whether another user shares a sub-account with Main's user, none unless said.
  */
-type SetUpProps = { label?: string; userId?: string; appOrigin?: string; now?: () => number; recordPath?: string }
+type SetUpProps = { label?: string; userId?: string; appOrigin?: string; now?: () => number; recordPath?: string; shared?: boolean }
 
 /** What an address-book entry of a test's Main is written and listed with: its key, wallet, user, service and deployment. */
 type AddressBookContext = { key: Hex; wallet: WalletKey; user: FakeUser; api: FakeApi; deployment: string }

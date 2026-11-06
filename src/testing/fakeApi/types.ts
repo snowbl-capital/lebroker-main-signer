@@ -1,10 +1,10 @@
 import type { Address, Hex } from "viem"
 import type { SignaturePayload } from "../../lebroker/accounts/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
-import type { AccountView } from "../../lebroker/web/types"
+import type { AccountView, SharedAccountView } from "../../lebroker/web/types"
 
-/** A user of the fake service: Main's address, and their accounts, Main first. */
-type FakeUser = { id: string; address: Address; accounts: AccountView[] }
+/** A user of the fake service: Main's address, their accounts, Main first, and the sub-accounts shared with them, none by default. */
+type FakeUser = { id: string; address: Address; accounts: AccountView[]; shared?: SharedAccountView[] }
 
 /** `answerAs`: a service gone wrong, whose session names this address as the signed-in user's, whoever signed in. */
 type FakeApiProps = { users: FakeUser[]; answerAs?: Address }

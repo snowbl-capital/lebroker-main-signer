@@ -57,7 +57,7 @@ function createWalletSigner({
   let stopPolling: (() => void) | null = null
   let watching: Promise<void> | null = null
 
-  async function handle({ request, accounts, approved, session }: HandleProps): Promise<void> {
+  async function handle({ request, accounts, shared, approved, session }: HandleProps): Promise<void> {
     const logged = { id: request.id, kind: request.kind, venue: request.venue }
     // Only the user approves a recipient, in their wallet (D70): this signer never signs an address-book entry.
     const signable: Signable = asksAddressBookEntry({ request })
@@ -66,6 +66,7 @@ function createWalletSigner({
           request,
           user: session.user,
           accounts,
+          shared,
           walletChainId: chainId,
           // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
           depositAddress: await readDepositAddress({ request }),
@@ -190,10 +191,11 @@ function createWalletSigner({
     if (waiting.length === 0 || session === null) {
       return
     }
-    // The user's accounts as the service lists them now, as the web reads them before each signature: where funds may go.
-    let accounts
+    // The user's accounts, and the sub-accounts shared with them, as the service lists them now, as the web reads them
+    // before each signature: where funds may go.
+    let read
     try {
-      accounts = (await client.accounts()).accounts
+      read = await client.accounts()
     } catch (error) {
       log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.ACCOUNTS, error: errorText({ error }) } })
       return
@@ -203,7 +205,7 @@ function createWalletSigner({
       if (stopping.signal.aborted) {
         return
       }
-      await handle({ request, accounts, approved, session })
+      await handle({ request, accounts: read.accounts, shared: read.shared, approved, session })
     }
   }
 

@@ -37,8 +37,8 @@ function setupSummary(props: RuleProps): SignSummary {
 }
 
 /**
- * A transfer from Main to one of the user's own sub-accounts, where its destination can be read before it's
- * signed. Polymarket Perps signs a hash of its command, which can't be: the browser refuses it.
+ * A transfer from Main to one of the user's own sub-accounts, or one shared with them, where its destination can be
+ * read before it's signed. Polymarket Perps signs a hash of its command, which can't be: the browser refuses it.
  */
 function transferSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
@@ -134,10 +134,10 @@ function summaryOf(props: RuleProps): SignSummary {
 
 /**
  * Whether Main's wallet may sign a request, read from the request alone: a strict allowlist of what lebroker asks
- * for each kind, its exact domain and types, its destinations among the user's own accounts or Main itself, and the one
- * chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A request the service built otherwise, as
- * a compromised host would, is refused before the wallet opens, and the summary says what is signed in place of the
- * service's words.
+ * for each kind, its exact domain and types, its destinations among the user's own accounts, the sub-accounts shared
+ * with them, or Main itself, and the one chain it may be signed on, the wallet's own or one of `SIGNATURE_CHAIN_IDS`. A
+ * request the service built otherwise, as a compromised host would, is refused before the wallet opens, and the summary
+ * says what is signed in place of the service's words.
  */
 function signableRequest(props: SignableRequestProps): Signable {
   try {

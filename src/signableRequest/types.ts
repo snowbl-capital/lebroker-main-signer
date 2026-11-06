@@ -10,14 +10,18 @@ import type {
 } from "../lebroker/accounts/model"
 import type { VenueId } from "../lebroker/core/model"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
-import type { AccountView, SessionUser } from "../lebroker/web/types"
+import type { AccountView, SessionUser, SharedAccountView } from "../lebroker/web/types"
 import type { SignableRefusal, SignSummaryText } from "./enums"
 
 type SignableAccount = Pick<AccountView, "id" | "name" | "kind" | "state" | "address">
 
+/** A sub-account another user shares with the user, with its owner's address: it's named with it where funds go to it. */
+type SharedSignableAccount = SignableAccount & Pick<SharedAccountView, "ownerAddress">
+
 /**
- * One of the user's accounts as the rules read it. `approved`: whether funds from Main may go to it, every account in
- * the browser, only those Main's own address book names where the signing side reads it.
+ * An account funds from Main may go to, as the rules read it: one of the user's own, or a sub-account shared with them
+ * named with its owner. `approved`: whether funds from Main may go to it, every account in the browser, only those
+ * Main's own address book names where the signing side reads it.
  */
 type RuleAccount = SignableAccount & { approved: boolean }
 
@@ -27,6 +31,13 @@ type SignableRequestProps = {
   user: Pick<SessionUser, "id" | "address">
   /** The user's own accounts, as the service lists them: where a transfer may send funds. */
   accounts: readonly SignableAccount[]
+  /**
+   * The sub-accounts other users share with the user, as the service lists them beside their own: where a transfer
+   * from Main may send funds too, inside a venue, each named with its owner. A grant is its grantor's word alone, so
+   * where the signing side reads Main's address book, funds go to one only once an entry of Main's own approves it,
+   * as to the user's own sub-accounts. None by default.
+   */
+  shared?: readonly SharedSignableAccount[] | undefined
   /** The chain the wallet shows; null when it says none. */
   walletChainId: number | null
   /**
@@ -87,10 +98,13 @@ type ExpectedTypesProps = {
 
 type QueryFieldsProps = { query: string; names: readonly string[] }
 
-type OwnAccountProps = { address: unknown; accounts: readonly RuleAccount[] }
+type RecipientSubAccountProps = { address: unknown; accounts: readonly RuleAccount[] }
 
-/** The user's accounts as the service lists them, and the recipients Main's address book approves, where it's read. */
-type ApprovalsProps = Pick<SignableRequestProps, "accounts" | "approvedRecipients">
+/**
+ * The user's accounts and the sub-accounts shared with them as the service lists them, and the recipients Main's
+ * address book approves, where it's read.
+ */
+type ApprovalsProps = Pick<SignableRequestProps, "accounts" | "shared" | "approvedRecipients">
 
 type SameAddressProps = { address: unknown; other: string }
 
@@ -210,14 +224,15 @@ export type {
   LighterTakeProps,
   MessageRuleProps,
   NotSignableProps,
-  OwnAccountProps,
   QueryFieldsProps,
   ReadDepositAddress,
+  RecipientSubAccountProps,
   RefuseProps,
   RuleAccount,
   RuleProps,
   SameAddressProps,
   SameDomainValueProps,
+  SharedSignableAccount,
   Signable,
   SignableRequestProps,
   SignSummary,

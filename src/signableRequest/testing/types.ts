@@ -38,6 +38,8 @@ type RequestOfProps = {
   depositAddress?: ReadDepositAddress
   /** The recipients Main's address book approves, as the Main signer reads it; none read, as in the browser, by default. */
   approvedRecipients?: readonly string[]
+  /** The sub-accounts other users share with the user, as the service lists them: the fixtures' by default. */
+  shared?: SignableRequestProps["shared"]
   /** When it was asked, in ms. */
   askedAt?: number
   /** When it's read, in ms: when it was asked, unless said. */
