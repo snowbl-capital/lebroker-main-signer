@@ -433,7 +433,7 @@ describe("a venue's setup", () => {
     const other = { ...typed, message: { msg: typed.message.msg.replace(`user=${MAIN}`, `user=${STRANGER}`) } }
     expect(refusalOf(requestOf({ venue: VenueId.ASTER, typedData: other }))).toBe(SignableRefusal.OTHER_MAIN)
     // Another agent's name, which Aster would replace with this one.
-    const named = { ...typed, message: { msg: typed.message.msg.replace("agentName=lebroker&", "agentName=LaMarge&") } }
+    const named = { ...typed, message: { msg: typed.message.msg.replace("agentName=leneutre&", "agentName=LaMarge&") } }
     expect(refusalOf(requestOf({ venue: VenueId.ASTER, typedData: named }))).toBe(SignableRefusal.NOT_LEBROKER_AGENT)
   })
 

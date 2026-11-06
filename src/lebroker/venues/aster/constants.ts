@@ -10,7 +10,7 @@ const SIGN_DOMAIN = { name: "AsterSignTransaction", version: "1", verifyingContr
 
 const MESSAGE_TYPES = { Message: [{ name: "msg", type: "string" }] } as const
 
-const AGENT_NAME = "lebroker"
+const AGENT_NAME = "leneutre"
 
 /** An approval lasts this long; once Aster forgets the agent, the trader approves it again. */
 const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
@@ -19,7 +19,7 @@ const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
  * The conversion agent's name: an agent of its own, beside the trading and the withdrawal ones and LaMarge's, whose
  * names it never takes, since Aster keeps one agent per name on an account and an approval under a name replaces it.
  */
-const CONVERT_AGENT_NAME = "lebroker-convert"
+const CONVERT_AGENT_NAME = "leneutre-convert"
 
 /**
  * What the owner signs to withdraw: an `Action` on the destination chain's id, its field names with their spaces, as

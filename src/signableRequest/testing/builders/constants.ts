@@ -5,7 +5,7 @@ import { AsterAgentKind } from "./enums"
 const WIRE_DECIMALS = 8
 
 /** lebroker's Aster agent that only withdraws: Main's allowlist never signs its approval. */
-const ASTER_WITHDRAWAL_AGENT_NAME = "lebroker-withdraw"
+const ASTER_WITHDRAWAL_AGENT_NAME = "leneutre-withdraw"
 
 /** Each of lebroker's Aster agents' names, by what it does, as lebroker's `AGENT_NAMES` gives them. */
 const ASTER_AGENT_NAMES: Record<AsterAgentKind, string> = {
