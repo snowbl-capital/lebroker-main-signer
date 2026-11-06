@@ -463,7 +463,7 @@ describe("Main's approval of lebroker's agents on Aster (lebroker #535)", () => 
     if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
       throw new Error("typed data expected")
     }
-    expect(new URLSearchParams(String(payload.typedData.message.msg)).get("agentName")).toBe("lebroker-convert")
+    expect(new URLSearchParams(String(payload.typedData.message.msg)).get("agentName")).toBe("leneutre-convert")
     const signer = await recoverTypedDataAddress({
       ...typedDataFromWire({ payload: payload.typedData }),
       signature: ctx.api.submissions[0]?.signature ?? "0x",
@@ -485,8 +485,8 @@ describe("Main's approval of lebroker's agents on Aster (lebroker #535)", () => 
       { query: { canSpotTrade: "false", canPerpTrade: "true" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
       { query: { canWithdraw: "true" }, refusal: SignableRefusal.WITHDRAW_PERMISSION },
       // Spot alone, but under the trading agent's name, which Aster would replace with it.
-      { query: { agentName: "lebroker" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
-      { query: { agentName: "lebroker-convert-2" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "leneutre" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { agentName: "leneutre-convert-2" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
       { query: { agentName: "LaMarge" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
     ]
     for (const [index, { query }] of cases.entries()) {
@@ -512,9 +512,9 @@ describe("Main's approval of lebroker's agents on Aster (lebroker #535)", () => 
       // The conversion agent's permissions under the trading agent's name.
       { query: { canSpotTrade: "true", canPerpTrade: "false" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
       // Perps alone, but under the conversion agent's name.
-      { query: { agentName: "lebroker-convert" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
-      { query: { agentName: "lebroker-withdraw" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
-      { query: { agentName: "lebroker-referrals" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "leneutre-convert" }, refusal: SignableRefusal.OTHER_PERMISSIONS },
+      { query: { agentName: "leneutre-withdraw" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
+      { query: { agentName: "leneutre-referrals" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
       { query: { agentName: "LaMarge" }, refusal: SignableRefusal.NOT_LEBROKER_AGENT },
     ]
     for (const [index, { query }] of cases.entries()) {
