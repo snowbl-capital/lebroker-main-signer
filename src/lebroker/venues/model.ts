@@ -14,7 +14,7 @@ export {
 export { HyperliquidAbstraction } from "./hyperliquid/enums"
 export {
   AGENT_MAX_VALIDITY_MS as HYPERLIQUID_AGENT_MAX_VALIDITY_MS,
-  LEBROKER_AGENT_NAME as HYPERLIQUID_AGENT_NAME,
+  LENEUTRE_AGENT_NAME as HYPERLIQUID_AGENT_NAME,
   VALID_UNTIL as HYPERLIQUID_VALID_UNTIL,
 } from "./hyperliquid/agents/constants"
 export {

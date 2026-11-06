@@ -1,5 +1,5 @@
-/** lebroker's agent's name on every Main: it never changes, so each renewal replaces it and takes no second slot. */
-const LEBROKER_AGENT_NAME = "lebroker"
+/** leneutre's agent's name on every Main, production's: it never changes, so each renewal replaces it and takes no second slot. */
+const LENEUTRE_AGENT_NAME = "leneutre"
 
 /** The longest an agent may last: 180 days was accepted, 181 refused (tested on mainnet, 18 October 2026). */
 const AGENT_MAX_VALIDITY_MS = 180 * 24 * 60 * 60 * 1000
@@ -7,4 +7,4 @@ const AGENT_MAX_VALIDITY_MS = 180 * 24 * 60 * 60 * 1000
 /** How an agent's end is written in its name: Hyperliquid reads `<name> valid_until <ms>`. */
 const VALID_UNTIL = "valid_until"
 
-export { AGENT_MAX_VALIDITY_MS, LEBROKER_AGENT_NAME, VALID_UNTIL }
+export { AGENT_MAX_VALIDITY_MS, LENEUTRE_AGENT_NAME, VALID_UNTIL }
