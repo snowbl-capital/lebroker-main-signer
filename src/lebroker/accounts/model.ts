@@ -18,6 +18,7 @@ export { isLighterKeyIndex } from "./lighterKeyIndex/lighterKeyIndex"
 export { laMargeTake, signaturePayload, typedDataPayload } from "./signatureRequests/schema"
 export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"
 export type {
+  LaMargeAttestation,
   LaMargeOp,
   LaMargeRequestContext,
   KeyDeletion,
@@ -26,5 +27,6 @@ export type {
   LaMargeTakeFill,
   LaMargeTakeInput,
   SignaturePayload,
+  SignatureStep,
   TypedDataPayload,
 } from "./types"

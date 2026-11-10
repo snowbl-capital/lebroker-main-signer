@@ -9,6 +9,8 @@ enum PolymarketOp {
   UPDATE_MARGIN = "updateMargin",
   /** pUSD to another Perps account, which must exist: signed by the sending owner's own key. */
   INTERNAL_TRANSFER = "internalTransfer",
+  /** A withdrawal of Perps' margin, its op named in the request's body beside its typed data's signature. */
+  WITHDRAW = "withdraw",
   /**
    * The most a builder's fee may take of each of the account's orders, at a version one past the last saved: signed by
    * the owner's own key. A most of 0 revokes it.
@@ -16,4 +18,10 @@ enum PolymarketOp {
   APPROVE_BUILDER = "approveBuilder",
 }
 
-export { PolymarketOp }
+/** Polymarket's bridge: a withdrawal address for a recipient, and a quote of what it delivers. */
+enum PolymarketBridgePath {
+  WITHDRAW = "/withdraw",
+  QUOTE = "/quote",
+}
+
+export { PolymarketOp, PolymarketBridgePath }

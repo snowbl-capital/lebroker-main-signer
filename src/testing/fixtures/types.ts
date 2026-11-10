@@ -2,7 +2,7 @@ import type { Address, Hex } from "viem"
 import type { AddressBookStatement, SignatureRequestKind } from "../../lebroker/accounts/model"
 import type { SignatureRequestState } from "../../lebroker/accounts/model"
 import type { VenueId } from "../../lebroker/core/model"
-import type { AsterAgentKind } from "../../signableRequest/testing/builders/enums"
+import type { AsterAgentKind } from "../../lebroker/venues/model"
 import type { LogEvent } from "../../log/enums"
 import type { Logger } from "../../log/types"
 import type { Timers } from "../../walletSigner/types"
@@ -30,7 +30,8 @@ type RequestProps = {
   expiresAt?: number
 }
 
-type ApprovalProps = { id: string; accountId: string; agent: Address; askedAt?: number }
+/** `name`: the agent's name, production's by default, as the fake's deployment.js names it. */
+type ApprovalProps = { id: string; accountId: string; agent: Address; askedAt?: number; name?: string }
 
 type TransferProps = { id: string; accountId: string; destination: Address; askedAt?: number }
 
@@ -72,7 +73,16 @@ type ManualTimers = Timers & { tick: () => void }
  * said, as `LEBROKER_URL`'s is; `recordPath`, the file of its address book's record, a fresh one unless said;
  * `shared`, whether another user shares a sub-account with Main's user, none unless said.
  */
-type SetUpProps = { label?: string; userId?: string; appOrigin?: string; now?: () => number; recordPath?: string; shared?: boolean }
+/** `settings`: what the service's deployment.js gives, the fake's own by default; null, none served. */
+type SetUpProps = {
+  label?: string
+  userId?: string
+  appOrigin?: string
+  now?: () => number
+  recordPath?: string
+  shared?: boolean
+  settings?: Record<string, unknown> | null
+}
 
 /** What an address-book entry of a test's Main is written and listed with: its key, wallet, user, service and deployment. */
 type AddressBookContext = { key: Hex; wallet: WalletKey; user: FakeUser; api: FakeApi; deployment: string }

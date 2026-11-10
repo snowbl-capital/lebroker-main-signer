@@ -16,7 +16,24 @@ const MAIN_LIGHTER_ACCOUNT_PROOF_TYPES = {
   ],
 } as const
 
+/**
+ * Main's word for its own USDC deposit address on Bybit, on a chain: what a withdrawal of Main's paid straight into
+ * Bybit, as Hyperliquid's, may pay. Main's wallet checks such a withdrawal against it, never against the host's word.
+ * The signer doesn't check it: it signs none of those withdrawals.
+ */
+const MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES = {
+  MainBybitDepositAddress: [
+    { name: "owner", type: "string" },
+    { name: "account", type: "string" },
+    { name: "main", type: "address" },
+    { name: "depositAddress", type: "address" },
+    { name: "chainId", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const
+
 /** A proof lasts at most a day: it is signed right before the key is created. */
 const MAX_PROOF_LIFETIME_MS = 24 * 60 * 60 * 1000
 
-export { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, MAX_PROOF_LIFETIME_MS, SUB_ACCOUNT_PROOF_DOMAIN }
+export { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, MAX_PROOF_LIFETIME_MS, SUB_ACCOUNT_PROOF_DOMAIN, MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES }

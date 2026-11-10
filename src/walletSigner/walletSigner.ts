@@ -3,6 +3,7 @@ import { readEvents } from "../eventStream/eventStream"
 import { LogEvent, StreamStage } from "../log/enums"
 import { approvedRecipientsOf, withinClock } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
 import { SignatureRequestState } from "../lebroker/accounts/model"
+import { attestedOf, checkAttestedTake } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsMutationSign/utils"
 import { SignableRefusal } from "../signableRequest/enums"
 import { signableRequest } from "../signableRequest/signableRequest"
 import type { Signable } from "../signableRequest/types"
@@ -19,7 +20,14 @@ import {
 } from "./constants"
 import { FailedStep, ReadSubject, SignerRefusal } from "./enums"
 import type { CreateWalletSignerProps, DeclineProps, HandleProps, WalletSigner } from "./types"
-import { asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers, verifiedEntries } from "./utils"
+import {
+  asksAddressBookEntry,
+  createDepositAddressReader,
+  createLighterAccountsReader,
+  errorText,
+  runtimeTimers,
+  verifiedEntries,
+} from "./utils"
 
 /**
  * Signs one Main wallet's signature requests as they wait (D2, D37), and only those lebroker's allowlist accepts (D43):
@@ -49,7 +57,8 @@ function createWalletSigner({
   // Refusals told to lebroker since the stream last opened: told again after, as lebroker keeps them in memory only.
   const declined = new Set<string>()
   const attempts = new Map<string, number>()
-  const readDepositAddress = createDepositAddressReader({ address: wallet.info.address, now })
+  const readDepositAddress = createDepositAddressReader({ address: wallet.info.address, client, now })
+  const readLighterAccounts = createLighterAccountsReader({ now })
   let running: Promise<void> | null = null
   let again = false
   let streamUp = false
@@ -57,22 +66,54 @@ function createWalletSigner({
   let stopPolling: (() => void) | null = null
   let watching: Promise<void> | null = null
 
-  async function handle({ request, accounts, shared, approved, session }: HandleProps): Promise<void> {
-    const logged = { id: request.id, kind: request.kind, venue: request.venue }
+  /**
+   * The allowlist's reading of a request, with what it reads besides, as the web reads it before its wallet opens
+   * (`signRequest`): a venue's deposit address and Lighter's accounts read by this signer itself, LaMarge's attestation
+   * verified here, and a take's payment refused without one.
+   */
+  async function signableOf({ request, accounts, shared, approved, session, agentNames }: HandleProps): Promise<Signable> {
     // Only the user approves a recipient, in their wallet (D70): this signer never signs an address-book entry.
-    const signable: Signable = asksAddressBookEntry({ request })
-      ? { ok: false, refusal: SignerRefusal.ADDRESS_BOOK_ENTRY }
-      : signableRequest({
-          request,
-          user: session.user,
-          accounts,
-          shared,
-          walletChainId: chainId,
-          // A withdrawal into a venue pays only the address this signer read itself from that venue, for its own wallet (D56).
-          depositAddress: await readDepositAddress({ request }),
-          // Funds from Main go to another account only when an entry this wallet's own key signed approves it (D70).
-          approvedRecipients: approved ?? [],
-        })
+    if (asksAddressBookEntry({ request })) {
+      return { ok: false, refusal: SignerRefusal.ADDRESS_BOOK_ENTRY }
+    }
+    let attested
+    try {
+      // LaMarge's attestation, verified against its deployment's pinned attester, over what this wallet would sign.
+      attested = await attestedOf({ request, address: session.user.address })
+    } catch (error) {
+      return { ok: false, refusal: errorText({ error }) }
+    }
+    const signable = signableRequest({
+      request,
+      user: session.user,
+      accounts,
+      shared,
+      walletChainId: chainId,
+      ...agentNames,
+      // A payment into a venue goes only to the address this signer read itself, for its own wallet (D56).
+      depositAddress: await readDepositAddress({ request }),
+      // Lighter names its accounts by index alone: their owners as this signer read them from Lighter itself.
+      lighterAccounts: await readLighterAccounts({ request }),
+      attested,
+      // Funds from Main go to another account only when an entry this wallet's own key signed approves it (D70).
+      approvedRecipients: approved ?? [],
+    })
+    if (!signable.ok) {
+      return signable
+    }
+    try {
+      checkAttestedTake({ action: signable.summary.action, attested })
+    } catch (error) {
+      return { ok: false, refusal: errorText({ error }) }
+    }
+    return signable
+  }
+
+  async function handle(props: HandleProps): Promise<void> {
+    const request = props.request
+    const approved = props.approved
+    const logged = { id: request.id, kind: request.kind, venue: request.venue }
+    const signable = await signableOf(props)
     // Unread, the address book decides nothing: a request that needs it is neither signed nor declined this pass.
     if (!signable.ok && approved === null && signable.refusal === SignableRefusal.NOT_IN_ADDRESS_BOOK) {
       return
@@ -200,12 +241,20 @@ function createWalletSigner({
       log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.ACCOUNTS, error: errorText({ error }) } })
       return
     }
+    // This deployment's agents' names, as the web reads them from its deployment.js: the only ones a setup approves.
+    let agentNames
+    try {
+      agentNames = await client.agentNames()
+    } catch (error) {
+      log({ event: LogEvent.READ_FAILED, wallet: wallet.info, fields: { subject: ReadSubject.DEPLOYMENT, error: errorText({ error }) } })
+      return
+    }
     const approved = await readApproved()
     for (const request of waiting) {
       if (stopping.signal.aborted) {
         return
       }
-      await handle({ request, accounts: read.accounts, shared: read.shared, approved, session })
+      await handle({ request, accounts: read.accounts, shared: read.shared, approved, session, agentNames })
     }
   }
 

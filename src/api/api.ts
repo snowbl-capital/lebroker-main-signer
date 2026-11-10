@@ -7,12 +7,12 @@ import { issuedNonce } from "../lebroker/web/hooks/session/useSessionMutationSig
 import { SIGN_IN_STATEMENT, SIGN_IN_TTL_MS } from "../lebroker/web/hooks/session/useSessionMutationSignIn/constants"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
 import { requestAnswer, signatureRequestsList } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema"
-import { EVENT_STREAM_CONTENT_TYPE, JSON_CONTENT_TYPE, SIGN_IN_DEFAULT_CHAIN_ID, SIWE_VERSION } from "./constants"
+import { DEPLOYMENT_CONTENT_TYPE, EVENT_STREAM_CONTENT_TYPE, JSON_CONTENT_TYPE, SIGN_IN_DEFAULT_CHAIN_ID, SIWE_VERSION } from "./constants"
 import { ApiErrorText, ApiRoute, HttpMethod, RequestAction } from "./enums"
 import { ApiError } from "./errors"
 import { sessionBody } from "./schema"
 import type { ApiClient, CallProps, CreateApiClientProps, Session } from "./types"
-import { readAnswer, sessionCookie } from "./utils"
+import { agentNamesOf, readAnswer, sessionCookie } from "./utils"
 
 /**
  * One Main wallet's client of lebroker's hosted service, signed in as the web app signs in (Sign-In with Ethereum: a
@@ -155,6 +155,16 @@ function createApiClient({ baseUrl, wallet, chainId, log, fetch = globalThis.fet
         }),
         schema: requestAnswer,
       }),
+    apiGet: ({ path }) => authed({ method: HttpMethod.GET, route: ApiRoute.API, suffix: path }),
+    agentNames: async () => {
+      // Public, as the web's page loads it: no session needed.
+      const response = await call({ method: HttpMethod.GET, route: ApiRoute.DEPLOYMENT, accept: DEPLOYMENT_CONTENT_TYPE })
+      if (!response.ok) {
+        await response.body?.cancel()
+        throw new ApiError({ message: ApiErrorText.FAILED, status: response.status })
+      }
+      return agentNamesOf({ script: await response.text() })
+    },
     events: async ({ signal }) => {
       const response = await authed({ method: HttpMethod.GET, route: ApiRoute.EVENTS, signal, accept: EVENT_STREAM_CONTENT_TYPE })
       if (!response.ok) {

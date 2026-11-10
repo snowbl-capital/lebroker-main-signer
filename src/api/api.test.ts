@@ -9,6 +9,7 @@ import { WalletKey } from "../wallets/wallets"
 import { createApiClient } from "./api"
 import { ApiErrorText } from "./enums"
 import { ApiError } from "./errors"
+import { agentNamesOf } from "./utils"
 
 const SUB = privateKeyToAccount(generatePrivateKey()).address
 const opened: FakeApi[] = []
@@ -71,5 +72,25 @@ describe("signing in", () => {
     api.expireSessions()
     await Promise.all([client.accounts(), client.signatureRequests()])
     expect(api.signIns).toHaveLength(2)
+  })
+})
+
+describe("this deployment's agents' names", () => {
+  test("are read from its deployment.js as the web reads them, a local executor's where it names none", () => {
+    expect(
+      agentNamesOf({
+        script: 'window.LEBROKER_DEPLOYMENT = {"apiUrl":"/api","hyperliquidAgentName":"leneutre","asterAgentName":"leneutre-dev"}\n',
+      }),
+    ).toEqual({ hyperliquidAgentName: "leneutre", asterAgentName: "leneutre-dev" })
+    expect(agentNamesOf({ script: 'window.LEBROKER_DEPLOYMENT = {"hyperliquidAgentName":" ","asterAgentName":3}' })).toEqual({
+      hyperliquidAgentName: "leneutre-local",
+      asterAgentName: "leneutre-local",
+    })
+  })
+
+  test("are never read from a script that isn't the executor's assignment of its settings", () => {
+    for (const script of ["", "alert(1)", "window.LEBROKER_DEPLOYMENT = {", 'window.OTHER = {"hyperliquidAgentName":"x"}']) {
+      expect(() => agentNamesOf({ script })).toThrow(ApiErrorText.NOT_DEPLOYMENT)
+    }
   })
 })

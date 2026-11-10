@@ -6,6 +6,7 @@ import type {
   SignaturePayloadKind,
   SignatureRequestKind,
   SignatureRequestReason,
+  SignatureStep,
 } from "../../lebroker/accounts/model"
 import type { VenueId } from "../../lebroker/core/model"
 import type { Address } from "viem"
@@ -32,6 +33,8 @@ type RequestOfProps = {
   send?: LaMargeSend
   /** The key a renewal says it deletes first, beside its typed data; none by default. */
   deletes?: KeyDeletion
+  /** The request's place in a chain of signatures, beside its typed data or its message; none by default. */
+  step?: SignatureStep
   /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
   depositVenue?: VenueId | null
   /** That venue's address for Main, as the signing side read it from the venue; none read by default. */

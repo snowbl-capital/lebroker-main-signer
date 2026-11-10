@@ -13,7 +13,6 @@ import {
   ASTER_MESSAGE_TYPES,
   ASTER_SIGN_DOMAIN,
   HYPERLIQUID_AGENT_MAX_VALIDITY_MS,
-  HYPERLIQUID_AGENT_NAME,
   HYPERLIQUID_APPROVE_AGENT_TYPES,
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_VALID_UNTIL,
@@ -21,6 +20,7 @@ import {
   POLYMARKET_OP_TYPES,
   POLYMARKET_PROXY_TTL_MS,
   POLYMARKET_SIGN_DOMAIN,
+  asterAgentNames,
   polymarketDeleteProxyOp,
   polymarketOpHash,
 } from "../lebroker/venues/model"
@@ -39,17 +39,17 @@ function delegate({ address, main }: DelegateProps): string {
 }
 
 /**
- * Hyperliquid: Main approves lebroker's named agent for 180 days at most, on the chain its wallet shows or one lebroker
- * signs on, which the wallet is switched to.
+ * Hyperliquid: Main approves lebroker's named agent, under this deployment's name, for 180 days at most, on the chain
+ * its wallet shows or one lebroker signs on, which the wallet is switched to.
  */
-function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedRuleProps): SignSummary {
+function hyperliquidApproval({ typedData, user, walletChainId, askedAt, hyperliquidAgentName }: TypedRuleProps): SignSummary {
   const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, ...SIGNATURE_CHAIN_IDS] })
   expectDomain({ typedData, domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId } })
   expectTypes({ typedData, types: HYPERLIQUID_APPROVE_AGENT_TYPES, primaryType: "HyperliquidTransaction:ApproveAgent" })
   if (typedData.message.hyperliquidChain !== HYPERLIQUID_MAINNET) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   }
-  const prefix = `${HYPERLIQUID_AGENT_NAME} ${HYPERLIQUID_VALID_UNTIL} `
+  const prefix = `${hyperliquidAgentName} ${HYPERLIQUID_VALID_UNTIL} `
   const agentName = text({ value: typedData.message.agentName })
   const end = agentName.startsWith(prefix) ? agentName.slice(prefix.length) : ""
   const validUntil = /^\d{1,16}$/.test(end) ? Number(end) : refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
@@ -68,19 +68,21 @@ function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedR
 }
 
 /**
- * Aster: Main approves one of lebroker's agents for 180 days at most, never to withdraw, each under its own name with
- * its own permissions alone: the trading agent trades perps, never Spot; the conversion agent trades Spot, a move's
- * conversion of USDC to USDT, never perps. Aster keeps one agent per name, so an approval under another name would
- * revoke another's.
+ * Aster: Main approves one of lebroker's agents for 180 days at most, never to withdraw, each under its own name in this
+ * deployment with its own permissions alone: the trading agent trades perps, never Spot; the conversion agent trades
+ * Spot, a move's conversion of USDC to USDT, never perps. Aster keeps one agent per name, so an approval under another
+ * name would revoke another's, another deployment's on the same Main included.
  */
-function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummary {
+function asterApproval({ typedData, user, askedAt, asterAgentName }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId: ASTER_APPROVAL_CHAIN_ID } })
   expectTypes({ typedData, types: ASTER_MESSAGE_TYPES, primaryType: "Message" })
   const fields = queryFields({ query: text({ value: typedData.message.msg }), names: ASTER_APPROVAL_FIELDS })
   if (!isAddress({ address: fields.user, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
   }
-  const terms = ASTER_AGENT_TERMS.find(entry => entry.name === fields.agentName) ?? refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
+  const names = asterAgentNames({ name: asterAgentName })
+  const terms =
+    ASTER_AGENT_TERMS.find(entry => names[entry.kind] === fields.agentName) ?? refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
   if (fields.canWithdraw !== AsterBoolean.FALSE) {
     refuse({ refusal: SignableRefusal.WITHDRAW_PERMISSION })
   }

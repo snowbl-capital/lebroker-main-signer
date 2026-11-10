@@ -83,7 +83,7 @@ enum SignaturePayloadKind {
 enum GrantFeature {
   /** The bots and their features. */
   STRATEGIES = "strategies",
-  /** Grants nothing since executor rules went: it stays a field of the approval Main signs. */
+  /** Grants nothing since executor features went: it stays a field of the approval Main signs. */
   EXECUTOR_RULES = "executorRules",
   MARGIN_KEEPER = "marginKeeper",
   /** Margin moved between the account's own venues, through LaMarge. */

@@ -1,5 +1,5 @@
 import type { AddressBookRecord } from "../addressBookRecord/types"
-import type { AddressBookList, ApiClient, Session } from "../api/types"
+import type { AddressBookList, AgentNames, ApiClient, Session } from "../api/types"
 import type { LoggedRequest, Logger } from "../log/types"
 import type { SignatureRequestView } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { AccountView, SharedAccountView } from "../lebroker/web/types"
@@ -58,6 +58,8 @@ type HandleProps = {
   shared: readonly SharedAccountView[]
   approved: readonly string[] | null
   session: Session
+  /** This deployment's agents' names, as its deployment.js gives them to the web. */
+  agentNames: AgentNames
 }
 
 /**
@@ -73,21 +75,42 @@ type DeclineProps = { id: string; reason: string; logged: LoggedRequest }
 
 type ErrorTextProps = { error: unknown }
 
-type DepositVenueOfProps = { request: SignatureRequestView }
+type RequestReadProps = { request: SignatureRequestView }
 
-/** `address`: the signing wallet's own, the L1 address the venue's deposit address must credit. */
-type CreateDepositAddressReaderProps = { address: string; now: () => number }
+/** `keepMs`: how long an answer is kept; `pauseMs`: how long the reads stop once one fails. */
+type CreateKeptReadsProps = { now: () => number; keepMs: number; pauseMs: number }
+
+/** What a kept read reads (`key`), the reads a failure of it stops (`pause`), and how. */
+type KeptReadProps<T> = { key: string; pause: string; read: () => Promise<T | undefined> }
+
+type KeptReads<T> = (props: KeptReadProps<T>) => Promise<T | undefined>
+
+/**
+ * `address`: the signing wallet's own, the L1 address the venue's deposit address must credit; `client`: its session,
+ * which Bybit's signed address is read under.
+ */
+type CreateDepositAddressReaderProps = { address: string; client: ApiClient; now: () => number }
 
 /** The deposit address a request pays, as read from its venue; none for another request, or when it can't be read. */
-type DepositAddressReader = (props: DepositVenueOfProps) => Promise<ReadDepositAddress | undefined>
+type DepositAddressReader = (props: RequestReadProps) => Promise<ReadDepositAddress | undefined>
+
+type CreateLighterAccountsReaderProps = { now: () => number }
+
+/** The owners of the Lighter accounts a transfer names, by index; none for another request, or when they can't be read. */
+type LighterAccountsReader = (props: RequestReadProps) => Promise<ReadonlyMap<number, string> | undefined>
 
 export type {
   AsksAddressBookEntryProps,
   CreateDepositAddressReaderProps,
+  CreateKeptReadsProps,
+  CreateLighterAccountsReaderProps,
   CreateWalletSignerProps,
   DeclineProps,
   DepositAddressReader,
-  DepositVenueOfProps,
+  KeptReadProps,
+  KeptReads,
+  LighterAccountsReader,
+  RequestReadProps,
   ErrorTextProps,
   EveryProps,
   HandleProps,

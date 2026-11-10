@@ -12,6 +12,6 @@ const DEPOSIT_ADDRESS_TIMEOUT_MS = 5_000
  * address takes 5 USDC at least. A venue not listed is paid no such withdrawal. The signer holds a sub-account's to it,
  * and Main's wallet Main's own, which opens Main's Lighter from inside.
  */
-const WITHDRAWAL_DEPOSIT_MIN_USD: Partial<Record<VenueId, number>> = { [VenueId.LIGHTER]: 6 }
+const WITHDRAWAL_DEPOSIT_MIN_USD: Partial<Record<VenueId, number>> = { [VenueId.LIGHTER]: 6, [VenueId.BYBIT]: 2 }
 
 export { DEPOSIT_ADDRESS_TIMEOUT_MS, LIGHTER_INTENT_PATH, WITHDRAWAL_DEPOSIT_MIN_USD }

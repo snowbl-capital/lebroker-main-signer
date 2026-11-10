@@ -64,6 +64,12 @@ const laMargeRequestContext = z.object({
   lighterAccountIndex: z.number().int().nonnegative().optional(),
 })
 
+/** LaMarge's attestation of a request, as LaMarge sent it (`LaMargeAttestation`): verified by the signing side. */
+const laMargeAttestation = z.object({ signature: z.string(), terms: z.record(z.string(), z.unknown()).optional() })
+
+/** A request's place in a chain of signatures (`SignatureStep`). */
+const signatureStep = z.object({ index: z.number().int().positive(), total: z.number().int().positive() })
+
 const signaturePayload = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal(SignaturePayloadKind.TYPED_DATA),
@@ -73,12 +79,17 @@ const signaturePayload = z.discriminatedUnion("kind", [
     depositVenue: z.enum(VenueId).optional(),
     send: laMargeSend.optional(),
     deletes: z.object({ venue: z.enum(VenueId), key: z.string() }).optional(),
+    step: signatureStep.optional(),
+    attestation: laMargeAttestation.optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),
     message: z.string(),
     take: laMargeTake.optional(),
     lamarge: laMargeRequestContext.optional(),
+    depositVenue: z.enum(VenueId).optional(),
+    step: signatureStep.optional(),
+    attestation: laMargeAttestation.optional(),
   }),
 ])
 

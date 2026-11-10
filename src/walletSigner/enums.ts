@@ -14,6 +14,8 @@ enum ReadSubject {
   REQUESTS = "signature-requests",
   ACCOUNTS = "accounts",
   ADDRESS_BOOK = "address-book",
+  /** The deployment's settings, its agents' names: deployment.js. */
+  DEPLOYMENT = "deployment",
   EVENTS = "events",
 }
 

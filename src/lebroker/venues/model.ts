@@ -1,12 +1,20 @@
 // What the mirrored rules read of lebroker's `@lebroker/venues/model`: each venue's domains and types, under the same names.
-export { API_URL as LIGHTER_API_URL } from "./lighter/constants"
+export {
+  API_URL as LIGHTER_API_URL,
+  FAST_WITHDRAW_MEMO_PADDING as LIGHTER_FAST_WITHDRAW_MEMO_PADDING,
+  FAST_WITHDRAW_POOL_INDEX as LIGHTER_FAST_WITHDRAW_POOL_INDEX,
+} from "./lighter/constants"
+export { LighterEndpoint, LighterLookup } from "./lighter/enums"
 export {
   APPROVE_AGENT_TYPES as HYPERLIQUID_APPROVE_AGENT_TYPES,
+  CCTP_DOMAINS as HYPERLIQUID_CCTP_DOMAINS,
+  CCTP_SEND as HYPERLIQUID_CCTP_SEND,
   HYPERLIQUID_CHAINS,
   SEND_ASSET_DEX as HYPERLIQUID_SEND_DEX,
   SEND_ASSET_DEXES as HYPERLIQUID_SEND_DEXES,
   SEND_ASSET_TYPES as HYPERLIQUID_SEND_ASSET_TYPES,
   SEND_ASSET_USDC as HYPERLIQUID_USDC,
+  SEND_TO_EVM_TYPES as HYPERLIQUID_SEND_TO_EVM_TYPES,
   USER_SET_ABSTRACTION_TYPES as HYPERLIQUID_USER_SET_ABSTRACTION_TYPES,
   USER_SIGNED_DOMAIN as HYPERLIQUID_USER_SIGNED_DOMAIN,
   WITHDRAW_TYPES as HYPERLIQUID_WITHDRAW_TYPES,
@@ -14,14 +22,12 @@ export {
 export { HyperliquidAbstraction } from "./hyperliquid/enums"
 export {
   AGENT_MAX_VALIDITY_MS as HYPERLIQUID_AGENT_MAX_VALIDITY_MS,
-  LENEUTRE_AGENT_NAME as HYPERLIQUID_AGENT_NAME,
   VALID_UNTIL as HYPERLIQUID_VALID_UNTIL,
 } from "./hyperliquid/agents/constants"
+export { agentName as hyperliquidAgentName } from "./hyperliquid/agents/agents"
 export {
-  AGENT_NAME as ASTER_AGENT_NAME,
   AGENT_TTL_MS as ASTER_AGENT_TTL_MS,
   APPROVAL_CHAIN_ID as ASTER_APPROVAL_CHAIN_ID,
-  CONVERT_AGENT_NAME as ASTER_CONVERT_AGENT_NAME,
   MARGIN_ASSET as ASTER_MARGIN_ASSET,
   MESSAGE_TYPES as ASTER_MESSAGE_TYPES,
   SIGN_CHAIN_IDS as ASTER_SIGN_CHAIN_IDS,
@@ -30,14 +36,32 @@ export {
   WITHDRAWAL_DOMAIN as ASTER_WITHDRAWAL_DOMAIN,
   WITHDRAWAL_TYPES as ASTER_WITHDRAWAL_TYPES,
 } from "./aster/constants"
+export { agentName as asterAgentName, agentNames as asterAgentNames } from "./aster/labels"
+export { AsterAgentKind } from "./aster/enums"
 export {
+  BRIDGE_URL as POLYMARKET_BRIDGE_URL,
   CREATE_PROXY_TYPES as POLYMARKET_CREATE_PROXY_TYPES,
+  DEPOSIT_WALLET_BATCH_SECONDS as POLYMARKET_DEPOSIT_WALLET_BATCH_SECONDS,
+  DEPOSIT_WALLET_BATCH_TYPES as POLYMARKET_DEPOSIT_WALLET_BATCH_TYPES,
+  DEPOSIT_WALLET_CHAIN_ID as POLYMARKET_DEPOSIT_WALLET_CHAIN_ID,
+  DEPOSIT_WALLET_DOMAIN as POLYMARKET_DEPOSIT_WALLET_DOMAIN,
+  ERC20_TRANSFER_ABI as POLYMARKET_ERC20_TRANSFER_ABI,
   OP_TYPES as POLYMARKET_OP_TYPES,
+  PERPS_WITHDRAW_DOMAIN as POLYMARKET_PERPS_WITHDRAW_DOMAIN,
+  PERPS_WITHDRAW_FEE as POLYMARKET_PERPS_WITHDRAW_FEE,
+  PERPS_WITHDRAW_TYPES as POLYMARKET_PERPS_WITHDRAW_TYPES,
   PROXY_TTL_MS as POLYMARKET_PROXY_TTL_MS,
+  PUSD as POLYMARKET_PUSD,
   SIGN_DOMAIN as POLYMARKET_SIGN_DOMAIN,
 } from "./polymarket/constants"
+export {
+  depositWalletBatchTypedData as polymarketDepositWalletBatchTypedData,
+  depositWalletOf as polymarketDepositWalletOf,
+} from "./polymarket/depositWallet"
+export { PolymarketBridgePath } from "./polymarket/enums"
 export {
   deleteProxyOp as polymarketDeleteProxyOp,
   opHash as polymarketOpHash,
   opTypedData as polymarketOpTypedData,
 } from "./polymarket/signing"
+export { ARBITRUM_USDC } from "./constants"

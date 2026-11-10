@@ -1,10 +1,10 @@
-import { ESCROW_DEPLOYMENTS, type DeploymentManifest } from "@lamarge/sdk/protocol"
+import { ESCROW_DEPLOYMENTS, type DeploymentManifest, type TakeFill } from "@lamarge/sdk/protocol"
 import { AccountKind, AccountState } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
 import { formatDate } from "../helpers/formatDate/formatDate"
 import { sameAddress } from "../lebroker/web/helpers/sameAddress/sameAddress"
 import { sharedAccountName } from "../lebroker/web/helpers/sharedAccountName/sharedAccountName"
-import { SignableRefusal } from "./enums"
+import { SignableRefusal, SignSummaryText } from "./enums"
 import { NotSignable } from "./errors"
 import type {
   AllowedChainProps,
@@ -15,6 +15,8 @@ import type {
   DeploymentEscrowsProps,
   ExpectedDomainProps,
   ExpectedTypesProps,
+  FeeNamedFillsProps,
+  HexIndexProps,
   LaMargeCheckProps,
   QueryFieldsProps,
   RecipientSubAccountProps,
@@ -22,6 +24,8 @@ import type {
   RuleAccount,
   SameAddressProps,
   SameDomainValueProps,
+  SignSummary,
+  SteppedProps,
   ToAccountProps,
   UntilProps,
   ValueProps,
@@ -164,6 +168,12 @@ function amount({ value, symbol }: AmountProps): string {
   return `${value} ${symbol}`
 }
 
+/** An index or a nonce of a Lighter message, written in hex: a whole number a wallet reads exactly, or refused. */
+function hexIndex({ hex }: HexIndexProps): number {
+  const value = Number.parseInt(hex ?? "", 16)
+  return Number.isSafeInteger(value) ? value : refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+}
+
 /** An account funds go to, by its name and short address. */
 function toAccount({ account }: ToAccountProps): string {
   return account.address === null ? account.name : `${account.name} (${shortAddress({ address: account.address })})`
@@ -177,13 +187,34 @@ function deploymentEscrows({ deployment }: DeploymentEscrowsProps): DeploymentMa
   return ESCROW_DEPLOYMENTS.filter(reviewed => deployment.escrows.some(address => sameAddress({ address, other: reviewed.address })))
 }
 
-/** Runs one of LaMarge's SDK checks: what it refuses is refused here, in its words after ours. */
+/** A take's fills as LaMarge's SDK checks them, each naming its taker fee, which a request stored before fees lacks. */
+function feeNamedFills({ take }: FeeNamedFillsProps): TakeFill[] {
+  return take.fills.map(fill => ({ ...fill, taker_fee: fill.taker_fee ?? refuse({ refusal: SignableRefusal.NO_TAKER_FEE }) }))
+}
+
+/** Runs one of LaMarge's SDK checks: what it refuses is refused here, in our words only: the SDK's stay out of sight. */
 function laMargeCheck<T>({ check }: LaMargeCheckProps<T>): T {
   try {
     return check()
   } catch (error) {
-    return refuse({ refusal: `${SignableRefusal.LAMARGE_CHECK} ${error instanceof Error ? error.message : String(error)}` })
+    // The SDK's own words stay out of the page the user reads; which check refused is for whoever looks at the console.
+    console.warn(error)
+    return refuse({ refusal: SignableRefusal.LAMARGE_CHECK })
   }
+}
+
+/**
+ * A request's summary, its place said before what it does where it's one of a chain of signatures: "Step 2 of 8: …".
+ * A place past the chain's last isn't one lebroker asks.
+ */
+function stepped({ summary, step }: SteppedProps): SignSummary {
+  if (step === undefined) {
+    return summary
+  }
+  if (step.index > step.total) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+  }
+  return { ...summary, action: `${SignSummaryText.STEP} ${step.index} ${SignSummaryText.STEP_OF} ${step.total}: ${summary.action}` }
 }
 
 export {
@@ -194,11 +225,14 @@ export {
   deploymentEscrows,
   expectDomain,
   expectTypes,
+  feeNamedFills,
+  hexIndex,
   isAddress,
   laMargeCheck,
   recipientSubAccount,
   queryFields,
   refuse,
+  stepped,
   text,
   toAccount,
   until,

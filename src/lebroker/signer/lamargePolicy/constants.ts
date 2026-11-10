@@ -9,4 +9,10 @@
  */
 const MAX_TAKE_LOSS_BPS = 150n
 
-export { MAX_TAKE_LOSS_BPS }
+/**
+ * The LaMarge venues lebroker's signers sign a take, a permit or a withdrawal for, by LaMarge's ids: those lebroker
+ * trades. LaMarge's SDK pins more chains than these (GMX's, on Arbitrum), which no signer here pays from or delivers to.
+ */
+const LAMARGE_SIGNED_VENUES: ReadonlySet<string> = new Set(["hyperliquid", "polymarket", "aster", "lighter"])
+
+export { MAX_TAKE_LOSS_BPS, LAMARGE_SIGNED_VENUES }

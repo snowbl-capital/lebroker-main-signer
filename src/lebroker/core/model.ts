@@ -1,7 +1,8 @@
 // What the mirrored rules read of lebroker's `@lebroker/core`: the same names, from the same files.
 export { ChainId } from "./chains/enums"
-export { Network, VenueId } from "./enums"
+export { DeploymentEnvironment, Network, VenueId } from "./enums"
 export { chainInfo } from "./helpers/chainInfo/chainInfo"
 export { isRecord } from "./helpers/isRecord/isRecord"
 export { shortAddress } from "./helpers/shortAddress/shortAddress"
 export { typedValueWithIntegers } from "./helpers/typedValueWithIntegers/typedValueWithIntegers"
+export type { GatewayToken } from "./chains/types"

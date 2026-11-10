@@ -5,7 +5,7 @@
     "": {
       "name": "lebroker-main-signer",
       "dependencies": {
-        "@lamarge/sdk": "0.8.0",
+        "@lamarge/sdk": "0.15.0-rc.0",
         "@msgpack/msgpack": "^3.1.3",
         "viem": "^2.57.2",
         "zod": "^4.6.5",
@@ -54,7 +54,7 @@
 
     "@keyv/serialize": ["@keyv/serialize@1.1.1", "", {}, "sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA=="],
 
-    "@lamarge/sdk": ["@lamarge/sdk@0.8.0", "", { "dependencies": { "@noble/hashes": "1.8.0" }, "peerDependencies": { "viem": "^2.38.0" }, "optionalPeers": ["viem"] }, "sha512-BzQ9l0XeBP3J+dPkes+VnDci19aOy9rMncaAhUzyYOiHjW6dFM3zYRxFzR4AzFedJMIaHK0BlWi1JFga3wewcA=="],
+    "@lamarge/sdk": ["@lamarge/sdk@0.15.0-rc.0", "", { "dependencies": { "@noble/hashes": "1.8.0" }, "peerDependencies": { "viem": "^2.38.0" }, "optionalPeers": ["viem"] }, "sha512-2gwpSYSCIAJt+vAG3ld+zBR7LSPUgK/rSknCowjvwp4l9dJzhlGlo3D5advP1QwymvLCgGMIJuKW0zvofWBlvA=="],
 
     "@msgpack/msgpack": ["@msgpack/msgpack@3.1.3", "", {}, "sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA=="],
 

@@ -79,13 +79,34 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     whole: false,
   },
   { mirror: "src/lebroker/venues/aster/constants.ts", source: "packages/venues/src/aster/constants.ts", whole: false },
+  ...["enums", "types"].map(name => ({
+    mirror: `src/lebroker/venues/aster/${name}.ts`,
+    source: `packages/venues/src/aster/${name}.ts`,
+    whole: false,
+  })),
+  { mirror: "src/lebroker/venues/aster/labels.ts", source: "packages/venues/src/aster/labels.ts", whole: true },
+  ...["agents", "types"].map(name => ({
+    mirror: `src/lebroker/venues/hyperliquid/agents/${name}.ts`,
+    source: `packages/venues/src/hyperliquid/agents/${name}.ts`,
+    whole: false,
+  })),
+  ...["deploymentName", "types"].map(name => ({
+    mirror: `src/lebroker/venues/helpers/deploymentName/${name}.ts`,
+    source: `packages/venues/src/helpers/deploymentName/${name}.ts`,
+    whole: true,
+  })),
+  { mirror: "src/lebroker/venues/constants.ts", source: "packages/venues/src/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/polymarket/constants.ts", source: "packages/venues/src/polymarket/constants.ts", whole: false },
-  ...["enums", "signing", "types"].map(name => ({
+  ...["depositWallet", "enums", "signing", "types"].map(name => ({
     mirror: `src/lebroker/venues/polymarket/${name}.ts`,
     source: `packages/venues/src/polymarket/${name}.ts`,
     whole: false,
   })),
-  { mirror: "src/lebroker/venues/lighter/constants.ts", source: "packages/venues/src/lighter/constants.ts", whole: false },
+  ...["constants", "enums"].map(name => ({
+    mirror: `src/lebroker/venues/lighter/${name}.ts`,
+    source: `packages/venues/src/lighter/${name}.ts`,
+    whole: false,
+  })),
   {
     mirror: "src/lebroker/signer/depositAddresses/constants.ts",
     source: "packages/signer/src/depositAddresses/constants.ts",
@@ -93,6 +114,12 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
   },
   { mirror: "src/lebroker/web/schema.ts", source: "apps/web/src/schema.ts", whole: false },
   { mirror: "src/lebroker/web/types.ts", source: "apps/web/src/types.ts", whole: false },
+  { mirror: "src/lebroker/web/enums.ts", source: "apps/web/src/enums.ts", whole: false },
+  ...["constants", "schema"].map(name => ({
+    mirror: `src/lebroker/web/config/runtime/${name}.ts`,
+    source: `apps/web/src/config/runtime/${name}.ts`,
+    whole: false,
+  })),
   { mirror: "src/lebroker/web/helpers/sameAddress/sameAddress.ts", source: "apps/web/src/helpers/sameAddress/sameAddress.ts", whole: true },
   { mirror: "src/lebroker/web/helpers/sameAddress/types.ts", source: "apps/web/src/helpers/sameAddress/types.ts", whole: true },
   ...["sharedAccountName", "constants", "types"].map(name => ({
@@ -104,6 +131,31 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     mirror: `src/lebroker/web/helpers/venueDepositAddress/${name}.ts`,
     source: `apps/web/src/helpers/venueDepositAddress/${name}.ts`,
     whole: true,
+  })),
+  ...["polymarketBridgeAddress", "polymarketBridgeAddress.test", "constants", "enums", "schema", "types"].map(name => ({
+    mirror: `src/lebroker/web/helpers/polymarketBridgeAddress/${name}.ts`,
+    source: `apps/web/src/helpers/polymarketBridgeAddress/${name}.ts`,
+    whole: true,
+  })),
+  ...["lighterAccountAddresses", "lighterAccountAddresses.test", "constants", "enums", "schema", "types"].map(name => ({
+    mirror: `src/lebroker/web/helpers/lighterAccountAddresses/${name}.ts`,
+    source: `apps/web/src/helpers/lighterAccountAddresses/${name}.ts`,
+    whole: true,
+  })),
+  ...["enums", "schema", "types"].map(name => ({
+    mirror: `src/lebroker/web/hooks/bybitKey/useBybitKeyQuery/${name}.ts`,
+    source: `apps/web/src/hooks/bybitKey/useBybitKeyQuery/${name}.ts`,
+    whole: false,
+  })),
+  ...[
+    { name: "utils", whole: false },
+    { name: "types", whole: false },
+    { name: "constants", whole: true },
+    { name: "enums", whole: true },
+  ].map(file => ({
+    mirror: `src/lebroker/web/hooks/signatureRequests/useSignatureRequestsMutationSign/${file.name}.ts`,
+    source: `apps/web/src/hooks/signatureRequests/useSignatureRequestsMutationSign/${file.name}.ts`,
+    whole: file.whole,
   })),
   {
     mirror: "src/lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema.ts",
