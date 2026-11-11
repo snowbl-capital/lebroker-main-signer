@@ -32,7 +32,6 @@ import {
   EIP712_DOMAIN_FIELDS,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
-  LAMARGE_WALLET_ONLY_VENUES,
   OP_INTERNAL_TRANSFER,
   OP_TYPE,
   TAKE_DEPOSIT_VENUES,
@@ -175,30 +174,20 @@ function deploymentOf({ lamarge }: DeploymentOfProps): LaMargeDeploymentPins {
   return own ?? refuse({ refusal: SignableRefusal.UNKNOWN_DEPLOYMENT })
 }
 
-/**
- * The LaMarge venue lebroker trades whose chain is `chainId` (`LAMARGE_SIGNED_VENUES`), or, on the chain Main pays a
- * take on, one Main pays from its wallet alone (`LAMARGE_WALLET_ONLY_VENUES`); refused for any other chain.
- */
-function signedVenueOn({ chainId, paying }: SignedVenueOnProps): string {
-  const venue = Object.keys(CHAINS).find(
-    name => (LAMARGE_SIGNED_VENUES.has(name) || (paying && LAMARGE_WALLET_ONLY_VENUES.has(name))) && CHAINS[name]?.id === chainId,
-  )
+/** The LaMarge venue lebroker trades whose chain is `chainId` (`LAMARGE_SIGNED_VENUES`); refused for any other chain. */
+function signedVenueOn({ chainId }: SignedVenueOnProps): string {
+  const venue = Object.keys(CHAINS).find(name => LAMARGE_SIGNED_VENUES.has(name) && CHAINS[name]?.id === chainId)
   return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
 }
 
-/** The LaMarge venue whose chain the domain names, where Main pays a take: its escrow's, or its token's for a permit. */
-function payingVenueOf({ typed }: VenueOfProps): string {
-  return signedVenueOn({ chainId: typed.domain.chainId, paying: true })
-}
-
-/** The LaMarge venue whose chain a withdrawal LaMarge relays names: one lebroker trades. */
+/** The LaMarge venue whose chain the domain names: its escrow's, its token's, or its withdrawal's. */
 function venueOf({ typed }: VenueOfProps): string {
-  return signedVenueOn({ chainId: typed.domain.chainId, paying: false })
+  return signedVenueOn({ chainId: typed.domain.chainId })
 }
 
 /** The LaMarge venue whose chain a payment's delivery names, one lebroker trades; refused for any other. */
 function deliveryVenue({ paid }: DeliveryVenueProps): string {
-  return signedVenueOn({ chainId: laMargeCheck({ check: () => Number(uint(paid.receiveChainId)) }), paying: false })
+  return signedVenueOn({ chainId: laMargeCheck({ check: () => Number(uint(paid.receiveChainId)) }) })
 }
 
 /**
@@ -287,7 +276,7 @@ function deliversToSignedDeposit({ paid, depositVenue, depositAddress }: SignedD
  * the deployment the request is for.
  */
 function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
-  const venue = payingVenueOf({ typed })
+  const venue = venueOf({ typed })
   laMargeCheck({
     check: () =>
       checkPermit(
@@ -321,7 +310,7 @@ function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
  * fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker always takes for the account that pays.
  */
 function payment({ typed, user, lamarge, request, depositAddress, attested }: LaMargeTypedProps): SignSummary {
-  const venue = payingVenueOf({ typed })
+  const venue = venueOf({ typed })
   const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
   laMargeCheck({ check: () => checkEscrowTyped(typed, venue, escrows) })
   const payments = laMargeCheck({ check: () => takePayments(typed) })
@@ -365,7 +354,7 @@ function payment({ typed, user, lamarge, request, depositAddress, attested }: La
 
 /** A refund of Main's own payment from the escrow of the deployment the request is for. */
 function refund({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
-  const venue = payingVenueOf({ typed })
+  const venue = venueOf({ typed })
   const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
   laMargeCheck({ check: () => checkEscrowTyped(typed, venue, escrows) })
   if (!isAddress({ address: typed.message.payer, other: user.address })) {

@@ -70,7 +70,31 @@ const laMargeAttestation = z.object({ signature: z.string(), terms: z.record(z.s
 /** A request's place in a chain of signatures (`SignatureStep`). */
 const signatureStep = z.object({ index: z.number().int().positive(), total: z.number().int().positive() })
 
+/**
+ * Main's approval of lebroker's GMX subaccount, beside its typed data: the key it lets trade Main's GMX account, until
+ * when (ms since 1970), how many order actions it may take, and the chain Main's wallet signs on (Arbitrum's, the
+ * domain's).
+ */
+const gmxSubaccountApproval = z.object({
+  subaccount: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  expiresAt: z.number().int().nonnegative(),
+  maxAllowedCount: z.number().int().positive(),
+  chainId: z.number().int().positive(),
+})
+
+/** Main's USDC permit for GMX's Router, beside its typed data: the spender it names, and the chain it's signed on. */
+const gmxUsdcPermit = z.object({ spender: z.string().regex(/^0x[0-9a-fA-F]{40}$/), chainId: z.number().int().positive() })
+
 const signaturePayload = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal(SignaturePayloadKind.TRANSACTION),
+    transaction: z.object({
+      chainId: z.number().int().positive(),
+      to: z.templateLiteral(["0x", z.string()]),
+      data: z.templateLiteral(["0x", z.string()]),
+    }),
+    step: signatureStep.optional(),
+  }),
   z.object({
     kind: z.literal(SignaturePayloadKind.TYPED_DATA),
     typedData: typedDataPayload,
@@ -81,6 +105,8 @@ const signaturePayload = z.discriminatedUnion("kind", [
     deletes: z.object({ venue: z.enum(VenueId), key: z.string() }).optional(),
     step: signatureStep.optional(),
     attestation: laMargeAttestation.optional(),
+    gmxSubaccountApproval: gmxSubaccountApproval.optional(),
+    gmxUsdcPermit: gmxUsdcPermit.optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),

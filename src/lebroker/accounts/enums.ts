@@ -70,6 +70,7 @@ enum SignatureRequestState {
 
 /** How the browser wallet signs a request's payload. */
 enum SignaturePayloadKind {
+  TRANSACTION = "transaction",
   /** `eth_signTypedData_v4`. */
   TYPED_DATA = "typed-data",
   /** `personal_sign`. */

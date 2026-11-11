@@ -20,11 +20,14 @@ import type { BybitDepositAddressProps, SignedByMainProps, VenueDepositAddressPr
  * supported network; signing flows keep their Arbitrum default and read the destination independently of the service.
  * Bybit's for Main is the one Main signed (`MainBybitDepositAddress`), on Arbitrum only: the executor keeps Main's
  * signature, and the browser takes the address only once that signature recovers Main. The executor's word alone never
- * passes.
+ * passes. GMX's is the beneficiary's own address on Arbitrum: its account is the wallet itself, and USDC there its margin.
  */
 async function venueDepositAddress({ venue, address, chainId = ChainId.ARBITRUM }: VenueDepositAddressProps): Promise<string> {
   if (venue === VenueId.BYBIT) {
     return await bybitDepositAddress({ chainId, main: address })
+  }
+  if (venue === VenueId.GMX && chainId === ChainId.ARBITRUM) {
+    return getAddress(address)
   }
   if (venue !== VenueId.LIGHTER) {
     throw new Error(VenueDepositAddressError.NONE)

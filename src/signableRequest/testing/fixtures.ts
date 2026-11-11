@@ -82,6 +82,8 @@ function requestOf({
   send,
   deletes,
   step,
+  gmxSubaccountApproval,
+  gmxUsdcPermit,
   depositVenue = null,
   depositAddress,
   approvedRecipients,
@@ -110,6 +112,8 @@ function requestOf({
               ...named,
               ...(send === undefined ? {} : { send }),
               ...(deletes === undefined ? {} : { deletes }),
+              ...(gmxSubaccountApproval === undefined ? {} : { gmxSubaccountApproval }),
+              ...(gmxUsdcPermit === undefined ? {} : { gmxUsdcPermit }),
               ...(depositVenue === null ? {} : { depositVenue }),
             }
           : {

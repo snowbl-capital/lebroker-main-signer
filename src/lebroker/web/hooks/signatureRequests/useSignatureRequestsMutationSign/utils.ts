@@ -18,7 +18,7 @@ import type { AttestedOfProps, AttestedRequestProps, AttestedTakeProps, DepositA
  * Polymarket's bridge, the address the bridge answers the browser as paying it; nothing for any other request. A read that fails, or a wallet that shows no address, throws: nothing is signed.
  */
 async function depositAddressOf({ request, address }: DepositAddressOfProps): Promise<ReadDepositAddress | undefined> {
-  const venue = request.payload.depositVenue
+  const venue = request.payload.kind === SignaturePayloadKind.TRANSACTION ? undefined : request.payload.depositVenue
   // Main's Perps margin withdrawn to its own Deposit Wallet first: no deposit address of the venue's in it.
   const toWallet =
     request.payload.kind === SignaturePayloadKind.TYPED_DATA && request.payload.typedData.primaryType === POLYMARKET_PERPS_WITHDRAW_TYPE
@@ -75,6 +75,9 @@ function attestedRequest({ payload }: AttestedRequestProps): SignRequest {
   if (payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE) {
     return { message: payload.message }
   }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    throw new Error(SignRequestError.NOT_ATTESTED)
+  }
   const typed = typedDataFromWire({ payload: payload.typedData })
   const domain = typed.domain
   if (domain?.name === undefined || domain.chainId === undefined || domain.salt !== undefined) {
@@ -101,7 +104,7 @@ function attestedRequest({ payload }: AttestedRequestProps): SignRequest {
  */
 async function attestedOf({ request, address }: AttestedOfProps): Promise<Attested | undefined> {
   const payload = request.payload
-  if (payload.attestation === undefined) {
+  if (payload.kind === SignaturePayloadKind.TRANSACTION || payload.attestation === undefined) {
     return undefined
   }
   const deployment = LAMARGE_DEPLOYMENTS.find(own => own.appOrigin === payload.lamarge?.appOrigin)

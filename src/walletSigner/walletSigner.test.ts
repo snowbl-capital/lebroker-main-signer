@@ -471,6 +471,21 @@ describe("Main's address book (lebroker's D70)", () => {
     ])
   })
 
+  test("sends no transaction: a request for one is refused before the allowlist and told to lebroker, for the user's wallet", async () => {
+    const ctx = await setUp()
+    const asked = requestOf({ id: "send-1", accountId: ctx.mainId, kind: SignatureRequestKind.LAMARGE_MOVE, message: "unused" })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: {
+        ...asked,
+        payload: { kind: SignaturePayloadKind.TRANSACTION, transaction: { chainId: 137, to: STRANGER, data: "0x" } },
+      },
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "send-1", reason: SignerRefusal.TRANSACTION }])
+  })
+
   test("a read that fails decides nothing: a transfer is neither signed nor declined, the rest is signed, and it's logged once", async () => {
     const ctx = await setUp()
     await approve({ ctx, recipients: [SUB] })

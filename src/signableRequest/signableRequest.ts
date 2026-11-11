@@ -1,12 +1,24 @@
+import { inspectDirectTransaction } from "@lamarge/sdk/direct"
+import { formatUnits } from "viem"
 import { AccountKind, SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
+import { GMX_PERMIT_PRIMARY_TYPE } from "../lebroker/venues/model"
 import { hyperliquidUnifiedAccount } from "./accountModeRules"
 import { HYPERLIQUID_CCTP_TYPE, OP_TYPE, POLYMARKET_PERPS_WITHDRAW_TYPE, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
 import { LIGHTER_REGISTRATION_MESSAGE } from "../lebroker/signer/model"
-import { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval, polymarketDeletion } from "./setupRules"
+import {
+  asterApproval,
+  gmxApproval,
+  gmxUsdcPermit,
+  hyperliquidApproval,
+  lighterProof,
+  lighterRegistration,
+  polymarketApproval,
+  polymarketDeletion,
+} from "./setupRules"
 import {
   asterTransfer,
   asterWithdrawal,
@@ -30,6 +42,9 @@ function setupSummary(props: RuleProps): SignSummary {
       ? lighterRegistration({ ...props, message: payload.message })
       : refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
   }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
   const typed = { ...props, typedData: payload.typedData }
   switch (props.request.venue) {
     case VenueId.HYPERLIQUID:
@@ -42,6 +57,10 @@ function setupSummary(props: RuleProps): SignSummary {
         : polymarketApproval(typed)
     case VenueId.LIGHTER:
       return lighterProof(typed)
+    case VenueId.GMX:
+      return payload.typedData.primaryType === GMX_PERMIT_PRIMARY_TYPE
+        ? gmxUsdcPermit({ ...typed, permit: payload.gmxUsdcPermit })
+        : gmxApproval({ ...typed, approval: payload.gmxSubaccountApproval })
     case null:
     default:
       return refuse({ refusal: SignableRefusal.UNKNOWN_VENUE })
@@ -62,6 +81,9 @@ function transferSummary(props: RuleProps): SignSummary {
     }
     const message = { ...props, message: payload.message }
     return LIGHTER_REGISTRATION_MESSAGE.test(payload.message) ? lighterRegistration(message) : lighterTransfer(message)
+  }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
   }
   const typed = { ...props, typedData: payload.typedData }
   switch (props.request.venue) {
@@ -89,6 +111,9 @@ function withdrawalSummary(props: RuleProps): SignSummary {
     return props.request.venue === VenueId.LIGHTER && payload.depositVenue !== undefined
       ? lighterFastWithdrawal({ ...props, message: payload.message, depositVenue: payload.depositVenue })
       : refuse({ refusal: SignableRefusal.OPAQUE })
+  }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
   }
   const typed = { ...props, typedData: payload.typedData }
   if (payload.depositVenue !== undefined) {
@@ -130,6 +155,9 @@ function accountModeSummary(props: RuleProps): SignSummary {
 /** A LaMarge move out of one of Main's venues. */
 function laMargeSummary(props: RuleProps): SignSummary {
   const payload = props.request.payload
+  if (payload.kind === SignaturePayloadKind.TRANSACTION) {
+    return refuse({ refusal: SignableRefusal.OPAQUE })
+  }
   return payload.kind === SignaturePayloadKind.TYPED_DATA
     ? laMargeTyped({
         ...props,
@@ -144,6 +172,28 @@ function laMargeSummary(props: RuleProps): SignSummary {
 function summaryOf(props: RuleProps): SignSummary {
   if (!props.accounts.some(account => account.id === props.request.accountId && account.kind === AccountKind.MAIN)) {
     refuse({ refusal: SignableRefusal.OTHER_ACCOUNT })
+  }
+  if (props.request.payload.kind === SignaturePayloadKind.TRANSACTION) {
+    if (props.request.kind !== SignatureRequestKind.LAMARGE_MOVE) {
+      return refuse({ refusal: SignableRefusal.OPAQUE })
+    }
+    const terms = inspectDirectTransaction(props.request.payload.transaction, props.user.address, props.now)
+    // GMX withdrawals have no application nonce; browser prompts need a server-wide claim before exposing them.
+    if (terms.step === "withdrawal") {
+      return refuse({ refusal: SignableRefusal.OPAQUE })
+    }
+    return {
+      action: `LaMarge ${terms.step}`,
+      chainId: props.request.payload.transaction.chainId,
+      lines: [
+        { label: "Venue", value: terms.venue },
+        { label: "Token", value: terms.token },
+        { label: "Amount", value: formatUnits(terms.amount, 6) },
+        { label: "Recipient", value: terms.recipient },
+        { label: "Minimum received", value: formatUnits(terms.minimum, 6) },
+        { label: "Network fee", value: "Paid by your wallet" },
+      ],
+    }
   }
   switch (props.request.kind) {
     case SignatureRequestKind.VENUE_SETUP:

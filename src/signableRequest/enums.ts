@@ -46,6 +46,10 @@ enum SignableRefusal {
   NO_SEND_OP = "This Polymarket send doesn't carry the operation its signature hashes, so the browser can't check it.",
   NO_DELETED_PROXY = "This Polymarket proxy deletion doesn't name the proxy its signature hashes, so the browser can't check it.",
   OTHER_DELETION = "This Polymarket proxy deletion signs another operation than the deletion of the proxy it names.",
+  /** GMX's subaccount approval: the most orders its key may send over the approval. */
+  TOO_MANY_ORDERS = "This request lets leneutre's key send more orders than leneutre ever asks for.",
+  /** GMX's subaccount approval, whose terms the request states beside what's signed, to show them. */
+  OTHER_TERMS = "This request states other terms than the ones it signs.",
   /** Main's Hyperliquid account switched to a mode (D66): only ever to unified. */
   NOT_UNIFIED = "This request switches Main's Hyperliquid account to another mode than unified.",
 }
@@ -59,6 +63,8 @@ enum SignSummaryText {
   DELETE_POLYMARKET_PROXY = "Delete one of Main's older Polymarket Perps proxies: Polymarket counts it toward its limit even once expired, so each older one goes before the new one is approved",
   PROVE_LIGHTER_ACCOUNT = "Prove that this Lighter account is Main's",
   REGISTER_LIGHTER_KEY = "Register leneutre's trading key on Main's Lighter account",
+  PERMIT_GMX_USDC = "Let GMX take the USDC your GMX orders pay from your wallet: only GMX's contracts can use it, for your own orders",
+  APPROVE_GMX_KEY = "Let leneutre's key open and close GMX positions with your wallet's funds until the date below. It can never withdraw: GMX pays whatever a position returns to your wallet",
   TRANSFER = "Transfer funds from Main to one of your accounts",
   WITHDRAW_TO_MAIN = "Withdraw funds to Main's own wallet",
   WITHDRAW_INTO_LIGHTER = "Withdraw funds from Main's Hyperliquid straight into Main's own Lighter account, which opens it",
@@ -84,6 +90,8 @@ enum SignSummaryText {
 
 enum SignSummaryLabel {
   AGENT = "Agent",
+  KEY = "leneutre's key",
+  MAX_ORDERS = "Orders it may send, at most",
   PROXY = "Proxy",
   VALID_UNTIL = "Valid until",
   CHAIN = "Signed on chain",

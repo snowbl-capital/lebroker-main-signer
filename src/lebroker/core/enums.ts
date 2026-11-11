@@ -22,6 +22,7 @@ enum VenueId {
   ASTER = "aster",
   LIGHTER = "lighter",
   BYBIT = "bybit",
+  GMX = "gmx",
 }
 
 export { Network, VenueId, DeploymentEnvironment }

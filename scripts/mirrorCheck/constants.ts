@@ -41,6 +41,7 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     whole: false,
   })),
   { mirror: "src/lebroker/core/enums.ts", source: "packages/core/src/enums.ts", whole: false },
+  { mirror: "src/lebroker/core/constants.ts", source: "packages/core/src/constants.ts", whole: false },
   { mirror: "src/lebroker/accounts/enums.ts", source: "packages/accounts/src/enums.ts", whole: false },
   { mirror: "src/lebroker/accounts/constants.ts", source: "packages/accounts/src/constants.ts", whole: false },
   { mirror: "src/lebroker/accounts/types.ts", source: "packages/accounts/src/types.ts", whole: false },
@@ -96,6 +97,8 @@ const MIRRORED_FILES: readonly MirroredFile[] = [
     whole: true,
   })),
   { mirror: "src/lebroker/venues/constants.ts", source: "packages/venues/src/constants.ts", whole: false },
+  { mirror: "src/lebroker/venues/gmx/constants.ts", source: "packages/venues/src/gmx/constants.ts", whole: false },
+  { mirror: "src/lebroker/venues/gmx/relay/constants.ts", source: "packages/venues/src/gmx/relay/constants.ts", whole: false },
   { mirror: "src/lebroker/venues/polymarket/constants.ts", source: "packages/venues/src/polymarket/constants.ts", whole: false },
   ...["depositWallet", "enums", "signing", "types"].map(name => ({
     mirror: `src/lebroker/venues/polymarket/${name}.ts`,

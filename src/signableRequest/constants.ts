@@ -6,6 +6,7 @@ import {
   ASTER_SIGN_CHAIN_IDS,
   AsterAgentKind,
   ASTER_WITHDRAWAL_DOMAIN,
+  GMX_APPROVAL_DOMAIN,
   POLYMARKET_SIGN_DOMAIN,
 } from "../lebroker/venues/model"
 import { LaMargeWord, SignSummaryText } from "./enums"
@@ -26,6 +27,7 @@ const SIGNATURE_CHAIN_IDS: ReadonlySet<number> = new Set([
   ASTER_WITHDRAWAL_DOMAIN.chainId,
   POLYMARKET_SIGN_DOMAIN.chainId,
   SUB_ACCOUNT_PROOF_DOMAIN.chainId,
+  GMX_APPROVAL_DOMAIN.chainId,
   ASTER_TRANSFER_CHAIN_ID,
   ...Object.entries(CHAINS)
     .filter(entry => entry[0] !== LaMargeWord.LIGHTER)
@@ -92,10 +94,10 @@ const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
  * LaMarge's deployments Main signs for: production's and the dev one's, each by its app, which Main's sign-in names as
  * LaMarge's SDK checks it; its environment, whose attester signs its attestations; its own slots on Main's venue
  * accounts, its Aster agent's name and its Lighter key's index; and its own escrows, as LaMarge's SDK pins each
- * environment's: production's one proxy on HyperEVM and Polygon, the dev one's on each and on Arbitrum. Aster keeps one
- * agent per name and Lighter one key per index: approving or registering the other deployment's would replace that
- * deployment's, and a payment or a permit to the other's escrow would go to another environment, so a request is held
- * to the deployment it says it's for.
+ * environment's: production's one proxy on HyperEVM and Polygon and its own on Arbitrum, the dev one's on each. Aster
+ * keeps one agent per name and Lighter one key per index: approving or registering the other deployment's would replace
+ * that deployment's, and a payment or a permit to the other's escrow would go to another environment, so a request is
+ * held to the deployment it says it's for.
  */
 const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = (
   [
@@ -107,13 +109,6 @@ const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = (
   ...ENVIRONMENT_SLOTS[deployment.environment],
   escrows: ESCROW_DEPLOYMENTS.filter(pinned => pinned.environment === deployment.environment).map(pinned => pinned.address),
 }))
-
-/**
- * The LaMarge venues Main pays a take from out of its own wallet alone, by LaMarge's ids, beside those lebroker trades:
- * LaMarge's escrow on Arbitrum, which it lists under GMX. Main permits and pays into it from its Arbitrum USDC, and
- * refunds its own payment there; nothing is withdrawn from it, nor delivered into it.
- */
-const LAMARGE_WALLET_ONLY_VENUES: ReadonlySet<string> = new Set(["gmx"])
 
 /** How long a LaMarge permit's deadline may run, in seconds, as lebroker's mover allows it. */
 const LAMARGE_PERMIT_SECONDS = 600
@@ -207,7 +202,6 @@ export {
   HYPERLIQUID_MAINNET,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
-  LAMARGE_WALLET_ONLY_VENUES,
   LIGHTER_TRANSFER_API_KEY,
   LIGHTER_USDC_DECIMALS,
   SIGNATURE_CHAIN_IDS,

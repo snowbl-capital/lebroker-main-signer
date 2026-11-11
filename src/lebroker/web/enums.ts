@@ -34,6 +34,7 @@ enum ApiPath {
   CHANNELS = "/v1/channels",
   TELEGRAM_CHAT = "/v1/channels/telegram/chat",
   MARGIN_KEEPER = "/v1/margin-keeper",
+  MARGIN_KEEPER_SUMMARY = "/v1/margin-keeper/summary",
   MARGIN_KEEPER_RESUME = "/v1/margin-keeper/resume",
   /** The session's wallet's margin moves by hand between its venue accounts; `/quote` after it says what one would get. */
   MARGIN_MOVES = "/v1/margin-moves",

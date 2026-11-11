@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import type { Attested } from "@lamarge/sdk/attestation"
 import {
   CHAINS,
+  GMX_TRANSFER_ROUTER,
+  gmxTransferOut,
   COLLATERAL_ROUTE,
   ENVIRONMENT_SLOTS,
   ESCROW,
@@ -15,7 +17,7 @@ import {
   schemas,
   transferMessage,
 } from "@lamarge/sdk/protocol"
-import { encodeFunctionData, erc20Abi, type Address, type Hex } from "viem"
+import { encodeFunctionData, erc20Abi, getAddress, parseAbi, type Address, type Hex } from "viem"
 import {
   LIGHTER_KEY_INDEX,
   SignaturePayloadKind,
@@ -32,6 +34,16 @@ import {
   ASTER_SIGN_CHAIN_IDS,
   ASTER_SIGN_DOMAIN,
   AsterAgentKind,
+  GMX_APPROVAL_DOMAIN,
+  GMX_APPROVAL_PRIMARY_TYPE,
+  GMX_APPROVAL_TYPES,
+  GMX_NO_INTEGRATION,
+  GMX_PERMIT_DOMAIN,
+  GMX_PERMIT_PRIMARY_TYPE,
+  GMX_PERMIT_TYPES,
+  GMX_PERMIT_VALUE,
+  GMX_TOKEN_ROUTER,
+  GMX_SUBACCOUNT_ORDER_ACTION,
   HYPERLIQUID_SEND_DEX,
   HYPERLIQUID_USDC,
   polymarketDeleteProxyOp,
@@ -114,6 +126,53 @@ function asterApproval({
     now: ASKED_AT,
     agentName,
   }).typedData
+}
+
+/**
+ * Main's approval of lebroker's GMX key as the executor builds it (`gmxApprovalTypedData`, as its tests pin it): orders
+ * only, `days` long, `orders` at most, and the terms it states beside it.
+ */
+function gmxApproval({ days = 90, orders = 18_000, subaccount = AGENT }: { days?: number; orders?: number; subaccount?: string } = {}) {
+  const expiresAt = ASKED_AT + days * DAY_MS
+  const seconds = String(Math.floor(expiresAt / 1000))
+  return {
+    typedData: {
+      domain: GMX_APPROVAL_DOMAIN,
+      types: GMX_APPROVAL_TYPES,
+      primaryType: GMX_APPROVAL_PRIMARY_TYPE,
+      message: {
+        subaccount,
+        shouldAdd: true,
+        expiresAt: seconds,
+        maxAllowedCount: String(orders),
+        actionType: GMX_SUBACCOUNT_ORDER_ACTION,
+        nonce: "3",
+        desChainId: "42161",
+        deadline: seconds,
+        integrationId: GMX_NO_INTEGRATION,
+      },
+    },
+    gmxSubaccountApproval: { subaccount, expiresAt: Math.floor(expiresAt / 1000) * 1000, maxAllowedCount: orders, chainId: 42161 },
+  }
+}
+
+/** Main's USDC permit for GMX's Router as the executor builds it, lasting `days` from the request. */
+function gmxPermit({ days = 90 }: { days?: number } = {}) {
+  return {
+    typedData: {
+      domain: GMX_PERMIT_DOMAIN,
+      types: GMX_PERMIT_TYPES,
+      primaryType: GMX_PERMIT_PRIMARY_TYPE,
+      message: {
+        owner: MAIN,
+        spender: GMX_TOKEN_ROUTER,
+        value: GMX_PERMIT_VALUE.toString(),
+        nonce: "7",
+        deadline: String(Math.floor((ASKED_AT + days * DAY_MS) / 1000)),
+      },
+    },
+    gmxUsdcPermit: { spender: GMX_TOKEN_ROUTER, chainId: 42161 },
+  }
 }
 
 function asterMessage({ msg, chainId }: { msg: string; chainId: number }) {
@@ -567,6 +626,74 @@ describe("a venue's setup", () => {
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, message: theirs }))).toBe(SignableRefusal.NOT_LEBROKER_KEY)
     const below = registrationMessage({ accountIndex: 42, apiKeyIndex: 199 })
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, message: below }))).toBe(SignableRefusal.NOT_LEBROKER_KEY)
+  })
+
+  test("signs GMX's approval of leneutre's key on Arbitrum, for orders only, 90 days and 18,000 orders at most", () => {
+    const asked = gmxApproval()
+    const read = signableRequest(requestOf({ venue: VenueId.GMX, walletChainId: 1, ...asked }))
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.APPROVE_GMX_KEY)
+    expect(read.ok ? read.summary.chainId : null).toBe(42161)
+    expect(read.ok ? read.summary.lines.map(line => line.label) : []).toEqual([
+      SignSummaryLabel.KEY,
+      SignSummaryLabel.VALID_UNTIL,
+      SignSummaryLabel.MAX_ORDERS,
+      SignSummaryLabel.CHAIN,
+    ])
+    expect(read.ok ? read.summary.lines[2]?.value : null).toBe("18,000")
+    const renewal = requestOf({ kind: SignatureRequestKind.VENUE_RENEWAL, venue: VenueId.GMX, ...asked })
+    expect(signableRequest(renewal).ok).toBe(true)
+  })
+
+  test("refuses GMX's approval for longer, more orders, another action, Main itself, or terms other than the ones signed", () => {
+    const gmx = (asked: ReturnType<typeof gmxApproval>) => refusalOf(requestOf({ venue: VenueId.GMX, ...asked }))
+    expect(gmx(gmxApproval({ days: 120 }))).toBe(SignableRefusal.TOO_LONG)
+    expect(gmx(gmxApproval({ orders: 18_001 }))).toBe(SignableRefusal.TOO_MANY_ORDERS)
+    expect(gmx(gmxApproval({ subaccount: MAIN }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    const asked = gmxApproval()
+    const message = asked.typedData.message
+    const changed = (fields: Record<string, unknown>) => ({
+      ...asked,
+      typedData: { ...asked.typedData, message: { ...message, ...fields } },
+    })
+    expect(gmx(changed({ actionType: `0x${"1".repeat(64)}` }))).toBe(SignableRefusal.OTHER_PERMISSIONS)
+    expect(gmx(changed({ shouldAdd: false }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(gmx(changed({ integrationId: `0x${"1".repeat(64)}` }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(gmx(changed({ desChainId: "1" }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+    expect(gmx(changed({ deadline: String(Number(message.deadline) + 1) }))).toBe(SignableRefusal.TOO_LONG)
+    const domain = { ...asked.typedData.domain, verifyingContract: "0x5503b99308dB6923758F9A22d118207D633c4e87" as const }
+    expect(gmx({ ...asked, typedData: { ...asked.typedData, domain } })).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    const facts = asked.gmxSubaccountApproval
+    expect(gmx({ ...asked, gmxSubaccountApproval: { ...facts, maxAllowedCount: 100 } })).toBe(SignableRefusal.OTHER_TERMS)
+    expect(gmx({ ...asked, gmxSubaccountApproval: { ...facts, subaccount: STRANGER } })).toBe(SignableRefusal.OTHER_TERMS)
+    expect(refusalOf(requestOf({ venue: VenueId.GMX, typedData: asked.typedData }))).toBe(SignableRefusal.OTHER_TERMS)
+  })
+
+  test("signs Main's USDC permit for GMX's Router, its second signature of GMX's setup, as long as the approval at most", () => {
+    const read = signableRequest(requestOf({ venue: VenueId.GMX, walletChainId: 1, ...gmxPermit() }))
+    expect(read.ok && read.summary.action).toBe(SignSummaryText.PERMIT_GMX_USDC)
+    expect(read.ok ? read.summary.chainId : null).toBe(42161)
+    expect(read.ok ? read.summary.lines.map(line => line.label) : []).toEqual([
+      SignSummaryLabel.SPENDER,
+      SignSummaryLabel.VALID_UNTIL,
+      SignSummaryLabel.CHAIN,
+    ])
+  })
+
+  test("refuses Main's USDC permit to another spender, of another owner or value, for longer, or on other terms than stated", () => {
+    const gmx = (asked: ReturnType<typeof gmxPermit>) => refusalOf(requestOf({ venue: VenueId.GMX, ...asked }))
+    const asked = gmxPermit()
+    const changed = (fields: Record<string, unknown>) => ({
+      ...asked,
+      typedData: { ...asked.typedData, message: { ...asked.typedData.message, ...fields } },
+    })
+    expect(gmx(changed({ spender: STRANGER }))).toBe(SignableRefusal.OTHER_TERMS)
+    expect(gmx(changed({ owner: STRANGER }))).toBe(SignableRefusal.OTHER_MAIN)
+    expect(gmx(changed({ value: "1000000" }))).toBe(SignableRefusal.OTHER_TERMS)
+    expect(gmx(gmxPermit({ days: 120 }))).toBe(SignableRefusal.TOO_LONG)
+    const domain = { ...asked.typedData.domain, verifyingContract: STRANGER }
+    expect(gmx({ ...asked, typedData: { ...asked.typedData, domain } })).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    expect(gmx({ ...asked, gmxUsdcPermit: { spender: STRANGER, chainId: 42161 } })).toBe(SignableRefusal.OTHER_TERMS)
+    expect(refusalOf(requestOf({ venue: VenueId.GMX, typedData: asked.typedData }))).toBe(SignableRefusal.OTHER_TERMS)
   })
 
   test("refuses a permit, or anything, asked as a venue's setup", () => {
@@ -1213,9 +1340,9 @@ describe("a LaMarge move", () => {
     expect(refusalOf(move({ typedData: payTake({ into: "aster", receiveEscrow: ESCROW }) }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
     // A delivery on a chain LaMarge names for no venue.
     expect(refusalOf(move({ typedData: payTake({ receiveChainId: "1" }) }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
-    // Nor into a venue lebroker doesn't trade, though LaMarge's SDK pins its chain and its development escrow: GMX's.
+    // Into GMX, through the deployment's own escrow on Arbitrum.
     const intoGmx = payTake({ escrow: DEVELOPMENT_ESCROW, into: "gmx", receiveEscrow: ARBITRUM_ESCROW })
-    expect(refusalOf(move({ typedData: intoGmx, lamarge: LAMARGE_DEV }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
+    expect(refusalOf(move({ typedData: intoGmx, lamarge: LAMARGE_DEV }))).toBeNull()
   })
 
   test("pays from Main's own USDC on Arbitrum into the dev escrow LaMarge pins there, delivered to Main on the venue it trades", () => {
@@ -1234,7 +1361,7 @@ describe("a LaMarge move", () => {
     expect(permitted.ok && permitted.summary).toMatchObject({ action: SignSummaryText.LAMARGE_PERMIT, chainId: 42161 })
     const paid = signableRequest(move({ typedData: onArbitrum({}) }))
     expect(paid.ok && paid.summary).toMatchObject({ action: SignSummaryText.LAMARGE_PAYMENT, chainId: 42161 })
-    // Production pins no escrow on Arbitrum yet: the dev one is another environment's there.
+    // Production pins its own escrow on Arbitrum: the dev one is another environment's there.
     expect(refusalOf(move({ typedData: arbitrumPermit, lamarge: LAMARGE_PRODUCTION }))).toBe(SignableRefusal.OTHER_DEPLOYMENT_ESCROW)
     expect(refusalOf(move({ typedData: onArbitrum({}), lamarge: LAMARGE_PRODUCTION }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
     // Delivered to Main alone, and within the same 1.5 % floor as any take.
@@ -1247,10 +1374,6 @@ describe("a LaMarge move", () => {
     expect(refusalOf(move({ typedData: onArbitrum({ payments: [toStranger] }) }))).toBe(SignableRefusal.NOT_TAKE_RECIPIENT)
     const lossy = lockPayment({ to: "hyperliquid", receiveEscrow: DEVELOPMENT_ESCROW, amountOut: "59000000" })
     expect(refusalOf(move({ typedData: onArbitrum({ payments: [lossy] }) }))).toBe(SignableRefusal.TAKE_LOSS)
-    // Arbitrum is a chain Main pays from only: nothing is delivered into it.
-    const intoArbitrum = lockPayment({ to: "gmx", receiveEscrow: ARBITRUM_ESCROW, amountOut: "60000000" })
-    const fromHyperEvm = payTake({ escrow: DEVELOPMENT_ESCROW, payments: [intoArbitrum] })
-    expect(refusalOf(move({ typedData: fromHyperEvm }))).toBe(SignableRefusal.UNKNOWN_CHAIN)
   })
 
   test("pays a take only as LaMarge's verified attestation commits it: its venues and its recipient, a take's and never a setup's", () => {
@@ -1268,9 +1391,11 @@ describe("a LaMarge move", () => {
       ...requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: paid, lamarge: LAMARGE_DEV }),
       attested: attestation,
     })
-    expect(signableRequest(attested({ kind: "take", terms })).ok).toBe(true)
+    expect(signableRequest(attested({ kind: "take", terms, destination: "venue" })).ok).toBe(true)
     for (const other of [{ recipient: STRANGER.toLowerCase() }, { to: "polymarket" }, { from: "polymarket" }]) {
-      expect(refusalOf(attested({ kind: "take", terms: { ...terms, ...other } }))).toBe(SignableRefusal.NOT_ATTESTED_TAKE)
+      expect(refusalOf(attested({ kind: "take", terms: { ...terms, ...other }, destination: "venue" }))).toBe(
+        SignableRefusal.NOT_ATTESTED_TAKE,
+      )
     }
     expect(refusalOf(attested({ kind: "setup" }))).toBe(SignableRefusal.NOT_ATTESTED_TAKE)
   })
@@ -1739,5 +1864,68 @@ describe("any request", () => {
     const asked = requestOf({ venue: VenueId.HYPERLIQUID, typedData: hyperliquidApproval() })
     expect(signableRequest(asked).ok).toBe(true)
     expect(refusalOf({ ...asked, request: { ...asked.request, createdAt: "not a date" } })).toBe(SignableRefusal.UNKNOWN_SHAPE)
+  })
+})
+
+describe("Main's direct wallet transactions", () => {
+  test("allows a nonce-protected own deposit, but refuses another recipient and nonce-less GMX withdrawals", () => {
+    const props = requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: "transaction fixture" })
+    const chain = CHAINS["hyperliquid"]
+    if (chain === undefined) {
+      throw new Error("missing chain")
+    }
+    const data = encodeFunctionData({
+      abi: parseAbi([
+        "function directDeposit(address recipient,address inputToken,uint256 amount,uint256 minOut,uint256 nonce,uint256 deadline)",
+      ]),
+      functionName: "directDeposit",
+      args: [MAIN, getAddress(chain.token), 10_000_000n, 10_000_000n, 7n, BigInt(Math.floor(ASKED_AT / 1000) + 1800)],
+    })
+    const deposit = {
+      ...props,
+      request: {
+        ...props.request,
+        payload: {
+          kind: SignaturePayloadKind.TRANSACTION as const,
+          transaction: { chainId: chain.id, to: getAddress(chain.escrow), data },
+        },
+      },
+    }
+    expect(signableRequest(deposit).ok).toBe(true)
+    expect(signableRequest({ ...deposit, user: { ...deposit.user, address: STRANGER } }).ok).toBe(false)
+    expect(
+      signableRequest({
+        ...deposit,
+        request: {
+          ...deposit.request,
+          payload: {
+            kind: SignaturePayloadKind.TRANSACTION,
+            transaction: { chainId: 42161, to: GMX_TRANSFER_ROUTER, data: gmxTransferOut(10_000_000n) },
+          },
+        },
+      }).ok,
+    ).toBe(false)
+  })
+
+  test("allows a bounded, nonce-protected conversion into Main's own escrow balance", () => {
+    const props = requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: "transaction fixture" })
+    const chain = CHAINS["polymarket"]
+    if (chain === undefined) {
+      throw new Error("missing chain")
+    }
+    const data = encodeFunctionData({
+      abi: parseAbi(["function convertDeposit(uint256 amount,uint256 minOut,uint256 nonce,uint256 deadline)"]),
+      functionName: "convertDeposit",
+      args: [10_000_000n, 9_995_000n, 8n, BigInt(Math.floor(ASKED_AT / 1000) + 1800)],
+    })
+    expect(
+      signableRequest({
+        ...props,
+        request: {
+          ...props.request,
+          payload: { kind: SignaturePayloadKind.TRANSACTION, transaction: { chainId: chain.id, to: getAddress(chain.escrow), data } },
+        },
+      }).ok,
+    ).toBe(true)
   })
 })

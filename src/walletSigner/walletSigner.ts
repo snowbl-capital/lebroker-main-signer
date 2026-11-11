@@ -2,7 +2,7 @@ import { ApiError } from "../api/errors"
 import { readEvents } from "../eventStream/eventStream"
 import { LogEvent, StreamStage } from "../log/enums"
 import { approvedRecipientsOf, withinClock } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
-import { SignatureRequestState } from "../lebroker/accounts/model"
+import { SignaturePayloadKind, SignatureRequestState } from "../lebroker/accounts/model"
 import { attestedOf, checkAttestedTake } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsMutationSign/utils"
 import { SignableRefusal } from "../signableRequest/enums"
 import { signableRequest } from "../signableRequest/signableRequest"
@@ -75,6 +75,10 @@ function createWalletSigner({
     // Only the user approves a recipient, in their wallet (D70): this signer never signs an address-book entry.
     if (asksAddressBookEntry({ request })) {
       return { ok: false, refusal: SignerRefusal.ADDRESS_BOOK_ENTRY }
+    }
+    // A transaction is sent and its gas paid, on a chain this signer never reaches: left to the user's wallet.
+    if (request.payload.kind === SignaturePayloadKind.TRANSACTION) {
+      return { ok: false, refusal: SignerRefusal.TRANSACTION }
     }
     let attested
     try {

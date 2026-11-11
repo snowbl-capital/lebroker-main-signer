@@ -1,4 +1,6 @@
 import type {
+  GmxSubaccountApprovalFacts,
+  GmxUsdcPermitFacts,
   LaMargeRequestContext,
   KeyDeletion,
   LaMargeSend,
@@ -35,6 +37,10 @@ type RequestOfProps = {
   deletes?: KeyDeletion
   /** The request's place in a chain of signatures, beside its typed data or its message; none by default. */
   step?: SignatureStep
+  /** The terms a GMX approval states beside its typed data; none by default. */
+  gmxSubaccountApproval?: GmxSubaccountApprovalFacts
+  /** The spender a GMX USDC permit states beside its typed data; none by default. */
+  gmxUsdcPermit?: GmxUsdcPermitFacts
   /** The venue a withdrawal says it pays straight for Main, beside its typed data; none by default. */
   depositVenue?: VenueId | null
   /** That venue's address for Main, as the signing side read it from the venue; none read by default. */

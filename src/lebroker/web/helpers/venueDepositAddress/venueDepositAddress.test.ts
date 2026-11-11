@@ -114,6 +114,14 @@ describe("venueDepositAddress", () => {
     await expect(venueDepositAddress({ venue: VenueId.BYBIT, address: main.address })).rejects.toThrow(VenueDepositAddressError.UNREAD)
   })
 
+  test("gives GMX's as the account's own address on Arbitrum, read from nowhere: the account is the wallet", async () => {
+    const fetched = spyOn(globalThis, "fetch")
+    const lower = "0x7535aa4a9b6ec46e8ba1fb4e5ca0ad7f0ca28bd0"
+    expect(await venueDepositAddress({ venue: VenueId.GMX, address: lower })).toBe(getAddress(lower))
+    await expect(venueDepositAddress({ venue: VenueId.GMX, address: MAIN, chainId: 1 })).rejects.toThrow(VenueDepositAddressError.NONE)
+    expect(fetched).not.toHaveBeenCalled()
+  })
+
   test("reads nothing for a venue leneutre opens no account on with a withdrawal", async () => {
     const fetched = spyOn(globalThis, "fetch")
     await expect(venueDepositAddress({ venue: VenueId.ASTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.NONE)

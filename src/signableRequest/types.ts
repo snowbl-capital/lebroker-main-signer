@@ -1,6 +1,8 @@
 import type { Attested, Environment } from "@lamarge/sdk/attestation"
 import type { Typed } from "@lamarge/sdk/protocol"
 import type {
+  GmxSubaccountApprovalFacts,
+  GmxUsdcPermitFacts,
   KeyDeletion,
   LaMargeOp,
   LaMargeRequestContext,
@@ -118,6 +120,12 @@ type MessageRuleProps = RuleProps & { message: string }
 
 /** A Polymarket proxy's deletion: the key the request says it deletes, whose hash the typed data must sign. */
 type PolymarketDeletionProps = TypedRuleProps & { deletes: KeyDeletion | undefined }
+
+/** GMX's subaccount approval, with the terms the request states beside it, which must be the ones signed. */
+type GmxApprovalRuleProps = TypedRuleProps & { approval: GmxSubaccountApprovalFacts | undefined }
+
+/** Main's USDC permit for GMX's Router, with the spender the request states beside it, which must be the one signed. */
+type GmxPermitRuleProps = TypedRuleProps & { permit: GmxUsdcPermitFacts | undefined }
 
 type ExpectedDomainProps = { typedData: TypedDataPayload; domain: Readonly<Record<string, unknown>> }
 
@@ -241,8 +249,7 @@ type LaMargeTypedProps = LaMargeTypedRuleProps & { typed: Typed }
 
 type VenueOfProps = { typed: Typed }
 
-/** `paying`: whether the chain is the one Main pays a take on, which may be a venue Main pays from its wallet alone. */
-type SignedVenueOnProps = { chainId: number; paying: boolean }
+type SignedVenueOnProps = { chainId: number }
 
 /**
  * LaMarge's attestation of a take where the signing side verified one; the venue Main pays from, and where each of its
@@ -267,6 +274,8 @@ type FeeNamedFillsProps = { take: LaMargeTake }
 
 export type {
   PolymarketDeletionProps,
+  GmxApprovalRuleProps,
+  GmxPermitRuleProps,
   AsterAgentTerms,
   LaMargeSendRuleProps,
   SendTypedProps,

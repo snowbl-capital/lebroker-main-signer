@@ -39,6 +39,9 @@ async function verify({ address, payload, signature }: VerifyProps): Promise<boo
   if (payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE) {
     return verifyMessage({ address, message: payload.message, signature })
   }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return false
+  }
   return verifyTypedData({ address, signature, ...typedDataFromWire({ payload: payload.typedData }) })
 }
 

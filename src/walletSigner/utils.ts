@@ -85,7 +85,7 @@ function createDepositAddressReader({ address, client, now }: CreateDepositAddre
     const read =
       request.kind === SignatureRequestKind.LAMARGE_MOVE ||
       (request.kind === SignatureRequestKind.WITHDRAWAL && request.venue !== null && DEPOSIT_WITHDRAWAL_VENUES.has(request.venue))
-    if (payload.depositVenue === undefined || !read) {
+    if (payload.kind === SignaturePayloadKind.TRANSACTION || payload.depositVenue === undefined || !read) {
       return Promise.resolve(undefined)
     }
     const toWallet = payload.kind === SignaturePayloadKind.TYPED_DATA && payload.typedData.primaryType === POLYMARKET_PERPS_WITHDRAW_TYPE

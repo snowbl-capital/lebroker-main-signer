@@ -18,6 +18,8 @@ export { isLighterKeyIndex } from "./lighterKeyIndex/lighterKeyIndex"
 export { laMargeTake, signaturePayload, typedDataPayload } from "./signatureRequests/schema"
 export { typedDataFromWire } from "./typedDataFromWire/typedDataFromWire"
 export type {
+  GmxSubaccountApprovalFacts,
+  GmxUsdcPermitFacts,
   LaMargeAttestation,
   LaMargeOp,
   LaMargeRequestContext,
