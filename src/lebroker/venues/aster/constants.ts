@@ -1,4 +1,5 @@
 import { Network } from "../../core/model"
+import { AsterAgentKind } from "./enums"
 
 /** The chain id in the EIP-712 domain of the agent's signed requests, per network. */
 const SIGN_CHAIN_IDS: Record<Network, number> = { [Network.MAINNET]: 1666, [Network.TESTNET]: 714 }
@@ -12,6 +13,17 @@ const MESSAGE_TYPES = { Message: [{ name: "msg", type: "string" }] } as const
 
 const AGENT_NAME = "leneutre"
 
+/**
+ * What each agent's name adds to the trading agent's: the withdrawal and conversion agents are agents of their own
+ * beside it (HOSTED_SERVICE.md, tested 18 October 2026) and LaMarge's, whose names they never take, since Aster keeps
+ * one agent per name on an account and an approval under a name replaces it.
+ */
+const AGENT_NAME_SUFFIXES: Record<AsterAgentKind, string> = {
+  [AsterAgentKind.TRADING]: "",
+  [AsterAgentKind.WITHDRAWAL]: "-withdraw",
+  [AsterAgentKind.CONVERT]: "-convert",
+}
+
 /** An approval lasts this long; once Aster forgets the agent, the trader approves it again. */
 const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
 
@@ -19,7 +31,7 @@ const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
  * The conversion agent's name: an agent of its own, beside the trading and the withdrawal ones and LaMarge's, whose
  * names it never takes, since Aster keeps one agent per name on an account and an approval under a name replaces it.
  */
-const CONVERT_AGENT_NAME = "leneutre-convert"
+const CONVERT_AGENT_NAME = `${AGENT_NAME}${AGENT_NAME_SUFFIXES[AsterAgentKind.CONVERT]}`
 
 /**
  * What the owner signs to withdraw: an `Action` on the destination chain's id, its field names with their spaces, as
@@ -63,4 +75,5 @@ export {
   WITHDRAWAL_ACTION,
   WITHDRAWAL_DOMAIN,
   WITHDRAWAL_TYPES,
+  AGENT_NAME_SUFFIXES,
 }

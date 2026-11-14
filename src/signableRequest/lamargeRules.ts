@@ -23,18 +23,26 @@ import {
   type TransferTyped,
   type Typed,
 } from "@lamarge/sdk/protocol"
-import { SignatureRequestReason } from "../lebroker/accounts/model"
+import { SignaturePayloadKind, SignatureRequestReason } from "../lebroker/accounts/model"
 import { shortAddress } from "../lebroker/core/model"
-import { LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE, MAX_TAKE_LOSS_BPS } from "../lebroker/signer/model"
+import { LAMARGE_SIGNED_VENUES, LIGHTER_REGISTRATION_MESSAGE, LIGHTER_TRANSFER_MESSAGE, MAX_TAKE_LOSS_BPS } from "../lebroker/signer/model"
 import { formatUnits } from "viem"
-import { BPS, EIP712_DOMAIN_FIELDS, LAMARGE_DEPLOYMENTS, LAMARGE_PERMIT_SECONDS, OP_INTERNAL_TRANSFER, OP_TYPE } from "./constants"
+import {
+  BPS,
+  EIP712_DOMAIN_FIELDS,
+  LAMARGE_DEPLOYMENTS,
+  LAMARGE_PERMIT_SECONDS,
+  OP_INTERNAL_TRANSFER,
+  OP_TYPE,
+  TAKE_DEPOSIT_VENUES,
+} from "./constants"
 import { LaMargeWord, SignableRefusal, SignStarter, SignSummaryLabel, SignSummaryText } from "./enums"
 import type {
+  AttestedDeliveryProps,
   ChainOfProps,
   DeliveryVenueProps,
   DeploymentOfProps,
   LaMargeDeploymentPins,
-  HexIndexProps,
   KeepsValueProps,
   LaMargeMessageRuleProps,
   LaMargeSendRuleProps,
@@ -42,6 +50,8 @@ import type {
   LaMargeTypedRuleProps,
   LighterTakeProps,
   SendTypedProps,
+  SignedDepositDeliveryProps,
+  SignedVenueOnProps,
   SignSummary,
   StartedByProps,
   SummaryLine,
@@ -49,7 +59,19 @@ import type {
   UnitsProps,
   VenueOfProps,
 } from "./types"
-import { chainOf, deploymentEscrows, isAddress, laMargeCheck, recipientSubAccount, refuse, text, toAccount, wholeNumber } from "./utils"
+import {
+  chainOf,
+  deploymentEscrows,
+  feeNamedFills,
+  hexIndex,
+  isAddress,
+  laMargeCheck,
+  recipientSubAccount,
+  refuse,
+  text,
+  toAccount,
+  wholeNumber,
+} from "./utils"
 
 /**
  * Typed data as LaMarge's SDK checks it: its domain's four fields and none more, the chain id a number, and the domain's
@@ -152,17 +174,42 @@ function deploymentOf({ lamarge }: DeploymentOfProps): LaMargeDeploymentPins {
   return own ?? refuse({ refusal: SignableRefusal.UNKNOWN_DEPLOYMENT })
 }
 
-/** The LaMarge venue whose chain the domain names: its escrow's, its token's, or its withdrawal's. */
-function venueOf({ typed }: VenueOfProps): string {
-  const venue = Object.keys(CHAINS).find(name => CHAINS[name]?.id === typed.domain.chainId)
+/** The LaMarge venue lebroker trades whose chain is `chainId` (`LAMARGE_SIGNED_VENUES`); refused for any other chain. */
+function signedVenueOn({ chainId }: SignedVenueOnProps): string {
+  const venue = Object.keys(CHAINS).find(name => LAMARGE_SIGNED_VENUES.has(name) && CHAINS[name]?.id === chainId)
   return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
 }
 
-/** The LaMarge venue whose chain a payment's delivery names; refused when it names none. */
+/** The LaMarge venue whose chain the domain names: its escrow's, its token's, or its withdrawal's. */
+function venueOf({ typed }: VenueOfProps): string {
+  return signedVenueOn({ chainId: typed.domain.chainId })
+}
+
+/** The LaMarge venue whose chain a payment's delivery names, one lebroker trades; refused for any other. */
 function deliveryVenue({ paid }: DeliveryVenueProps): string {
-  const chainId = laMargeCheck({ check: () => Number(uint(paid.receiveChainId)) })
-  const venue = Object.keys(CHAINS).find(name => CHAINS[name]?.id === chainId)
-  return venue ?? refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
+  return signedVenueOn({ chainId: laMargeCheck({ check: () => Number(uint(paid.receiveChainId)) }) })
+}
+
+/**
+ * A take held to LaMarge's attestation of it, where the signing side verified one: a take's own, never a setup step's,
+ * from the venue Main pays on, each delivery into the venue and to the recipient LaMarge committed to. Inside Aster or
+ * Lighter, where the payment goes to the maker, the attestation alone says where the take delivers. LaMarge's word
+ * never widens what the rules allow: they still hold the recipient to Main.
+ */
+function checkAttested({ attested, from, deliveries }: AttestedDeliveryProps): void {
+  if (attested === undefined) {
+    return
+  }
+  if (attested.kind !== LaMargeWord.ATTESTED_TAKE) {
+    return refuse({ refusal: SignableRefusal.NOT_ATTESTED_TAKE })
+  }
+  const terms = attested.terms
+  if (
+    terms.from !== from ||
+    !deliveries.every(delivery => terms.to === delivery.to && isAddress({ address: delivery.recipient, other: terms.recipient }))
+  ) {
+    refuse({ refusal: SignableRefusal.NOT_ATTESTED_TAKE })
+  }
 }
 
 /**
@@ -205,6 +252,26 @@ function units({ value, venue }: UnitsProps): string {
 }
 
 /**
+ * Whether a take's payment delivers straight to Main's deposit address on a venue LaMarge reaches only on chain
+ * (`TAKE_DEPOSIT_VENUES`), as Bybit's: the request names that venue, and the recipient is the address the signing side
+ * read itself for Main just now, Bybit's the one Main signed, its `MainBybitDepositAddress` recovered to Main in the
+ * browser, as for Hyperliquid's withdrawal straight into Bybit. The request's word alone is never taken.
+ *
+ * TODO(snowbl-capital/lamarge#395): LaMarge's SDK doesn't deliver to a deposit address yet, so the field that names such
+ * a recipient in the taker's signed take isn't known: taken to be the payment's `receiveRecipient`, as Main's own is
+ * today. Read the SDK's field, and its own check of it, once it ships.
+ */
+function deliversToSignedDeposit({ paid, depositVenue, depositAddress }: SignedDepositDeliveryProps): boolean {
+  if (depositVenue === undefined || !TAKE_DEPOSIT_VENUES.has(depositVenue)) {
+    return false
+  }
+  if (depositAddress === undefined || depositAddress.venue !== depositVenue) {
+    return refuse({ refusal: SignableRefusal.DEPOSIT_UNREAD })
+  }
+  return isAddress({ address: paid.receiveRecipient, other: depositAddress.address })
+}
+
+/**
  * The permit LaMarge's escrow takes Main's token with, only on moves Main signs: its pinned token, and the escrow of
  * the deployment the request is for.
  */
@@ -237,11 +304,12 @@ function permit({ typed, user, now, lamarge }: LaMargeTypedProps): SignSummary {
 /**
  * A take's payment into the escrow of the deployment the request is for, paid by Main and nobody else, each of its
  * deliveries from that deployment's escrow too, or from the contract of a venue settled inside itself, to Main itself,
- * the wallet signing and never an address the request names, in that venue's own token on its chain, all of them on
- * one, and the whole take for at least what it pays less the most a take may lose. LaMarge's SDK pins these against the
- * take's fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker always takes for the account that pays.
+ * the wallet signing and never an address the request names, or to Main's own deposit address on a venue LaMarge
+ * reaches only on chain (`deliversToSignedDeposit`), in that venue's own token on its chain, all of them on one, and
+ * the whole take for at least what it pays less the most a take may lose. LaMarge's SDK pins these against the take's
+ * fills (`checkTakeIntent`), which Main's wallet doesn't read: lebroker always takes for the account that pays.
  */
-function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
+function payment({ typed, user, lamarge, request, depositAddress, attested }: LaMargeTypedProps): SignSummary {
   const venue = venueOf({ typed })
   const escrows = deploymentEscrows({ deployment: deploymentOf({ lamarge }) })
   laMargeCheck({ check: () => checkEscrowTyped(typed, venue, escrows) })
@@ -256,10 +324,17 @@ function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
   if (!payments.every(paid => isPinnedEscrow(deliveryVenue({ paid }), paid.receiveEscrow, escrows))) {
     refuse({ refusal: SignableRefusal.OTHER_DEPLOYMENT_ESCROW })
   }
-  if (!payments.every(paid => isAddress({ address: paid.receiveRecipient, other: user.address }))) {
+  const depositVenue = request.payload.kind === SignaturePayloadKind.TYPED_DATA ? request.payload.depositVenue : undefined
+  const intoDeposit = payments.filter(paid => !isAddress({ address: paid.receiveRecipient, other: user.address }))
+  if (!intoDeposit.every(paid => deliversToSignedDeposit({ paid, depositVenue, depositAddress }))) {
     refuse({ refusal: SignableRefusal.NOT_TAKE_RECIPIENT })
   }
   const delivery = takeDelivery({ payments })
+  checkAttested({
+    attested,
+    from: venue,
+    deliveries: payments.map(paid => ({ to: deliveryVenue({ paid }), recipient: paid.receiveRecipient })),
+  })
   if (!keepsValue({ payments, venue, delivery })) {
     refuse({ refusal: SignableRefusal.TAKE_LOSS })
   }
@@ -269,6 +344,9 @@ function payment({ typed, user, lamarge }: LaMargeTypedProps): SignSummary {
     lines: [
       { label: SignSummaryLabel.AMOUNT, value: units({ value: total, venue }) },
       { label: SignSummaryLabel.PAYMENTS, value: String(payments.length) },
+      ...(intoDeposit.length === 0 || depositAddress === undefined
+        ? []
+        : [{ label: SignSummaryLabel.DEPOSIT_ADDRESS, value: shortAddress({ address: depositAddress.address }) }]),
     ],
     chainId: typed.domain.chainId,
   }
@@ -318,7 +396,7 @@ function startedBy({ reason }: StartedByProps): SummaryLine[] {
  * its windows, as LaMarge's SDK checks a take's payment (`checkAsterTakeIntent`). The take is the request's, as
  * LaMarge's API answered it: no maker's signature binds its recipient, so the summary names it.
  */
-function asterTake({ typed, user, take, now, request }: LaMargeTypedProps): SignSummary {
+function asterTake({ typed, user, take, now, request, attested }: LaMargeTypedProps): SignSummary {
   const transfer = laMargeCheck({ check: () => asterTransfer(typed) })
   if (!isAddress({ address: transfer.user, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
@@ -327,7 +405,9 @@ function asterTake({ typed, user, take, now, request }: LaMargeTypedProps): Sign
     return refuse({ refusal: SignableRefusal.NO_TAKE })
   }
   const item = { kind: LaMargeWord.ASTER_TRANSFER, signer: user.address, fill_id: take.fills[0]?.id, typed_data: typed }
-  laMargeCheck({ check: () => checkAsterTakeIntent([item], take.fills, take.input, user.address, user.address, now / 1000) })
+  const fills = feeNamedFills({ take })
+  laMargeCheck({ check: () => checkAsterTakeIntent([item], fills, take.input, user.address, user.address, now / 1000) })
+  checkAttested({ attested, from: LaMargeWord.ASTER, deliveries: [{ to: take.input.to, recipient: user.address }] })
   return {
     action: SignSummaryText.LAMARGE_ASTER_TAKE,
     lines: [
@@ -337,12 +417,6 @@ function asterTake({ typed, user, take, now, request }: LaMargeTypedProps): Sign
     ],
     chainId: typed.domain.chainId,
   }
-}
-
-/** An index or a nonce of a Lighter message, written in hex: a whole number a wallet reads exactly, or refused. */
-function hexIndex({ hex }: HexIndexProps): number {
-  const value = Number.parseInt(hex ?? "", 16)
-  return Number.isSafeInteger(value) ? value : refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
 }
 
 /**
@@ -355,7 +429,7 @@ function hexIndex({ hex }: HexIndexProps): number {
  * take and its accounts are the request's, as LaMarge's API and Lighter's answered the executor: Main's wallet can't
  * read Lighter, so the summary names the maker's account.
  */
-function lighterTake({ read, message, user, take, now, request, lamarge }: LighterTakeProps): SignSummary {
+function lighterTake({ read, message, user, take, now, request, lamarge, attested }: LighterTakeProps): SignSummary {
   const fields = {
     from: hexIndex({ hex: read[2] }),
     to: hexIndex({ hex: read[3] }),
@@ -389,10 +463,11 @@ function lighterTake({ read, message, user, take, now, request, lamarge }: Light
     memo: toHex(transfer.memo),
   }
   const item = { kind: LaMargeWord.LIGHTER_TRANSFER, signer: user.address, fill_id: take.fills[0]?.id, typed_data: terms }
+  const fills = feeNamedFills({ take })
   laMargeCheck({
-    check: () =>
-      checkLighterTakeIntent([item], take.fills, take.input, user.address, user.address, accounts.from_account_index, now / 1000),
+    check: () => checkLighterTakeIntent([item], fills, take.input, user.address, user.address, accounts.from_account_index, now / 1000),
   })
+  checkAttested({ attested, from: LaMargeWord.LIGHTER, deliveries: [{ to: take.input.to, recipient: user.address }] })
   return {
     action: SignSummaryText.LAMARGE_LIGHTER_TAKE,
     lines: [

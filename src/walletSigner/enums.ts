@@ -14,6 +14,8 @@ enum ReadSubject {
   REQUESTS = "signature-requests",
   ACCOUNTS = "accounts",
   ADDRESS_BOOK = "address-book",
+  /** The deployment's settings, its agents' names: deployment.js. */
+  DEPLOYMENT = "deployment",
   EVENTS = "events",
 }
 
@@ -21,6 +23,8 @@ enum ReadSubject {
 enum SignerRefusal {
   /** Only the user approves a recipient, in their wallet (lebroker's D70): never this signer, whatever the request says. */
   ADDRESS_BOOK_ENTRY = "This request asks Main to sign an address book entry: only you approve a recipient, in your wallet.",
+  /** A transaction Main's wallet sends and pays the gas of: this signer signs, and sends nothing on a chain. */
+  TRANSACTION = "This request asks Main's wallet to send a transaction: this signer sends none, so it's yours to send in your wallet.",
 }
 
 export { FailedStep, ReadSubject, SignerRefusal }

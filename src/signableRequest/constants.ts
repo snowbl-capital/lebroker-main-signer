@@ -1,12 +1,12 @@
-import { ASTER_TRANSFER_CHAIN_ID, CHAINS, ENVIRONMENT_SLOTS } from "@lamarge/sdk/protocol"
-import { Network, VenueId } from "../lebroker/core/model"
+import { ASTER_TRANSFER_CHAIN_ID, CHAINS, ENVIRONMENT_SLOTS, ESCROW_DEPLOYMENTS } from "@lamarge/sdk/protocol"
+import { ChainId, Network, VenueId } from "../lebroker/core/model"
 import { AsterBoolean, AsterParam, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
 import {
-  ASTER_AGENT_NAME,
   ASTER_APPROVAL_CHAIN_ID,
-  ASTER_CONVERT_AGENT_NAME,
   ASTER_SIGN_CHAIN_IDS,
+  AsterAgentKind,
   ASTER_WITHDRAWAL_DOMAIN,
+  GMX_APPROVAL_DOMAIN,
   POLYMARKET_SIGN_DOMAIN,
 } from "../lebroker/venues/model"
 import { LaMargeWord, SignSummaryText } from "./enums"
@@ -27,6 +27,7 @@ const SIGNATURE_CHAIN_IDS: ReadonlySet<number> = new Set([
   ASTER_WITHDRAWAL_DOMAIN.chainId,
   POLYMARKET_SIGN_DOMAIN.chainId,
   SUB_ACCOUNT_PROOF_DOMAIN.chainId,
+  GMX_APPROVAL_DOMAIN.chainId,
   ASTER_TRANSFER_CHAIN_ID,
   ...Object.entries(CHAINS)
     .filter(entry => entry[0] !== LaMargeWord.LIGHTER)
@@ -37,13 +38,14 @@ const SIGNATURE_CHAIN_IDS: ReadonlySet<number> = new Set([
 const CLOCK_SLACK_MS = 60 * 60 * 1000
 
 /**
- * lebroker's agents Main approves on Aster, by name, each with its own permissions and what Main reads it does: the
- * trading agent trades perps, the conversion agent converts USDC to USDT on Spot before a move. Neither withdraws.
+ * lebroker's agents Main approves on Aster, by kind, each under its name in this deployment (`asterAgentNames`), with its
+ * own permissions and what Main reads it does: the trading agent trades perps, the conversion agent converts USDC to
+ * USDT on Spot before a move. Neither withdraws.
  */
 const ASTER_AGENT_TERMS: readonly AsterAgentTerms[] = [
-  { name: ASTER_AGENT_NAME, spot: AsterBoolean.FALSE, perp: AsterBoolean.TRUE, action: SignSummaryText.APPROVE_ASTER_AGENT },
+  { kind: AsterAgentKind.TRADING, spot: AsterBoolean.FALSE, perp: AsterBoolean.TRUE, action: SignSummaryText.APPROVE_ASTER_AGENT },
   {
-    name: ASTER_CONVERT_AGENT_NAME,
+    kind: AsterAgentKind.CONVERT,
     spot: AsterBoolean.TRUE,
     perp: AsterBoolean.FALSE,
     action: SignSummaryText.APPROVE_ASTER_CONVERT_AGENT,
@@ -90,24 +92,23 @@ const EIP712_DOMAIN_FIELDS: readonly { name: string; type: string }[] = [
 
 /**
  * LaMarge's deployments Main signs for: production's and the dev one's, each by its app, which Main's sign-in names as
- * LaMarge's SDK checks it; its own slots on Main's venue accounts, its Aster agent's name and its Lighter key's index;
- * and its own escrows, production's one proxy on HyperEVM and Polygon, the dev one's on each. Aster keeps one agent per
- * name and Lighter one key per index: approving or registering the other deployment's would replace that deployment's,
- * and a payment or a permit to the other's escrow would go to another environment, so a request is held to the
- * deployment it says it's for.
+ * LaMarge's SDK checks it; its environment, whose attester signs its attestations; its own slots on Main's venue
+ * accounts, its Aster agent's name and its Lighter key's index; and its own escrows, as LaMarge's SDK pins each
+ * environment's: production's one proxy on HyperEVM and Polygon and its own on Arbitrum, the dev one's on each. Aster
+ * keeps one agent per name and Lighter one key per index: approving or registering the other deployment's would replace
+ * that deployment's, and a payment or a permit to the other's escrow would go to another environment, so a request is
+ * held to the deployment it says it's for.
  */
-const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = [
-  {
-    appOrigin: "https://app.lamarge.trade",
-    ...ENVIRONMENT_SLOTS.production,
-    escrows: ["0x3100b7b49C0F9631c6AF25877b5A4E13a47AFad6"],
-  },
-  {
-    appOrigin: "https://app.dev.lamarge.trade",
-    ...ENVIRONMENT_SLOTS.development,
-    escrows: ["0x948E65c40442d935d4ee990BDbD01BdD825c4873", "0xA3FCA394739Ec4B984e908BD7A3c3b72d0ED77D1"],
-  },
-]
+const LAMARGE_DEPLOYMENTS: readonly LaMargeDeploymentPins[] = (
+  [
+    { appOrigin: "https://app.lamarge.trade", environment: "production" },
+    { appOrigin: "https://app.dev.lamarge.trade", environment: "development" },
+  ] as const
+).map(deployment => ({
+  ...deployment,
+  ...ENVIRONMENT_SLOTS[deployment.environment],
+  escrows: ESCROW_DEPLOYMENTS.filter(pinned => pinned.environment === deployment.environment).map(pinned => pinned.address),
+}))
 
 /** How long a LaMarge permit's deadline may run, in seconds, as lebroker's mover allows it. */
 const LAMARGE_PERMIT_SECONDS = 600
@@ -127,7 +128,58 @@ const USDC = "USDC"
  */
 const DEPOSIT_WITHDRAWAL_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
   [VenueId.LIGHTER]: SignSummaryText.WITHDRAW_INTO_LIGHTER,
+  [VenueId.BYBIT]: SignSummaryText.WITHDRAW_INTO_BYBIT,
 }
+
+/**
+ * What Main's CCTP send from Hyperliquid straight into a venue's deposit address does, by venue: only a venue measured to
+ * credit a CCTP mint takes one, Bybit on Arbitrum.
+ */
+const CCTP_DEPOSIT_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = { [VenueId.BYBIT]: SignSummaryText.CCTP_INTO_BYBIT }
+
+/**
+ * What Main's Lighter fast withdrawal straight into a venue's deposit address does, by venue: only Bybit, measured to
+ * credit Lighter's pool contract on Arbitrum.
+ */
+const LIGHTER_FAST_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = { [VenueId.BYBIT]: SignSummaryText.LIGHTER_FAST_INTO_BYBIT }
+
+/** The least a Lighter fast withdrawal takes, in micro-USDC: 4 USDC (Lighter's docs). */
+const LIGHTER_FAST_MIN_UNITS = 4_000_000n
+
+/**
+ * What Main's Polymarket bridge withdrawal straight into a venue's deposit address does, by venue: only Bybit, measured
+ * to credit the bridge's payout.
+ */
+const POLYMARKET_BRIDGE_ACTIONS: Partial<Record<VenueId, SignSummaryText>> = {
+  [VenueId.BYBIT]: SignSummaryText.POLYMARKET_BRIDGE_INTO_BYBIT,
+}
+
+/** The least Polymarket's bridge takes, in pUSD's millionths: 2 dollars. */
+const POLYMARKET_BRIDGE_MIN_UNITS = 2_000_000n
+
+/** The primary type of Main's withdrawal of its Polymarket Perps margin, which a bridge withdrawal into a venue asks first. */
+const POLYMARKET_PERPS_WITHDRAW_TYPE = "Withdraw"
+
+/** The primary type of Hyperliquid's CCTP send, which Main's withdrawal into a venue may be instead of a `withdraw3`. */
+const HYPERLIQUID_CCTP_TYPE = "HyperliquidTransaction:SendToEvmWithData"
+
+/** The chain Main signs its Bybit deposit address on, so the one chain a CCTP send into it may pay on. */
+const CCTP_DEPOSIT_CHAIN_ID = ChainId.ARBITRUM
+
+/**
+ * The venues a LaMarge take may deliver into straight, to Main's deposit address there, as Main signed it: those LaMarge
+ * reaches only on chain.
+ */
+const TAKE_DEPOSIT_VENUES: ReadonlySet<VenueId> = new Set([VenueId.BYBIT])
+
+/**
+ * The key a Lighter transfer's owner message names, as the signer's `LIGHTER_TRANSFER_MESSAGE` leaves it unread: its
+ * index, in hex, which must be one of lebroker's on Main.
+ */
+const LIGHTER_TRANSFER_API_KEY = /\napi key: 0x([0-9a-f]{16})\n/
+
+/** Lighter's USDC amounts, in millionths. */
+const LIGHTER_USDC_DECIMALS = 6
 
 export {
   ASTER_AGENT_TERMS,
@@ -136,12 +188,23 @@ export {
   BPS,
   CLOCK_SLACK_MS,
   DEPOSIT_WITHDRAWAL_ACTIONS,
+  CCTP_DEPOSIT_ACTIONS,
+  CCTP_DEPOSIT_CHAIN_ID,
+  HYPERLIQUID_CCTP_TYPE,
+  LIGHTER_FAST_ACTIONS,
+  POLYMARKET_BRIDGE_ACTIONS,
+  POLYMARKET_BRIDGE_MIN_UNITS,
+  POLYMARKET_PERPS_WITHDRAW_TYPE,
+  LIGHTER_FAST_MIN_UNITS,
   EIP712_DOMAIN_FIELDS,
   OP_INTERNAL_TRANSFER,
   OP_TYPE,
   HYPERLIQUID_MAINNET,
   LAMARGE_DEPLOYMENTS,
   LAMARGE_PERMIT_SECONDS,
+  LIGHTER_TRANSFER_API_KEY,
+  LIGHTER_USDC_DECIMALS,
   SIGNATURE_CHAIN_IDS,
+  TAKE_DEPOSIT_VENUES,
   USDC,
 }

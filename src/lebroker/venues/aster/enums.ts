@@ -1,7 +1,4 @@
-/**
- * Which of lebroker's Aster agents Main approves: the trading one and the conversion one are those Main's allowlist
- * signs, each under its own name with its own permissions; the withdrawal one never.
- */
+/** The agents an account gives lebroker: one trades perps, another only withdraws, a third only converts on Spot. */
 enum AsterAgentKind {
   TRADING = "trading",
   WITHDRAWAL = "withdrawal",

@@ -6,4 +6,7 @@ import type { ChainId } from "./enums"
  */
 type ChainInfo = { id: ChainId; name: string; nativeSymbol: string; explorerUrl: string }
 
-export type { ChainInfo }
+/** A token on a chain, as a gateway moves it. Stablecoins only: a unit counts as a dollar. */
+type GatewayToken = { symbol: string; address: string; decimals: number }
+
+export type { ChainInfo, GatewayToken }

@@ -6,6 +6,8 @@ import type { addressBookList } from "../lebroker/web/hooks/addressBook/useAddre
 import type { requestAnswer } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/schema"
 import type { SignatureRequestsList } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import type { SessionUser } from "../lebroker/web/types"
+import type { ApiPath } from "../lebroker/web/enums"
+import type { SignableRequestProps } from "../signableRequest/types"
 import type { WalletKey } from "../wallets/wallets"
 import type { ApiRoute, HttpMethod } from "./enums"
 import type { sessionBody } from "./schema"
@@ -40,6 +42,18 @@ type DeclineProps = { id: string; reason: string }
 
 type EventsProps = { signal: AbortSignal }
 
+/** A read of the web's own, by its path: what its `fetchApi` reads under the session. */
+type ApiGetProps = { path: ApiPath }
+
+/**
+ * lebroker's agents' names on Main's Hyperliquid and Aster in this deployment, as its deployment.js gives them to the
+ * web: the only names an approval may go under.
+ */
+type AgentNames = Pick<SignableRequestProps, "hyperliquidAgentName" | "asterAgentName">
+
+/** The deployment.js the executor serves, as text. */
+type AgentNamesOfProps = { script: string }
+
 /** One wallet's calls to lebroker, under its own session: signed in on first use, and again when it ends (401). */
 type ApiClient = {
   signIn: () => Promise<Session>
@@ -53,6 +67,10 @@ type ApiClient = {
   decline: (props: DeclineProps) => Promise<RequestAnswer>
   /** The event stream's open response, its body still to read. */
   events: (props: EventsProps) => Promise<Response>
+  /** A read the web makes with its `fetchApi`, under this session: its answer, unread. */
+  apiGet: (props: ApiGetProps) => Promise<Response>
+  /** This deployment's agents' names, as its deployment.js gives them to the web, read again at each call. */
+  agentNames: () => Promise<AgentNames>
 }
 
 type ApiErrorProps = { message: string; status: number | null }
@@ -60,7 +78,7 @@ type ApiErrorProps = { message: string; status: number | null }
 type CallProps = {
   method: HttpMethod
   route: ApiRoute
-  /** After the route: `/<id>/sign`. */
+  /** After the route: `/<id>/sign`, or a web path after `/api`. */
   suffix?: string
   body?: unknown
   signal?: AbortSignal
@@ -74,7 +92,10 @@ type SessionCookieProps = { response: Response }
 export type {
   AccountsList,
   AddressBookList,
+  AgentNames,
+  AgentNamesOfProps,
   ApiClient,
+  ApiGetProps,
   ApiErrorProps,
   CallProps,
   CreateApiClientProps,

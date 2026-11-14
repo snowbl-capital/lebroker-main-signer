@@ -1,4 +1,4 @@
-import { Network } from "../../core/model"
+import { ChainId, Network } from "../../core/model"
 
 /** The same, for actions the user signs directly, such as moving collateral. */
 const HYPERLIQUID_CHAINS: Record<Network, string> = { [Network.MAINNET]: "Mainnet", [Network.TESTNET]: "Testnet" }
@@ -21,6 +21,35 @@ const WITHDRAW_TYPES = {
     { name: "time", type: "uint64" },
   ],
 } as const
+
+/** A token out of HyperCore to an EVM chain (`sendToEvmWithData`), as lebroker's mainnet try of 8 November 2026 typed it. */
+const SEND_TO_EVM_TYPES = {
+  "HyperliquidTransaction:SendToEvmWithData": [
+    { name: "hyperliquidChain", type: "string" },
+    { name: "token", type: "string" },
+    { name: "amount", type: "string" },
+    { name: "sourceDex", type: "string" },
+    { name: "destinationRecipient", type: "string" },
+    { name: "addressEncoding", type: "string" },
+    { name: "destinationChainId", type: "uint32" },
+    { name: "gasLimit", type: "uint64" },
+    { name: "data", type: "bytes" },
+    { name: "nonce", type: "uint64" },
+  ],
+} as const
+
+/**
+ * USDC out of HyperCore through CCTP, as measured on 8 November 2026: from spot, a unified account's one balance, to a
+ * hex address, with no call data and the gas limit Hyperliquid's own app sends. `destinationChainId` names the chain by
+ * its CCTP domain, not its EVM id.
+ */
+const CCTP_SEND = { token: "USDC", sourceDex: "spot", addressEncoding: "hex", gasLimit: 200_000, data: "0x" } as const
+
+/** Circle's CCTP domain of each EVM chain the CCTP route pays on (developers.circle.com, CCTP supported domains). */
+const CCTP_DOMAINS: ReadonlyMap<number, number> = new Map([
+  [ChainId.ARBITRUM, 3],
+  [ChainId.POLYGON, 7],
+])
 
 const SEND_ASSET_TYPES = {
   "HyperliquidTransaction:SendAsset": [
@@ -85,4 +114,7 @@ export {
   USER_SET_ABSTRACTION_TYPES,
   USER_SIGNED_DOMAIN,
   WITHDRAW_TYPES,
+  SEND_TO_EVM_TYPES,
+  CCTP_SEND,
+  CCTP_DOMAINS,
 }

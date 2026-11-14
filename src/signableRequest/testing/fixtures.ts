@@ -22,6 +22,12 @@ const CLOSED_SHARED_SUB: Address = "0x9999999999999999999999999999999999999999"
 const USER_ID = "user-1"
 const MAIN_ACCOUNT_ID = "account-main"
 
+/** The deployment's Hyperliquid agent's name, as its settings give it: development's. */
+const HYPERLIQUID_AGENT_NAME = "leneutre-dev"
+
+/** The deployment's Aster trading agent's name, as its settings give it: development's. */
+const ASTER_AGENT_NAME = "leneutre-dev"
+
 /** LaMarge's production, as the executor names the deployment a LaMarge request is for. */
 const LAMARGE_PRODUCTION = { appOrigin: "https://app.lamarge.trade" }
 
@@ -75,6 +81,9 @@ function requestOf({
   lamarge = LAMARGE_PRODUCTION,
   send,
   deletes,
+  step,
+  gmxSubaccountApproval,
+  gmxUsdcPermit,
   depositVenue = null,
   depositAddress,
   approvedRecipients,
@@ -83,7 +92,11 @@ function requestOf({
   now = askedAt,
   main = MAIN,
 }: RequestOfProps): SignableRequestProps {
-  const named = { ...(take === undefined ? {} : { take }), ...(lamarge === null ? {} : { lamarge }) }
+  const named = {
+    ...(take === undefined ? {} : { take }),
+    ...(lamarge === null ? {} : { lamarge }),
+    ...(step === undefined ? {} : { step }),
+  }
   return {
     request: {
       kind: kind ?? SignatureRequestKind.VENUE_SETUP,
@@ -99,14 +112,23 @@ function requestOf({
               ...named,
               ...(send === undefined ? {} : { send }),
               ...(deletes === undefined ? {} : { deletes }),
+              ...(gmxSubaccountApproval === undefined ? {} : { gmxSubaccountApproval }),
+              ...(gmxUsdcPermit === undefined ? {} : { gmxUsdcPermit }),
               ...(depositVenue === null ? {} : { depositVenue }),
             }
-          : { kind: SignaturePayloadKind.PERSONAL_MESSAGE, message, ...named },
+          : {
+              kind: SignaturePayloadKind.PERSONAL_MESSAGE,
+              message,
+              ...named,
+              ...(depositVenue === null ? {} : { depositVenue }),
+            },
     },
     user: { id: USER_ID, address: main },
     accounts: ACCOUNTS,
     shared,
     walletChainId,
+    hyperliquidAgentName: HYPERLIQUID_AGENT_NAME,
+    asterAgentName: ASTER_AGENT_NAME,
     ...(depositAddress === undefined ? {} : { depositAddress }),
     ...(approvedRecipients === undefined ? {} : { approvedRecipients }),
     now,
@@ -122,8 +144,10 @@ function registrationMessage({ accountIndex, apiKeyIndex }: RegistrationMessageP
 export {
   AGENT,
   ASKED_AT,
+  ASTER_AGENT_NAME,
   CLOSED_SHARED_SUB,
   CLOSED_SUB,
+  HYPERLIQUID_AGENT_NAME,
   LAMARGE_PRODUCTION,
   MAIN,
   MAIN_ACCOUNT_ID,

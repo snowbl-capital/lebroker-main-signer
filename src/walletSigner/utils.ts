@@ -1,17 +1,29 @@
 import { isHex } from "viem"
 import { isAddressBookMessage, verifiedAddressBookEntry } from "../lebroker/accounts/addressBookMessage/addressBookMessage"
-import { SignatureRequestKind, SignaturePayloadKind } from "../lebroker/accounts/model"
+import { SignaturePayloadKind, SignatureRequestKind } from "../lebroker/accounts/model"
 import { VenueId } from "../lebroker/core/model"
-import { WITHDRAWAL_DEPOSIT_MIN_USD } from "../lebroker/signer/model"
-import { venueDepositAddress } from "../lebroker/web/helpers/venueDepositAddress/venueDepositAddress"
+import { withApiScope } from "../lebroker/web/helpers/fetchApi/fetchApi"
+import { depositAddressOf, lighterAccountsOf } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsMutationSign/utils"
+import { POLYMARKET_PERPS_WITHDRAW_TYPE } from "../signableRequest/constants"
+import type { ReadDepositAddress } from "../signableRequest/types"
 import type { VerifiedEntry } from "../addressBookRecord/types"
-import { DEPOSIT_ADDRESS_CACHE_MS, DEPOSIT_ADDRESS_PAUSE_MS, HYPERLIQUID_WITHDRAW_PRIMARY_TYPE } from "./constants"
+import {
+  DEPOSIT_ADDRESS_CACHE_MS,
+  DEPOSIT_ADDRESS_PAUSE_MS,
+  DEPOSIT_WITHDRAWAL_VENUES,
+  LIGHTER_ACCOUNTS_CACHE_MS,
+  LIGHTER_ACCOUNTS_PAUSE_MS,
+  LIGHTER_READS,
+} from "./constants"
 import type {
   AsksAddressBookEntryProps,
   CreateDepositAddressReaderProps,
+  CreateKeptReadsProps,
+  CreateLighterAccountsReaderProps,
   DepositAddressReader,
-  DepositVenueOfProps,
   ErrorTextProps,
+  KeptReads,
+  LighterAccountsReader,
   Timers,
   VerifiedEntriesProps,
 } from "./types"
@@ -22,55 +34,84 @@ function errorText({ error }: ErrorTextProps): string {
 }
 
 /**
- * The venue whose deposit address a request needs read: only Hyperliquid's `withdraw3` withdrawal naming a venue the
- * signer's least lists (Lighter). Any other request, whatever it names, reads nothing, so a request can't make this
- * machine call a venue.
+ * Reads kept a while once they answer, so passes every few seconds don't call a venue each time, and paused a while once
+ * one fails (a read hides the venue's status, so a 429 or a 418 is among them): `key` names what's read, `pause` the
+ * reads one failure stops. A failed or paused read gives nothing, which the allowlist refuses: nothing is signed. A read
+ * that gives nothing isn't kept.
  */
-function depositVenueOf(props: DepositVenueOfProps): VenueId | undefined {
-  const payload = props.request.payload
-  if (
-    props.request.kind !== SignatureRequestKind.WITHDRAWAL ||
-    props.request.venue !== VenueId.HYPERLIQUID ||
-    payload.kind !== SignaturePayloadKind.TYPED_DATA ||
-    payload.typedData.primaryType !== HYPERLIQUID_WITHDRAW_PRIMARY_TYPE ||
-    payload.depositVenue === undefined ||
-    WITHDRAWAL_DEPOSIT_MIN_USD[payload.depositVenue] === undefined
-  ) {
-    return undefined
-  }
-  return payload.depositVenue
-}
-
-/**
- * One wallet's reads of its deposit address on a venue, for Main's withdrawal straight into it (lebroker's D49, D56):
- * read by the signer itself from the venue, for the wallet's own address, just before it signs, never the request's
- * word. An answer is kept a short while, so passes don't call the venue each time; a read that fails pauses the reads
- * for a while (the read hides the venue's status, so a 429 or a 418 is among them). A failed or paused read gives no
- * address, and the allowlist refuses the withdrawal: nothing is signed.
- */
-function createDepositAddressReader(props: CreateDepositAddressReaderProps): DepositAddressReader {
-  const answers = new Map<VenueId, { address: string; at: number }>()
-  const pausedUntil = new Map<VenueId, number>()
-  return async read => {
-    const venue = depositVenueOf({ request: read.request })
-    if (venue === undefined) {
-      return undefined
+function createKeptReads<T>({ now, keepMs, pauseMs }: CreateKeptReadsProps): KeptReads<T> {
+  const answers = new Map<string, { value: T; at: number }>()
+  const pausedUntil = new Map<string, number>()
+  return async ({ key, pause, read }) => {
+    const kept = answers.get(key)
+    if (kept !== undefined && now() - kept.at < keepMs) {
+      return kept.value
     }
-    const kept = answers.get(venue)
-    if (kept !== undefined && props.now() - kept.at < DEPOSIT_ADDRESS_CACHE_MS) {
-      return { venue, address: kept.address }
-    }
-    if (props.now() < (pausedUntil.get(venue) ?? Number.NEGATIVE_INFINITY)) {
+    if (now() < (pausedUntil.get(pause) ?? Number.NEGATIVE_INFINITY)) {
       return undefined
     }
     try {
-      const address = await venueDepositAddress({ venue, address: props.address })
-      answers.set(venue, { address, at: props.now() })
-      return { venue, address }
+      const value = await read()
+      for (const [old, answer] of answers) {
+        if (now() - answer.at >= keepMs) {
+          answers.delete(old)
+        }
+      }
+      if (value !== undefined) {
+        answers.set(key, { value, at: now() })
+      }
+      return value
     } catch {
-      pausedUntil.set(venue, props.now() + DEPOSIT_ADDRESS_PAUSE_MS)
+      pausedUntil.set(pause, now() + pauseMs)
       return undefined
     }
+  }
+}
+
+/**
+ * One wallet's reads of its deposit address on a venue, for Main's withdrawal or LaMarge take paid straight into it
+ * (lebroker's D49, D56): read by the signer itself, for the wallet's own address, just before it signs, as the web reads
+ * it (`depositAddressOf`), never the request's word: Lighter's from Lighter; Bybit's the one Main signed, read under the
+ * wallet's own session and taken only once Main's signature of it recovers here; through Polymarket's bridge, the
+ * address the bridge answers this signer itself. Read only for a request whose rule reads it, a withdrawal from a venue
+ * that pays one or a LaMarge move, so no other request makes this machine call a venue. Kept and paused per what it
+ * reads: the venue paid into, whether through the bridge, and whether it's the Perps margin's step to its Deposit
+ * Wallet, which reads nothing.
+ */
+function createDepositAddressReader({ address, client, now }: CreateDepositAddressReaderProps): DepositAddressReader {
+  const reads = createKeptReads<ReadDepositAddress>({ now, keepMs: DEPOSIT_ADDRESS_CACHE_MS, pauseMs: DEPOSIT_ADDRESS_PAUSE_MS })
+  return ({ request }) => {
+    const payload = request.payload
+    const read =
+      request.kind === SignatureRequestKind.LAMARGE_MOVE ||
+      (request.kind === SignatureRequestKind.WITHDRAWAL && request.venue !== null && DEPOSIT_WITHDRAWAL_VENUES.has(request.venue))
+    if (payload.kind === SignaturePayloadKind.TRANSACTION || payload.depositVenue === undefined || !read) {
+      return Promise.resolve(undefined)
+    }
+    const toWallet = payload.kind === SignaturePayloadKind.TYPED_DATA && payload.typedData.primaryType === POLYMARKET_PERPS_WITHDRAW_TYPE
+    const key = [payload.depositVenue, request.venue === VenueId.POLYMARKET_PERPS, toWallet].join(":")
+    return reads({
+      key,
+      pause: key,
+      read: () => withApiScope({ scope: { get: client.apiGet }, run: () => depositAddressOf({ request, address }) }),
+    })
+  }
+}
+
+/**
+ * The reads of the Lighter accounts a Main's Lighter transfer names, by index, as the web reads them
+ * (`lighterAccountsOf`): from Lighter itself, never lebroker. Kept per message, and paused all together once one fails.
+ */
+function createLighterAccountsReader({ now }: CreateLighterAccountsReaderProps): LighterAccountsReader {
+  const reads = createKeptReads<ReadonlyMap<number, string>>({
+    now,
+    keepMs: LIGHTER_ACCOUNTS_CACHE_MS,
+    pauseMs: LIGHTER_ACCOUNTS_PAUSE_MS,
+  })
+  return ({ request }) => {
+    const payload = request.payload
+    const key = payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE ? payload.message : ""
+    return reads({ key, pause: LIGHTER_READS, read: () => lighterAccountsOf({ request }) })
   }
 }
 
@@ -119,4 +160,12 @@ const runtimeTimers: Timers = {
     }),
 }
 
-export { asksAddressBookEntry, createDepositAddressReader, errorText, runtimeTimers, verifiedEntries }
+export {
+  asksAddressBookEntry,
+  createDepositAddressReader,
+  createKeptReads,
+  createLighterAccountsReader,
+  errorText,
+  runtimeTimers,
+  verifiedEntries,
+}

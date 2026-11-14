@@ -6,8 +6,11 @@ import type { AccountView, SharedAccountView } from "../../lebroker/web/types"
 /** A user of the fake service: Main's address, their accounts, Main first, and the sub-accounts shared with them, none by default. */
 type FakeUser = { id: string; address: Address; accounts: AccountView[]; shared?: SharedAccountView[] }
 
-/** `answerAs`: a service gone wrong, whose session names this address as the signed-in user's, whoever signed in. */
-type FakeApiProps = { users: FakeUser[]; answerAs?: Address }
+/**
+ * `answerAs`: a service gone wrong, whose session names this address as the signed-in user's, whoever signed in.
+ * `deployment`: the settings its deployment.js gives, production's agents' names by default; null, none served.
+ */
+type FakeApiProps = { users: FakeUser[]; answerAs?: Address; deployment?: Record<string, unknown> | null }
 
 /** A signature the fake took, checked: it recovers to Main's address. */
 type Submission = { requestId: string; address: Address; signature: Hex }
@@ -39,6 +42,9 @@ type FailAddressBookProps = { failing: boolean }
 
 type RequestIdProps = { requestId: string }
 
+/** What the service answers the user's read of Main's Bybit deposit address, as given, unchecked. */
+type SetBybitDepositProps = { userId: string; body: unknown }
+
 type FakeApi = {
   url: URL
   submissions: Submission[]
@@ -53,6 +59,8 @@ type FakeApi = {
   expireSessions: () => void
   /** The next submission is refused with this status, as when the venue fails. */
   failNextSign: (props: FailSignProps) => void
+  /** Answers the user's reads of Main's Bybit deposit address so from now on; none answered before (404). */
+  setBybitDeposit: (props: SetBybitDepositProps) => void
   addEntry: (props: AddEntryProps) => void
   /** Stops listing an entry, as a service gone wrong may hide one. */
   removeEntry: (props: RemoveEntryProps) => void
@@ -90,6 +98,7 @@ export type {
   RequestIdProps,
   RequestProps,
   SessionBodyProps,
+  SetBybitDepositProps,
   SignIn,
   SignRouteProps,
   Submission,

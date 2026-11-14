@@ -13,4 +13,10 @@ const REGISTRATION_MESSAGE =
 const TRANSFER_MESSAGE =
   /^Transfer\n\nnonce: 0x([0-9a-f]{16})\nfrom: 0x([0-9a-f]{16}) \(route 0x[0-9a-f]{16}\)\napi key: 0x[0-9a-f]{16}\nto: 0x([0-9a-f]{16}) \(route 0x[0-9a-f]{16}\)\nasset: 0x[0-9a-f]{16}\namount: 0x([0-9a-f]{16})\nfee: 0x([0-9a-f]{16})\nchainId: 0x[0-9a-f]{16}\nmemo: ([0-9a-f]{64})\nOnly sign this message for a trusted client!$/
 
-export { REGISTRATION_MESSAGE, TRANSFER_MESSAGE }
+/**
+ * The most a transfer's fee may be, in micro-USDC: Lighter's quote, 1 USDC from a Standard account and none from a
+ * Premium one, and as much again as a margin. A host asking more would pay Lighter the account's funds.
+ */
+const MAX_TRANSFER_FEE = 2_000_000
+
+export { REGISTRATION_MESSAGE, TRANSFER_MESSAGE, MAX_TRANSFER_FEE }

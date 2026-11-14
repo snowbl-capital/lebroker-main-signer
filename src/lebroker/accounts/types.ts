@@ -34,7 +34,7 @@ type LaMargeTakeFill = {
   t1: string
   t2: string
   delivery_to?: string | null | undefined
-  /** The taker fee the fill carries, which its `swap_id` says too; absent from a server before fees. */
+  /** The taker fee the fill carries, which its `swap_id` says too; absent from a request stored before fees. */
   taker_fee?: string | undefined
 }
 
@@ -70,19 +70,50 @@ type LaMargeOp = { type: string; args: { account: string; token: string; amount:
 type LaMargeSend = { venue: string; recipient: string; amount: string; op?: LaMargeOp | undefined }
 
 /**
+ * LaMarge's attestation of a request it asks Main to sign, as LaMarge sent it: its attester's signature over the hash
+ * Main's wallet signs and, for a take's payment, the take's terms (where it delivers, to whom, how much, until when).
+ * The service's word only: the signing side verifies it against LaMarge's pinned attester before it reads its terms.
+ */
+type LaMargeAttestation = { signature: string; terms?: Record<string, unknown> | undefined }
+
+/**
  * A key of lebroker's that Main's signature deletes on a venue, as a Polymarket Perps proxy whose deletion is signed as
  * a hash alone: the signing side rebuilds that hash from it before it signs.
  */
 type KeyDeletion = { venue: VenueId; key: string }
 
 /**
- * What Main's wallet signs for a request; `deletes`, for a venue's renewal, the old key it deletes first; `take`, for a LaMarge take's payment inside a venue, the take it pays;
+ * Main's approval of lebroker's GMX subaccount, beside the typed data it signs: the subaccount key, until when (ms),
+ * how many order actions it may take, and the chain Main's wallet signs on.
+ */
+type GmxSubaccountApprovalFacts = { subaccount: string; expiresAt: number; maxAllowedCount: number; chainId: number }
+
+/** Main's USDC permit for GMX's Router, beside the typed data it signs: the spender it names, and the chain. */
+type GmxUsdcPermitFacts = { spender: string; chainId: number }
+
+/**
+ * Where a request stands in a chain of signatures asked one after another for the same subject, as a renewal's
+ * deletions of older keys before the new one's approval: its place, from 1, and how many the chain asks in all.
+ */
+type SignatureStep = { index: number; total: number }
+
+/**
+ * What Main's wallet signs for a request; `deletes`, for a venue's renewal, the old key it deletes first; `step`, for
+ * one of a chain of signatures, its place in it; `take`, for a LaMarge take's payment inside a venue, the take it pays;
  * `lamarge`, for a LaMarge request, the deployment it's for; `send`, for a LaMarge send to another of the user's
  * accounts, its terms; `depositVenue`, for a withdrawal paid straight into a venue's deposit address for Main, which
  * opens Main's account
- * there, that venue: the signing side reads the address itself from the venue before it signs, never the request's word.
+ * there, that venue: the signing side reads the address itself from the venue before it signs, never the request's word;
+ * `attestation`, for a LaMarge request LaMarge attests, its attestation, which the signing side verifies;
+ * `gmxSubaccountApproval`, for GMX's setup or renewal on Main, what the approval gives; `gmxUsdcPermit`, for GMX's
+ * setup on Main where its wallet gave GMX's Router no allowance, the permit's spender.
  */
 type SignaturePayload =
+  | {
+      kind: SignaturePayloadKind.TRANSACTION
+      transaction: { chainId: number; to: `0x${string}`; data: `0x${string}` }
+      step?: SignatureStep | undefined
+    }
   | {
       kind: SignaturePayloadKind.TYPED_DATA
       typedData: TypedDataPayload
@@ -91,16 +122,27 @@ type SignaturePayload =
       depositVenue?: VenueId | undefined
       send?: LaMargeSend | undefined
       deletes?: KeyDeletion | undefined
+      step?: SignatureStep | undefined
+      attestation?: LaMargeAttestation | undefined
+      gmxSubaccountApproval?: GmxSubaccountApprovalFacts | undefined
+      gmxUsdcPermit?: GmxUsdcPermitFacts | undefined
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE
       message: string
       take?: LaMargeTake | undefined
       lamarge?: LaMargeRequestContext | undefined
+      /** For Main's Lighter fast withdrawal straight into a venue's deposit address for Main, that venue. */
+      depositVenue?: VenueId | undefined
+      step?: SignatureStep | undefined
+      attestation?: LaMargeAttestation | undefined
     }
 
 export type {
+  GmxSubaccountApprovalFacts,
+  GmxUsdcPermitFacts,
   KeyDeletion,
+  LaMargeAttestation,
   LaMargeLighterAccounts,
   LaMargeOp,
   LaMargeRequestContext,
@@ -109,5 +151,6 @@ export type {
   LaMargeTakeFill,
   LaMargeTakeInput,
   SignaturePayload,
+  SignatureStep,
   TypedDataPayload,
 }

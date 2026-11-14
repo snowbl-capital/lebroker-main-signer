@@ -1,6 +1,6 @@
 import type { Address } from "viem"
 import type { Network } from "../../../lebroker/core/model"
-import type { AsterAgentKind } from "./enums"
+import type { AsterAgentKind } from "../../../lebroker/venues/model"
 
 /** The chain Main's wallet signs a Hyperliquid user action on: Hyperliquid's own tools' when none is named. */
 type SignatureChainProps = { signatureChainId?: number }
@@ -42,13 +42,25 @@ type AgentApprovalRequestProps = {
   /** In milliseconds. */
   expiry: number
   now: number
+  /** The deployment's trading agent's name, every other agent's made from it. */
+  agentName?: string
 }
+
+type CctpSendRequestProps = {
+  destination: Address
+  amount: number
+  /** The destination chain's CCTP domain. */
+  domain: number
+  nonce: number
+  network: Network
+} & SignatureChainProps
 
 type CreateProxyTypedDataProps = { proxy: Address; expiry: number; salt: number; ts: number }
 
 export type {
   AgentApprovalRequestProps,
   ApproveAgentRequestProps,
+  CctpSendRequestProps,
   CreateProxyTypedDataProps,
   SendAssetRequestProps,
   ToWireProps,

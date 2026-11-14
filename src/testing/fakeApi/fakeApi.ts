@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto"
 import { getAddress, verifyMessage, verifyTypedData } from "viem"
 import { parseSiweMessage } from "viem/siwe"
 import { ApiRoute, HttpMethod } from "../../api/enums"
+import { ApiPath } from "../../lebroker/web/enums"
 import { parseAddressBookMessage } from "../../lebroker/accounts/addressBookMessage/addressBookMessage"
 import {
   AddressBookStatement,
@@ -15,7 +16,7 @@ import {
   WalletKind,
 } from "../../lebroker/accounts/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
-import { DECLINE_ROUTE, SESSION_COOKIE, SESSION_TTL_MS, SIGN_ROUTE, SIGNATURE_REQUESTS_FRAME } from "./constants"
+import { DECLINE_ROUTE, DEPLOYMENT_SETTINGS, SESSION_COOKIE, SESSION_TTL_MS, SIGN_ROUTE, SIGNATURE_REQUESTS_FRAME } from "./constants"
 import { declineBody, signBody, signInBody } from "./schema"
 import type {
   Decline,
@@ -37,6 +38,9 @@ import type {
 async function verify({ address, payload, signature }: VerifyProps): Promise<boolean> {
   if (payload.kind === SignaturePayloadKind.PERSONAL_MESSAGE) {
     return verifyMessage({ address, message: payload.message, signature })
+  }
+  if (payload.kind !== SignaturePayloadKind.TYPED_DATA) {
+    return false
   }
   return verifyTypedData({ address, signature, ...typedDataFromWire({ payload: payload.typedData }) })
 }
@@ -60,7 +64,7 @@ function sameOrigin({ request }: RequestProps): boolean {
   return origin !== null && origin.host === request.headers.get("host")
 }
 
-function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
+function createFakeApi({ users, answerAs, deployment = DEPLOYMENT_SETTINGS }: FakeApiProps): FakeApi {
   const nonces = new Set<string>()
   const sessions = new Map<string, FakeUser>()
   const requests = new Map<string, SignatureRequestView[]>()
@@ -71,6 +75,7 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
   const declines: Decline[] = []
   const calls: string[] = []
   const books = new Map<string, FakeEntry[]>()
+  const bybitDeposits = new Map<string, unknown>()
   const encoder = new TextEncoder()
   let failure: FailSignProps | null = null
   let bookFails = false
@@ -178,6 +183,19 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
     if (key === `${HttpMethod.POST} ${ApiRoute.SESSION}`) {
       return signIn({ request })
     }
+    // Public, as the executor serves the web's page its settings.
+    if (key === `${HttpMethod.GET} ${ApiRoute.DEPLOYMENT}`) {
+      if (deployment === null) {
+        return json({ body: { error: "Not found" }, status: 404 })
+      }
+      return new Response(
+        `window.LEBROKER_DEPLOYMENT = ${JSON.stringify(deployment)}
+`,
+        {
+          headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" },
+        },
+      )
+    }
     const user = userOf({ request })
     if (user === null) {
       return json({ body: { error: "Sign in first" }, status: 401 })
@@ -219,6 +237,10 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
             })
       case `${HttpMethod.GET} ${ApiRoute.EVENTS}`:
         return events({ request, user })
+      case `${HttpMethod.GET} ${ApiRoute.API}${ApiPath.BYBIT_DEPOSIT_ADDRESS}`: {
+        const deposit = bybitDeposits.get(user.id)
+        return deposit === undefined ? json({ body: { error: "No Bybit key" }, status: 404 }) : json({ body: deposit })
+      }
       default:
         break
     }
@@ -252,6 +274,9 @@ function createFakeApi({ users, answerAs }: FakeApiProps): FakeApi {
     expireSessions: () => sessions.clear(),
     failNextSign: props => {
       failure = props
+    },
+    setBybitDeposit: ({ userId, body }) => {
+      bybitDeposits.set(userId, body)
     },
     addEntry: ({ userId, message, signature, recipients = [] }) => {
       books.set(userId, [...(books.get(userId) ?? []), { message, signature, recipients }])

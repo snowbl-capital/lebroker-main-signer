@@ -10,8 +10,8 @@ import {
   SignatureRequestState,
   SignaturePayloadKind,
 } from "../../lebroker/accounts/model"
-import { Network, VenueId } from "../../lebroker/core/model"
-import { HYPERLIQUID_AGENT_NAME, HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC } from "../../lebroker/venues/model"
+import { DeploymentEnvironment, Network, VenueId } from "../../lebroker/core/model"
+import { HYPERLIQUID_SEND_DEX, HYPERLIQUID_USDC, hyperliquidAgentName } from "../../lebroker/venues/model"
 import type { SignatureRequestView } from "../../lebroker/web/hooks/signatureRequests/useSignatureRequestsQueryList/types"
 import { createLogger } from "../../log/log"
 import { wire } from "../../signableRequest/testing/fixtures"
@@ -124,10 +124,16 @@ function requestOf({
 }
 
 /** lebroker's Hyperliquid agent, approved for 180 days on Arbitrum: a setup the allowlist signs. */
-function approvalRequest({ id, accountId, agent, askedAt = Date.now() }: ApprovalProps): SignatureRequestView {
+function approvalRequest({
+  id,
+  accountId,
+  agent,
+  askedAt = Date.now(),
+  name = hyperliquidAgentName({ environment: DeploymentEnvironment.PROD }),
+}: ApprovalProps): SignatureRequestView {
   const typedData = hyperliquidApproveAgentRequest({
     agentAddress: agent,
-    name: HYPERLIQUID_AGENT_NAME,
+    name,
     validUntil: askedAt + 180 * DAY_MS,
     nonce: askedAt,
     network: Network.MAINNET,

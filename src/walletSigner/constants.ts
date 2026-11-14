@@ -1,3 +1,5 @@
+import { VenueId } from "../lebroker/core/model"
+
 /** The event the service pushes when one of the user's signature requests is asked or settled (D37). */
 const SIGNATURE_REQUESTS_EVENT = "signature-requests"
 
@@ -35,13 +37,29 @@ const DEPOSIT_ADDRESS_CACHE_MS = 30_000
  */
 const DEPOSIT_ADDRESS_PAUSE_MS = 120_000
 
-/** The typed data's primary type of Hyperliquid's `withdraw3`: the only request a deposit address is read for. */
-const HYPERLIQUID_WITHDRAW_PRIMARY_TYPE = "HyperliquidTransaction:Withdraw"
+/**
+ * The venues whose withdrawal straight into another venue's deposit address the allowlist reads that address for:
+ * Hyperliquid's `withdraw3` and CCTP send, Polymarket's bridge, Lighter's fast withdrawal. A withdrawal from another
+ * venue is refused before it's read, so it reads nothing.
+ */
+const DEPOSIT_WITHDRAWAL_VENUES: ReadonlySet<string> = new Set([VenueId.HYPERLIQUID, VenueId.POLYMARKET_PERPS, VenueId.LIGHTER])
+
+/** How long the owners of the Lighter accounts a transfer names are kept once read, in ms: as a deposit address. */
+const LIGHTER_ACCOUNTS_CACHE_MS = 30_000
+
+/** How long the reads of Lighter's accounts stop after one fails, in ms: a 429 or a 418 among them, as a deposit address's. */
+const LIGHTER_ACCOUNTS_PAUSE_MS = 120_000
+
+/** What a failed read of Lighter's accounts pauses: every one of them, all asked of the same host. */
+const LIGHTER_READS = "lighter-accounts"
 
 export {
   DEPOSIT_ADDRESS_CACHE_MS,
   DEPOSIT_ADDRESS_PAUSE_MS,
-  HYPERLIQUID_WITHDRAW_PRIMARY_TYPE,
+  DEPOSIT_WITHDRAWAL_VENUES,
+  LIGHTER_ACCOUNTS_CACHE_MS,
+  LIGHTER_ACCOUNTS_PAUSE_MS,
+  LIGHTER_READS,
   MAX_DECLINE_REASON,
   MAX_SEND_ATTEMPTS,
   POLL_MS,

@@ -7,6 +7,13 @@ enum ApiRoute {
   SIGNATURE_REQUESTS = "/api/v1/signature-requests",
   /** The recipients Main approved in its wallet (D70): the service's word, each entry checked again before it's used. */
   ADDRESS_BOOK = "/api/v1/address-book",
+  /** Where the web's own reads go (its `ApiPath`s), as the executor serves its page: `/api` then the path. */
+  API = "/api",
+  /**
+   * The web's runtime settings, as the executor serves its page (`apps/executor/src/app/enums.ts`): this deployment's
+   * agents' names among them. Public.
+   */
+  DEPLOYMENT = "/deployment.js",
 }
 
 /** A signature request's action route: `/api/v1/signature-requests/<id>/<action>`. */
@@ -29,6 +36,8 @@ enum ApiErrorText {
   NO_SESSION_COOKIE = "lebroker opened no session",
   /** The session belongs to no user: an executor without hosted users. */
   NO_USER = "lebroker's session names no user: this signer works with the hosted service only",
+  /** A deployment.js that isn't the executor's: no settings are read from it. */
+  NOT_DEPLOYMENT = "lebroker answered a deployment.js this signer doesn't read",
   /** A session naming another address than the wallet that signed in: nothing is signed on it. */
   OTHER_USER = "lebroker's session names another address than this wallet: nothing will be signed on it",
 }

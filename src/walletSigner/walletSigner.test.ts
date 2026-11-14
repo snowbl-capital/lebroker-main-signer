@@ -18,10 +18,14 @@ import {
   typedDataFromWire,
   SignaturePayloadKind,
 } from "../lebroker/accounts/model"
-import { Network, VenueId } from "../lebroker/core/model"
+import { COLLATERAL_ROUTE, USDC_ASSET, fromHex, transferMessage } from "@lamarge/sdk/protocol"
+import { ChainId, Network, VenueId } from "../lebroker/core/model"
+import { MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
+import { SignRequestError } from "../lebroker/web/hooks/signatureRequests/useSignatureRequestsMutationSign/enums"
+import { BybitDepositState } from "../lebroker/web/hooks/bybitKey/useBybitKeyQuery/enums"
 import { SignableRefusal, SignSummaryText } from "../signableRequest/enums"
-import { hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
-import { AsterAgentKind } from "../signableRequest/testing/builders/enums"
+import { hyperliquidCctpSendRequest, hyperliquidWithdrawRequest } from "../signableRequest/testing/builders/builders"
+import { AsterAgentKind, HYPERLIQUID_CCTP_DOMAINS } from "../lebroker/venues/model"
 import { createFakeApi } from "../testing/fakeApi/fakeApi"
 import type { FakeApi } from "../testing/fakeApi/types"
 import {
@@ -71,7 +75,15 @@ function recordFile(): string {
  * One Main wallet, a throwaway key, signed in to a fake service of its own, with its address book's record; with a
  * sub-account another user shares with it when `shared` says so.
  */
-async function setUp({ label = "main", userId = "user-1", appOrigin, now, recordPath = recordFile(), shared = false }: SetUpProps = {}) {
+async function setUp({
+  label = "main",
+  userId = "user-1",
+  appOrigin,
+  now,
+  recordPath = recordFile(),
+  shared = false,
+  settings,
+}: SetUpProps = {}) {
   const key = generatePrivateKey()
   const wallet = new WalletKey({ key, label })
   const user = fakeUserOf({
@@ -80,7 +92,7 @@ async function setUp({ label = "main", userId = "user-1", appOrigin, now, record
     subAddress: SUB,
     ...(shared ? { sharedAddress: SHARED_SUB, ownerAddress: OWNER } : {}),
   })
-  const api = createFakeApi({ users: [user] })
+  const api = createFakeApi({ users: [user], ...(settings === undefined ? {} : { deployment: settings }) })
   opened.push(api)
   const logs = logCollector()
   const timers = manualTimers()
@@ -459,6 +471,21 @@ describe("Main's address book (lebroker's D70)", () => {
     ])
   })
 
+  test("sends no transaction: a request for one is refused before the allowlist and told to lebroker, for the user's wallet", async () => {
+    const ctx = await setUp()
+    const asked = requestOf({ id: "send-1", accountId: ctx.mainId, kind: SignatureRequestKind.LAMARGE_MOVE, message: "unused" })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: {
+        ...asked,
+        payload: { kind: SignaturePayloadKind.TRANSACTION, transaction: { chainId: 137, to: STRANGER, data: "0x" } },
+      },
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "send-1", reason: SignerRefusal.TRANSACTION }])
+  })
+
   test("a read that fails decides nothing: a transfer is neither signed nor declined, the rest is signed, and it's logged once", async () => {
     const ctx = await setUp()
     await approve({ ctx, recipients: [SUB] })
@@ -731,6 +758,191 @@ describe("Main's withdrawal straight into its own Lighter, which opens it (D56)"
     expect(fetched).not.toHaveBeenCalled()
     expect(ctx.api.submissions).toHaveLength(0)
     expect(ctx.api.declines.map(own => own.requestId)).toEqual(["req-l4"])
+  })
+})
+
+describe("this deployment's agents' names, as its deployment.js gives them to the web", () => {
+  test("a Hyperliquid approval is signed under the name the deployment gives, refused under another deployment's", async () => {
+    const ctx = await setUp({ settings: { hyperliquidAgentName: "leneutre-dev", asterAgentName: "leneutre-dev" } })
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "name-1", accountId: ctx.mainId, agent: AGENT }) })
+    ctx.api.addRequest({
+      userId: ctx.user.id,
+      request: approvalRequest({ id: "name-2", accountId: ctx.mainId, agent: AGENT, name: "leneutre-dev" }),
+    })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["name-2"])
+    expect(ctx.api.declines).toEqual([{ requestId: "name-1", reason: SignableRefusal.NOT_LEBROKER_AGENT }])
+    expect(ctx.api.calls).toContain("GET /deployment.js")
+  })
+
+  test("unread, decides nothing: nothing is signed nor declined, and it's logged", async () => {
+    const ctx = await setUp({ settings: null })
+    ctx.api.addRequest({ userId: ctx.user.id, request: approvalRequest({ id: "name-3", accountId: ctx.mainId, agent: AGENT }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([])
+    expect(ctx.logs.read().find(line => line.event === LogEvent.READ_FAILED)).toMatchObject({ subject: ReadSubject.DEPLOYMENT })
+  })
+})
+
+describe("LaMarge's attestation, verified here as the web verifies it", () => {
+  test("one that doesn't verify is refused, and told to lebroker", async () => {
+    const ctx = await setUp()
+    await approve({ ctx, recipients: [SUB] })
+    const transfer = transferRequest({ id: "att-1", accountId: ctx.mainId, destination: SUB })
+    const request = { ...transfer, payload: { ...transfer.payload, attestation: { signature: `0x${"00".repeat(65)}` } } }
+    ctx.api.addRequest({ userId: ctx.user.id, request })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "att-1", reason: SignRequestError.NOT_ATTESTED }])
+  })
+})
+
+describe("Main's Lighter transfer to its own sub-account, its accounts read from Lighter itself", () => {
+  afterEach(() => {
+    spyOn(globalThis, "fetch").mockRestore()
+  })
+
+  /**
+   * Lighter answering, in turn, the owner of the account a transfer leaves and of the one it reaches, as its public read
+   * by index does; none, an account it doesn't list.
+   */
+  function lighterOwning({ owners }: { owners: readonly (string | null)[] }) {
+    const fetched = spyOn(globalThis, "fetch")
+    for (const [position, owner] of owners.entries()) {
+      const index = position === 0 ? 42 : 731
+      fetched.mockResolvedValueOnce(Response.json({ accounts: owner === null ? [] : [{ index, l1_address: owner.toLowerCase() }] }))
+    }
+    return fetched
+  }
+
+  /** Main's transfer key's owner message, from Main's Lighter account 42 to the account at 731. */
+  function lighterTransfer({ id, accountId }: { id: string; accountId: string }) {
+    const message = transferMessage({
+      from: 42,
+      apiKey: 201,
+      to: 731,
+      asset: USDC_ASSET,
+      fromRoute: COLLATERAL_ROUTE,
+      toRoute: COLLATERAL_ROUTE,
+      amount: 95_310_000n,
+      fee: 0n,
+      memo: fromHex("ab".repeat(32)),
+      expiredAt: 0,
+      nonce: 3,
+    })
+    return requestOf({ id, accountId, kind: SignatureRequestKind.TRANSFER, venue: VenueId.LIGHTER, message })
+  }
+
+  test("is signed when Lighter says Main owns the account it leaves and an approved sub-account the one it reaches", async () => {
+    const ctx = await setUp()
+    await approve({ ctx, recipients: [SUB] })
+    const fetched = lighterOwning({ owners: [ctx.wallet.info.address, SUB] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: lighterTransfer({ id: "lt-1", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["lt-1"])
+    // One read of each account, from Lighter itself, kept for the next pass.
+    expect(fetched).toHaveBeenCalledTimes(2)
+    expect(new URL(String(fetched.mock.calls[0]?.[0])).host).toBe("mainnet.zklighter.elliot.ai")
+  })
+
+  test("is refused, and told to lebroker, when Lighter says another owns the account it reaches", async () => {
+    const ctx = await setUp()
+    await approve({ ctx, recipients: [SUB] })
+    lighterOwning({ owners: [ctx.wallet.info.address, STRANGER] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: lighterTransfer({ id: "lt-2", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "lt-2", reason: SignableRefusal.NOT_YOUR_ACCOUNT }])
+  })
+
+  test("is refused, and told to lebroker, when Lighter can't say who owns an account it names", async () => {
+    const ctx = await setUp()
+    await approve({ ctx, recipients: [SUB] })
+    lighterOwning({ owners: [ctx.wallet.info.address, null] })
+    ctx.api.addRequest({ userId: ctx.user.id, request: lighterTransfer({ id: "lt-3", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions).toHaveLength(0)
+    expect(ctx.api.declines).toEqual([{ requestId: "lt-3", reason: SignableRefusal.LIGHTER_ACCOUNTS_UNREAD }])
+  })
+})
+
+describe("Main's CCTP send from Hyperliquid straight into its own Bybit", () => {
+  const BYBIT = getAddress("0x52c336060d171d2f27baa3d1d3b156fb4a79289c")
+
+  /** The service's answer for Main's Bybit deposit address: `signer`'s signature of it for Main, Main's own unless said. */
+  async function bybitDeposit({
+    ctx,
+    signer,
+  }: {
+    ctx: Awaited<ReturnType<typeof setUp>>
+    signer?: ReturnType<typeof privateKeyToAccount>
+  }) {
+    const message = {
+      owner: ctx.user.id,
+      account: ctx.mainId,
+      main: ctx.wallet.info.address,
+      depositAddress: BYBIT,
+      chainId: BigInt(ChainId.ARBITRUM),
+      nonce: 1n,
+      deadline: 2n,
+    }
+    const signature = await (signer ?? privateKeyToAccount(ctx.key)).signTypedData({
+      domain: SUB_ACCOUNT_PROOF_DOMAIN,
+      types: MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES,
+      primaryType: "MainBybitDepositAddress",
+      message,
+    })
+    ctx.api.setBybitDeposit({
+      userId: ctx.user.id,
+      body: {
+        deposit: {
+          state: BybitDepositState.SIGNED,
+          chainId: ChainId.ARBITRUM,
+          read: BYBIT,
+          signed: { ...message, chainId: ChainId.ARBITRUM, nonce: "1", deadline: "2", signature, signedAt: new Date(0).toISOString() },
+        },
+      },
+    })
+  }
+
+  /** Main's CCTP send of 5 USDC from Hyperliquid's spot to Bybit's deposit address on Arbitrum. */
+  function cctpSend({ id, accountId }: { id: string; accountId: string }) {
+    const typedData = hyperliquidCctpSendRequest({
+      destination: BYBIT,
+      amount: 5,
+      domain: HYPERLIQUID_CCTP_DOMAINS.get(ChainId.ARBITRUM) ?? 0,
+      nonce: Date.now(),
+      network: Network.MAINNET,
+      signatureChainId: 42161,
+    }).typedData
+    return requestOf({ id, accountId, kind: SignatureRequestKind.WITHDRAWAL, typedData, depositVenue: VenueId.BYBIT })
+  }
+
+  test("is signed to the deposit address Main signed, read under its own session and recovered here", async () => {
+    const ctx = await setUp()
+    await bybitDeposit({ ctx })
+    ctx.api.addRequest({ userId: ctx.user.id, request: cctpSend({ id: "cctp-1", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    expect(ctx.api.submissions.map(own => own.requestId)).toEqual(["cctp-1"])
+    expect(ctx.api.calls).toContain("GET /api/v1/bybit-key/deposit-address")
+    expect(ctx.logs.read().find(line => line.event === LogEvent.SIGNED)).toMatchObject({ action: SignSummaryText.CCTP_INTO_BYBIT })
+  })
+
+  test("is refused, and told to lebroker, when another key signed the address, or the service names none", async () => {
+    const ctx = await setUp()
+    await bybitDeposit({ ctx, signer: privateKeyToAccount(generatePrivateKey()) })
+    ctx.api.addRequest({ userId: ctx.user.id, request: cctpSend({ id: "cctp-2", accountId: ctx.mainId }) })
+    await ctx.signer.pass()
+    const other = await setUp({ userId: "user-2" })
+    other.api.addRequest({ userId: other.user.id, request: cctpSend({ id: "cctp-3", accountId: other.mainId }) })
+    await other.signer.pass()
+    expect([...ctx.api.submissions, ...other.api.submissions]).toHaveLength(0)
+    expect([...ctx.api.declines, ...other.api.declines]).toEqual([
+      { requestId: "cctp-2", reason: SignableRefusal.DEPOSIT_UNREAD },
+      { requestId: "cctp-3", reason: SignableRefusal.DEPOSIT_UNREAD },
+    ])
   })
 })
 

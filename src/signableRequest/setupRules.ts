@@ -12,8 +12,19 @@ import {
   ASTER_APPROVAL_CHAIN_ID,
   ASTER_MESSAGE_TYPES,
   ASTER_SIGN_DOMAIN,
+  GMX_APPROVAL_DOMAIN,
+  GMX_APPROVAL_PRIMARY_TYPE,
+  GMX_APPROVAL_TYPES,
+  GMX_NO_INTEGRATION,
+  GMX_PERMIT_DOMAIN,
+  GMX_PERMIT_PRIMARY_TYPE,
+  GMX_PERMIT_TYPES,
+  GMX_PERMIT_VALUE,
+  GMX_SUBACCOUNT_MAX_ACTIONS,
+  GMX_SUBACCOUNT_ORDER_ACTION,
+  GMX_SUBACCOUNT_TTL_MS,
+  GMX_TOKEN_ROUTER,
   HYPERLIQUID_AGENT_MAX_VALIDITY_MS,
-  HYPERLIQUID_AGENT_NAME,
   HYPERLIQUID_APPROVE_AGENT_TYPES,
   HYPERLIQUID_USER_SIGNED_DOMAIN,
   HYPERLIQUID_VALID_UNTIL,
@@ -21,13 +32,23 @@ import {
   POLYMARKET_OP_TYPES,
   POLYMARKET_PROXY_TTL_MS,
   POLYMARKET_SIGN_DOMAIN,
+  asterAgentNames,
   polymarketDeleteProxyOp,
   polymarketOpHash,
 } from "../lebroker/venues/model"
+import { formatCount } from "../helpers/formatCount/formatCount"
 import { getAddress } from "viem"
 import { ASTER_AGENT_TERMS, ASTER_APPROVAL_FIELDS, CLOCK_SLACK_MS, HYPERLIQUID_MAINNET, SIGNATURE_CHAIN_IDS } from "./constants"
 import { SignableRefusal, SignSummaryLabel, SignSummaryText } from "./enums"
-import type { DelegateProps, MessageRuleProps, PolymarketDeletionProps, SignSummary, TypedRuleProps } from "./types"
+import type {
+  DelegateProps,
+  GmxApprovalRuleProps,
+  GmxPermitRuleProps,
+  MessageRuleProps,
+  PolymarketDeletionProps,
+  SignSummary,
+  TypedRuleProps,
+} from "./types"
 import { allowedChain, atMost, chainOf, expectDomain, expectTypes, isAddress, queryFields, refuse, text, until, wholeNumber } from "./utils"
 
 /** An agent or proxy lebroker's signer made: an address, never Main's own. */
@@ -39,17 +60,17 @@ function delegate({ address, main }: DelegateProps): string {
 }
 
 /**
- * Hyperliquid: Main approves lebroker's named agent for 180 days at most, on the chain its wallet shows or one lebroker
- * signs on, which the wallet is switched to.
+ * Hyperliquid: Main approves lebroker's named agent, under this deployment's name, for 180 days at most, on the chain
+ * its wallet shows or one lebroker signs on, which the wallet is switched to.
  */
-function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedRuleProps): SignSummary {
+function hyperliquidApproval({ typedData, user, walletChainId, askedAt, hyperliquidAgentName }: TypedRuleProps): SignSummary {
   const chainId = allowedChain({ chainId: chainOf({ typedData }), allowed: [walletChainId, ...SIGNATURE_CHAIN_IDS] })
   expectDomain({ typedData, domain: { ...HYPERLIQUID_USER_SIGNED_DOMAIN, chainId } })
   expectTypes({ typedData, types: HYPERLIQUID_APPROVE_AGENT_TYPES, primaryType: "HyperliquidTransaction:ApproveAgent" })
   if (typedData.message.hyperliquidChain !== HYPERLIQUID_MAINNET) {
     refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
   }
-  const prefix = `${HYPERLIQUID_AGENT_NAME} ${HYPERLIQUID_VALID_UNTIL} `
+  const prefix = `${hyperliquidAgentName} ${HYPERLIQUID_VALID_UNTIL} `
   const agentName = text({ value: typedData.message.agentName })
   const end = agentName.startsWith(prefix) ? agentName.slice(prefix.length) : ""
   const validUntil = /^\d{1,16}$/.test(end) ? Number(end) : refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
@@ -68,19 +89,21 @@ function hyperliquidApproval({ typedData, user, walletChainId, askedAt }: TypedR
 }
 
 /**
- * Aster: Main approves one of lebroker's agents for 180 days at most, never to withdraw, each under its own name with
- * its own permissions alone: the trading agent trades perps, never Spot; the conversion agent trades Spot, a move's
- * conversion of USDC to USDT, never perps. Aster keeps one agent per name, so an approval under another name would
- * revoke another's.
+ * Aster: Main approves one of lebroker's agents for 180 days at most, never to withdraw, each under its own name in this
+ * deployment with its own permissions alone: the trading agent trades perps, never Spot; the conversion agent trades
+ * Spot, a move's conversion of USDC to USDT, never perps. Aster keeps one agent per name, so an approval under another
+ * name would revoke another's, another deployment's on the same Main included.
  */
-function asterApproval({ typedData, user, askedAt }: TypedRuleProps): SignSummary {
+function asterApproval({ typedData, user, askedAt, asterAgentName }: TypedRuleProps): SignSummary {
   expectDomain({ typedData, domain: { ...ASTER_SIGN_DOMAIN, chainId: ASTER_APPROVAL_CHAIN_ID } })
   expectTypes({ typedData, types: ASTER_MESSAGE_TYPES, primaryType: "Message" })
   const fields = queryFields({ query: text({ value: typedData.message.msg }), names: ASTER_APPROVAL_FIELDS })
   if (!isAddress({ address: fields.user, other: user.address })) {
     refuse({ refusal: SignableRefusal.OTHER_MAIN })
   }
-  const terms = ASTER_AGENT_TERMS.find(entry => entry.name === fields.agentName) ?? refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
+  const names = asterAgentNames({ name: asterAgentName })
+  const terms =
+    ASTER_AGENT_TERMS.find(entry => names[entry.kind] === fields.agentName) ?? refuse({ refusal: SignableRefusal.NOT_LEBROKER_AGENT })
   if (fields.canWithdraw !== AsterBoolean.FALSE) {
     refuse({ refusal: SignableRefusal.WITHDRAW_PERMISSION })
   }
@@ -175,4 +198,99 @@ function lighterRegistration({ message }: MessageRuleProps): SignSummary {
   }
 }
 
-export { asterApproval, hyperliquidApproval, lighterProof, lighterRegistration, polymarketApproval, polymarketDeletion }
+/**
+ * GMX: Main approves lebroker's key as a subaccount of its wallet, for orders alone, 90 days and 18,000 orders at most,
+ * on Arbitrum. GMX pays every order's output to Main's wallet, and a subaccount can't withdraw. The terms the request
+ * states beside it must be the ones signed.
+ */
+function gmxApproval({ typedData, user, askedAt, approval }: GmxApprovalRuleProps): SignSummary {
+  expectDomain({ typedData, domain: GMX_APPROVAL_DOMAIN })
+  expectTypes({ typedData, types: GMX_APPROVAL_TYPES, primaryType: GMX_APPROVAL_PRIMARY_TYPE })
+  if (
+    typedData.message.shouldAdd !== true ||
+    text({ value: typedData.message.integrationId }).toLowerCase() !== GMX_NO_INTEGRATION.toLowerCase()
+  ) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_SHAPE })
+  }
+  if (text({ value: typedData.message.actionType }).toLowerCase() !== GMX_SUBACCOUNT_ORDER_ACTION.toLowerCase()) {
+    refuse({ refusal: SignableRefusal.OTHER_PERMISSIONS })
+  }
+  if (wholeNumber({ value: typedData.message.desChainId }) !== GMX_APPROVAL_DOMAIN.chainId) {
+    refuse({ refusal: SignableRefusal.UNKNOWN_CHAIN })
+  }
+  wholeNumber({ value: typedData.message.nonce })
+  const expiresAt = wholeNumber({ value: typedData.message.expiresAt }) * 1000
+  atMost({ value: expiresAt, max: askedAt + GMX_SUBACCOUNT_TTL_MS + CLOCK_SLACK_MS })
+  atMost({ value: wholeNumber({ value: typedData.message.deadline }) * 1000, max: expiresAt })
+  const orders = wholeNumber({ value: typedData.message.maxAllowedCount })
+  if (orders > GMX_SUBACCOUNT_MAX_ACTIONS) {
+    refuse({ refusal: SignableRefusal.TOO_MANY_ORDERS })
+  }
+  const key = delegate({ address: typedData.message.subaccount, main: user.address })
+  if (
+    approval === undefined ||
+    !isAddress({ address: approval.subaccount, other: key }) ||
+    approval.expiresAt !== expiresAt ||
+    approval.maxAllowedCount !== orders ||
+    approval.chainId !== GMX_APPROVAL_DOMAIN.chainId
+  ) {
+    refuse({ refusal: SignableRefusal.OTHER_TERMS })
+  }
+  return {
+    action: SignSummaryText.APPROVE_GMX_KEY,
+    lines: [
+      { label: SignSummaryLabel.KEY, value: shortAddress({ address: key }) },
+      { label: SignSummaryLabel.VALID_UNTIL, value: until({ ms: expiresAt }) },
+      { label: SignSummaryLabel.MAX_ORDERS, value: formatCount({ value: orders }) },
+      { label: SignSummaryLabel.CHAIN, value: String(GMX_APPROVAL_DOMAIN.chainId) },
+    ],
+    chainId: GMX_APPROVAL_DOMAIN.chainId,
+  }
+}
+
+/**
+ * Main's USDC permit for GMX's Router, asked after its subaccount approval where Main's wallet gave the Router no
+ * allowance: native USDC's own domain on Arbitrum, Main the owner, GMX's Router the spender, at most as long as the
+ * approval lasts. GMX's Router moves tokens only for GMX's own contracts, for Main's own orders.
+ */
+function gmxUsdcPermit({ typedData, user, askedAt, permit }: GmxPermitRuleProps): SignSummary {
+  expectDomain({ typedData, domain: GMX_PERMIT_DOMAIN })
+  expectTypes({ typedData, types: GMX_PERMIT_TYPES, primaryType: GMX_PERMIT_PRIMARY_TYPE })
+  if (!isAddress({ address: typedData.message.owner, other: user.address })) {
+    refuse({ refusal: SignableRefusal.OTHER_MAIN })
+  }
+  if (
+    !isAddress({ address: typedData.message.spender, other: GMX_TOKEN_ROUTER }) ||
+    permit === undefined ||
+    !isAddress({ address: permit.spender, other: GMX_TOKEN_ROUTER }) ||
+    permit.chainId !== GMX_PERMIT_DOMAIN.chainId
+  ) {
+    refuse({ refusal: SignableRefusal.OTHER_TERMS })
+  }
+  if (text({ value: typedData.message.value }) !== GMX_PERMIT_VALUE.toString()) {
+    refuse({ refusal: SignableRefusal.OTHER_TERMS })
+  }
+  wholeNumber({ value: typedData.message.nonce })
+  const deadline = wholeNumber({ value: typedData.message.deadline }) * 1000
+  atMost({ value: deadline, max: askedAt + GMX_SUBACCOUNT_TTL_MS + CLOCK_SLACK_MS })
+  return {
+    action: SignSummaryText.PERMIT_GMX_USDC,
+    lines: [
+      { label: SignSummaryLabel.SPENDER, value: shortAddress({ address: GMX_TOKEN_ROUTER }) },
+      { label: SignSummaryLabel.VALID_UNTIL, value: until({ ms: deadline }) },
+      { label: SignSummaryLabel.CHAIN, value: String(GMX_PERMIT_DOMAIN.chainId) },
+    ],
+    chainId: GMX_PERMIT_DOMAIN.chainId,
+  }
+}
+
+export {
+  asterApproval,
+  gmxApproval,
+  gmxUsdcPermit,
+  hyperliquidApproval,
+  lighterProof,
+  lighterRegistration,
+  polymarketApproval,
+  polymarketDeletion,
+}
