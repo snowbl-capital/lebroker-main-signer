@@ -6,6 +6,7 @@ export {
   TRANSFER_MESSAGE as LIGHTER_TRANSFER_MESSAGE,
 } from "./lighterPolicy/constants"
 export { LAMARGE_SIGNED_VENUES, MAX_TAKE_LOSS_BPS } from "./lamargePolicy/constants"
+export { TakeDestination } from "./lamargePolicy/enums"
 export { AsterBoolean, AsterParam } from "./policy/enums"
 export {
   MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES,

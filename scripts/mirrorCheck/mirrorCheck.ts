@@ -38,25 +38,41 @@ function declarations({ path, text }: DeclarationsProps): Map<string, string> {
 }
 
 async function compare({ file, lebroker, root }: CompareProps): Promise<string[]> {
-  const source = await readFile(join(lebroker, file.source), "utf8").catch(() => null)
-  if (source === null) {
-    return [`${file.mirror}: its source ${file.source} is gone from lebroker`]
+  const sources = typeof file.source === "string" ? [file.source] : file.source
+  const named = sources.join(", ")
+  const theirs = new Map<string, string>()
+  let found = 0
+  for (const path of sources) {
+    const source = await readFile(join(lebroker, path), "utf8").catch(() => null)
+    if (source === null) {
+      continue
+    }
+    found += 1
+    // The first source that declares a name holds it: the web's own copy before the package it reads others from.
+    for (const [name, text] of declarations({ path, text: source })) {
+      if (!theirs.has(name)) {
+        theirs.set(name, text)
+      }
+    }
+  }
+  // One of its sources is enough: lebroker keeps some of a venue's rules in the web's copy alone.
+  if (found === 0) {
+    return [`${file.mirror}: its source ${named} is gone from lebroker`]
   }
   const ours = declarations({ path: file.mirror, text: await readFile(join(root, file.mirror), "utf8") })
-  const theirs = declarations({ path: file.source, text: source })
   const problems: string[] = []
   for (const [name, text] of ours) {
     const there = theirs.get(name)
     if (there === undefined) {
-      problems.push(`${file.mirror}: ${name} is no longer in ${file.source}`)
+      problems.push(`${file.mirror}: ${name} is no longer in ${named}`)
     } else if (there !== text) {
-      problems.push(`${file.mirror}: ${name} differs from ${file.source}`)
+      problems.push(`${file.mirror}: ${name} differs from ${named}`)
     }
   }
   if (file.whole) {
     for (const name of theirs.keys()) {
       if (!ours.has(name)) {
-        problems.push(`${file.mirror}: ${name} of ${file.source} is missing here`)
+        problems.push(`${file.mirror}: ${name} of ${named} is missing here`)
       }
     }
   }

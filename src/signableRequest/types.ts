@@ -272,6 +272,21 @@ type LaMargeCheckProps<T> = { check: () => T }
 
 type FeeNamedFillsProps = { take: LaMargeTake }
 
+/** A LaMarge move's Relay bridge Main's wallet is asked to sign for, as the service sent it beside the request. */
+type RelayRuleProps = RuleProps & { bridge: unknown }
+
+/** A bridge's typed data: its nonce mapping or its `SendAsset`. */
+type RelayTypedRuleProps = RelayRuleProps & { typedData: TypedDataPayload }
+
+/** A bridge's transaction from Main's wallet: its `approve` or its deposit. */
+type RelayCallRuleProps = RelayRuleProps & { transaction: { chainId: number; to: `0x${string}`; data: `0x${string}` } }
+
+/** What a bridge's prompt shows: the move it's for, and the chain it's signed on. */
+type RelaySummaryProps = { bridge: unknown; action: string; chainId: number | null }
+
+/** The deposit address the browser read for Main, which a bridge into Bybit may pay. */
+type ProvenDepositProps = { depositAddress: ReadDepositAddress | undefined }
+
 export type {
   PolymarketDeletionProps,
   GmxApprovalRuleProps,
@@ -329,4 +344,9 @@ export type {
   UntilProps,
   ValueProps,
   VenueOfProps,
+  RelayRuleProps,
+  RelayTypedRuleProps,
+  RelayCallRuleProps,
+  RelaySummaryProps,
+  ProvenDepositProps,
 }

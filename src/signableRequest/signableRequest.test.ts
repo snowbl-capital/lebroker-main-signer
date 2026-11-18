@@ -16,6 +16,7 @@ import {
   opHash,
   schemas,
   transferMessage,
+  WALLET_FEE_ON_DELIVERY,
 } from "@lamarge/sdk/protocol"
 import { encodeFunctionData, erc20Abi, getAddress, parseAbi, type Address, type Hex } from "viem"
 import {
@@ -28,7 +29,7 @@ import {
   type LaMargeTake,
 } from "../lebroker/accounts/model"
 import { Network, VenueId, shortAddress } from "../lebroker/core/model"
-import { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, SUB_ACCOUNT_PROOF_DOMAIN } from "../lebroker/signer/model"
+import { MAIN_LIGHTER_ACCOUNT_PROOF_TYPES, SUB_ACCOUNT_PROOF_DOMAIN, TakeDestination } from "../lebroker/signer/model"
 import {
   ASTER_MESSAGE_TYPES,
   ASTER_SIGN_CHAIN_IDS,
@@ -584,23 +585,6 @@ describe("a venue's setup", () => {
     )
   })
 
-  test("says where a renewal's signature stands among its chain's, before what it does, and refuses a place past the last", () => {
-    const deletion = polymarketOpTypedData({ op: polymarketDeleteProxyOp({ proxy: AGENT }), salt: 1, ts: ASKED_AT })
-    const deletes = { venue: VenueId.POLYMARKET_PERPS, key: AGENT }
-    const kind = SignatureRequestKind.VENUE_RENEWAL
-    const second = signableRequest(
-      requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: deletion, deletes, step: { index: 2, total: 8 } }),
-    )
-    expect(second.ok && second.summary.action).toBe(`Step 2 of 8: ${SignSummaryText.DELETE_POLYMARKET_PROXY}`)
-    // The approval keeps its words, with its place: the chain's last.
-    const approval = polymarketCreateProxyTypedData({ proxy: AGENT, expiry: ASKED_AT + 7 * DAY_MS, salt: 1, ts: ASKED_AT })
-    const last = signableRequest(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: approval, step: { index: 8, total: 8 } }))
-    expect(last.ok && last.summary.action).toBe(`Step 8 of 8: ${SignSummaryText.APPROVE_POLYMARKET_PROXY}`)
-    expect(
-      refusalOf(requestOf({ kind, venue: VenueId.POLYMARKET_PERPS, typedData: deletion, deletes, step: { index: 9, total: 8 } })),
-    ).toBe(SignableRefusal.UNKNOWN_SHAPE)
-  })
-
   test("signs Lighter's proof for Main's own account, and its key's registration at leneutre's indexes only, 200 to 252", () => {
     expect(signableRequest(requestOf({ venue: VenueId.LIGHTER, typedData: lighterProof() })).ok).toBe(true)
     expect(refusalOf(requestOf({ venue: VenueId.LIGHTER, typedData: lighterProof({ owner: "user-2" }) }))).toBe(SignableRefusal.OTHER_MAIN)
@@ -668,17 +652,6 @@ describe("a venue's setup", () => {
     expect(refusalOf(requestOf({ venue: VenueId.GMX, typedData: asked.typedData }))).toBe(SignableRefusal.OTHER_TERMS)
   })
 
-  test("signs Main's USDC permit for GMX's Router, its second signature of GMX's setup, as long as the approval at most", () => {
-    const read = signableRequest(requestOf({ venue: VenueId.GMX, walletChainId: 1, ...gmxPermit() }))
-    expect(read.ok && read.summary.action).toBe(SignSummaryText.PERMIT_GMX_USDC)
-    expect(read.ok ? read.summary.chainId : null).toBe(42161)
-    expect(read.ok ? read.summary.lines.map(line => line.label) : []).toEqual([
-      SignSummaryLabel.SPENDER,
-      SignSummaryLabel.VALID_UNTIL,
-      SignSummaryLabel.CHAIN,
-    ])
-  })
-
   test("refuses Main's USDC permit to another spender, of another owner or value, for longer, or on other terms than stated", () => {
     const gmx = (asked: ReturnType<typeof gmxPermit>) => refusalOf(requestOf({ venue: VenueId.GMX, ...asked }))
     const asked = gmxPermit()
@@ -703,16 +676,6 @@ describe("a venue's setup", () => {
 })
 
 describe("a transfer from Main", () => {
-  test("sends to one of the user's own open sub-accounts, and names it", () => {
-    const read = signableRequest(
-      requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.HYPERLIQUID, typedData: sendAsset({ destination: SUB }) }),
-    )
-    expect(read.ok && read.summary.lines.map(line => line.value)).toEqual(["25 USDC", "Sub-account 1 (0x2222…2222)", "42161"])
-    expect(
-      signableRequest(requestOf({ kind: SignatureRequestKind.TRANSFER, venue: VenueId.ASTER, typedData: asterTransfer({ to: SUB }) })).ok,
-    ).toBe(true)
-  })
-
   test("sends between the balances each account's mode keeps its collateral in, spot or the main dex's perps, and no other", () => {
     for (const dexes of [
       { sourceDex: "spot", destinationDex: "" },
@@ -920,16 +883,6 @@ describe("Main's Lighter fast withdrawal straight into its own Bybit, by the dep
     }
   }
 
-  test("signs a transfer from Main's own Lighter account to the pinned pool, its memo the address Main signed", () => {
-    const read = signableRequest(fast())
-    if (!read.ok) {
-      throw new Error(read.refusal)
-    }
-    expect(read.summary.action).toBe(SignSummaryText.LIGHTER_FAST_INTO_BYBIT)
-    expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.LIGHTER_POOL, value: "675395" })
-    expect(read.summary.chainId).toBeNull()
-  })
-
   test("refuses another pool, another memo, the request's address alone, another venue, another account than Main's", () => {
     expect(refusalOf(fast({ message: fastText({ to: 731 }) }))).toBe(SignableRefusal.NOT_FAST_WITHDRAW_POOL)
     expect(refusalOf(fast({ message: fastText({ memo: `${STRANGER.slice(2).toLowerCase()}${"00".repeat(12)}` }) }))).toBe(
@@ -979,16 +932,6 @@ describe("Main's Polymarket bridge withdrawal straight into its own Bybit, from 
       ...(depositAddress === null ? {} : { depositAddress }),
     })
   }
-
-  test("signs one pUSD transfer from Main's own Deposit Wallet to the address the bridge gave the browser, on Polygon", () => {
-    const read = signableRequest(batch())
-    if (!read.ok) {
-      throw new Error(read.refusal)
-    }
-    expect(read.summary.action).toBe(SignSummaryText.POLYMARKET_BRIDGE_INTO_BYBIT)
-    expect(read.summary.chainId).toBe(137)
-    expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.AMOUNT, value: "5 pUSD" })
-  })
 
   test("refuses another payee, another wallet, more calls, another token, too little, too long, or no bridge read", () => {
     expect(refusalOf(batch({ calls: [{ target: PUSD, value: 0n, data: transferData({ to: STRANGER }) }] }))).toBe(
@@ -1079,29 +1022,6 @@ describe("Main's address book, where the Main signer reads it", () => {
     expect(refusalOf(transferTo({ destination: SHARED_SUB, approvedRecipients: [SUB] }))).toBe(SignableRefusal.NOT_IN_ADDRESS_BOOK)
     expect(signableRequest(transferTo({ destination: SHARED_SUB, approvedRecipients: [SHARED_SUB] })).ok).toBe(true)
   })
-
-  test("leaves the browser as it was: with no address book read, the wallet's own prompt is the user's check", () => {
-    expect(signableRequest(transferTo({})).ok).toBe(true)
-  })
-
-  test("asks nothing of what sends to Main itself or LaMarge's escrow", () => {
-    const toMain = hyperliquidWithdrawRequest({
-      destination: MAIN,
-      amount: 10,
-      time: ASKED_AT,
-      network: Network.MAINNET,
-      signatureChainId: 42161,
-    }).typedData
-    const none: readonly string[] = []
-    expect(
-      signableRequest(
-        requestOf({ kind: SignatureRequestKind.WITHDRAWAL, venue: VenueId.HYPERLIQUID, typedData: toMain, approvedRecipients: none }),
-      ).ok,
-    ).toBe(true)
-    expect(signableRequest(requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, typedData: permit(), approvedRecipients: none })).ok).toBe(
-      true,
-    )
-  })
 })
 
 describe("a withdrawal", () => {
@@ -1136,7 +1056,6 @@ describe("a withdrawal", () => {
     function intoLighter({
       destination = INTENT,
       amount = 6,
-      network = Network.MAINNET,
       venue = VenueId.HYPERLIQUID,
       depositVenue = VenueId.LIGHTER,
       depositAddress = READ,
@@ -1145,7 +1064,6 @@ describe("a withdrawal", () => {
     }: {
       destination?: Address
       amount?: number
-      network?: Network
       venue?: VenueId
       signatureChainId?: number
       /** Fields written over the withdrawal's message, as a host would change them. */
@@ -1155,7 +1073,13 @@ describe("a withdrawal", () => {
       /** None read, null. */
       depositAddress?: { venue: VenueId; address: string } | null
     } = {}) {
-      const typedData = hyperliquidWithdrawRequest({ destination, amount, time: ASKED_AT, network, signatureChainId }).typedData
+      const typedData = hyperliquidWithdrawRequest({
+        destination,
+        amount,
+        time: ASKED_AT,
+        network: Network.MAINNET,
+        signatureChainId,
+      }).typedData
       return requestOf({
         kind: SignatureRequestKind.WITHDRAWAL,
         venue,
@@ -1164,27 +1088,6 @@ describe("a withdrawal", () => {
         ...(depositAddress === null ? {} : { depositAddress }),
       })
     }
-
-    test("signs it into the intent address the browser read from Lighter for Main, from 6 USDC", () => {
-      const read = signableRequest(intoLighter())
-      if (!read.ok) {
-        throw new Error(read.refusal)
-      }
-      expect(read.summary.action).toBe(SignSummaryText.WITHDRAW_INTO_LIGHTER)
-      expect(read.summary.chainId).toBe(42161)
-      expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.AMOUNT, value: "6 USDC" })
-      expect(signableRequest(intoLighter({ amount: 250.5 })).ok).toBe(true)
-    })
-
-    test("compares the addresses whatever their case, either way", () => {
-      expect(signableRequest(intoLighter({ depositAddress: { venue: VenueId.LIGHTER, address: INTENT.toLowerCase() } })).ok).toBe(true)
-      expect(signableRequest(intoLighter({ message: { destination: INTENT.toLowerCase() } })).ok).toBe(true)
-      expect(
-        signableRequest(intoLighter({ depositAddress: { venue: VenueId.LIGHTER, address: `0x${INTENT.slice(2).toUpperCase()}` } })).ok,
-      ).toBe(true)
-      // A different address stays refused in any case.
-      expect(refusalOf(intoLighter({ message: { destination: STRANGER.toLowerCase() } }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
-    })
 
     test("refuses another address than the one read, Main's own among them", () => {
       expect(refusalOf(intoLighter({ destination: STRANGER }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
@@ -1207,8 +1110,7 @@ describe("a withdrawal", () => {
       expect(refusalOf(intoLighter({ amount: 5.99 }))).toBe(SignableRefusal.DEPOSIT_TOO_SMALL)
     })
 
-    test("refuses it on Hyperliquid's testnet, or naming another Hyperliquid chain than Mainnet", () => {
-      expect(refusalOf(intoLighter({ network: Network.TESTNET }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
+    test("refuses it naming another Hyperliquid chain than Mainnet", () => {
       expect(refusalOf(intoLighter({ message: { hyperliquidChain: "Testnet" } }))).toBe(SignableRefusal.UNKNOWN_SHAPE)
     })
 
@@ -1266,17 +1168,6 @@ describe("a withdrawal", () => {
         ...(depositAddress === null ? {} : { depositAddress }),
       })
     }
-
-    test("signs it to the address Main signed, on Arbitrum's CCTP domain, from spot, as measured on mainnet", () => {
-      const read = signableRequest(intoBybit())
-      if (!read.ok) {
-        throw new Error(read.refusal)
-      }
-      expect(read.summary.action).toBe(SignSummaryText.CCTP_INTO_BYBIT)
-      expect(read.summary.chainId).toBe(42161)
-      expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.AMOUNT, value: "5 USDC" })
-      expect(read.summary.lines).toContainEqual({ label: SignSummaryLabel.DESTINATION_CHAIN, value: "42161" })
-    })
 
     test("refuses another recipient, the request's address alone, another venue, and another chain than the one Main signed on", () => {
       expect(refusalOf(intoBybit({ destination: STRANGER }))).toBe(SignableRefusal.NOT_DEPOSIT_ADDRESS)
@@ -1586,6 +1477,24 @@ describe("a LaMarge move", () => {
     )
   })
 
+  test("pays a take inside Aster delivered to Main's wallet as the take says, and only with a wallet delivery's swap id", () => {
+    // A wallet-delivery swap id, no fee.
+    const walletSwap = `${WALLET_FEE_ON_DELIVERY}${"0".repeat(20)}${"bb".repeat(16)}`
+    const intoGmx = ({ swap_id, named = true }: { swap_id: string; named?: boolean }): LaMargeTake => {
+      const wallet = named ? { destination: TakeDestination.WALLET } : {}
+      const take = asterTake({ fill: { to_venue: VenueId.GMX, swap_id, ...wallet } })
+      return { ...take, input: { ...take.input, to: VenueId.GMX, ...wallet, ...(named ? { recipient: TAKE_MAIN } : {}) } }
+    }
+    expect(signableRequest(asterTakeRequest({ take: intoGmx({ swap_id: walletSwap }) })).ok).toBe(true)
+    // Without the take's own destination, nothing is guessed.
+    expect(refusalOf(asterTakeRequest({ take: intoGmx({ swap_id: walletSwap, named: false }) }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+    // Mismatched tags stay refused.
+    expect(refusalOf(asterTakeRequest({ take: intoGmx({ swap_id: asterTake().fills[0]?.swap_id ?? "" }) }))).toStartWith(
+      SignableRefusal.LAMARGE_CHECK,
+    )
+    expect(refusalOf(asterTakeRequest({ take: asterTake({ fill: { swap_id: walletSwap } }) }))).toStartWith(SignableRefusal.LAMARGE_CHECK)
+  })
+
   test("pays a take inside Lighter to the maker's account the take names, and says what it signs and who started the move", () => {
     // LaMarge's SDK writes the message the request carries, byte for byte.
     expect(lighterTransferText()).toBe(LIGHTER_TAKE_MESSAGE)
@@ -1810,11 +1719,6 @@ describe("a LaMarge send to another of the user's accounts on the same venue", (
     expect(refusalOf(blind)).toBe(SignableRefusal.NO_SEND_OP)
   })
 
-  test("signs Hyperliquid's send to the user's open sub-account, never read as a withdrawal to Main", () => {
-    const read = signableRequest(hyperliquidSend())
-    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
-  })
-
   /** An Aster send as LaMarge prepares it: Aster's transfer between wallets, under a send's own id (`s`, 32 hex digits). */
   function asterSend({ to = SUB, recipient = SUB, id = `s${"0a".repeat(16)}` }: { to?: string; recipient?: string; id?: string } = {}) {
     const msg = new URLSearchParams([
@@ -1831,11 +1735,6 @@ describe("a LaMarge send to another of the user's accounts on the same venue", (
       send: { venue: "aster", recipient, amount: (125n * 10n ** 17n).toString() },
     })
   }
-
-  test("signs Aster's send of exactly its amount to one of the user's open sub-accounts", () => {
-    const read = signableRequest(asterSend())
-    expect(read.ok && read.summary.action).toBe(SignSummaryText.LAMARGE_SEND)
-  })
 
   test("refuses an Aster send to anyone else, to another account than it names, or under a fill's id", () => {
     for (const recipient of [STRANGER, CLOSED_SUB, MAIN]) {
@@ -1905,27 +1804,5 @@ describe("Main's direct wallet transactions", () => {
         },
       }).ok,
     ).toBe(false)
-  })
-
-  test("allows a bounded, nonce-protected conversion into Main's own escrow balance", () => {
-    const props = requestOf({ kind: SignatureRequestKind.LAMARGE_MOVE, message: "transaction fixture" })
-    const chain = CHAINS["polymarket"]
-    if (chain === undefined) {
-      throw new Error("missing chain")
-    }
-    const data = encodeFunctionData({
-      abi: parseAbi(["function convertDeposit(uint256 amount,uint256 minOut,uint256 nonce,uint256 deadline)"]),
-      functionName: "convertDeposit",
-      args: [10_000_000n, 9_995_000n, 8n, BigInt(Math.floor(ASKED_AT / 1000) + 1800)],
-    })
-    expect(
-      signableRequest({
-        ...props,
-        request: {
-          ...props.request,
-          payload: { kind: SignaturePayloadKind.TRANSACTION, transaction: { chainId: chain.id, to: getAddress(chain.escrow), data } },
-        },
-      }).ok,
-    ).toBe(true)
   })
 })

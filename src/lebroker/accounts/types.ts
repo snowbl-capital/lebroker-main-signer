@@ -1,4 +1,5 @@
 import type { VenueId } from "../core/model"
+import type { TakeDestination } from "../signer/model"
 import type { SignaturePayloadKind } from "./enums"
 
 /** EIP-712 typed data as a browser wallet's `eth_signTypedData_v4` takes it: integers as decimal strings. */
@@ -13,7 +14,15 @@ type TypedDataPayload = {
  * A take's terms as LaMarge's API answered them, in its own field names: what its SDK checks a take's payment against.
  * `max_fee_bps`: the highest taker fee it accepts, absent without consent, which then pays none.
  */
-type LaMargeTakeInput = { from: string; to: string; amount_in: string; min_out: string; max_fee_bps?: number | undefined }
+type LaMargeTakeInput = {
+  from: string
+  to: string
+  amount_in: string
+  min_out: string
+  max_fee_bps?: number | undefined
+  destination?: TakeDestination | undefined
+  recipient?: string | undefined
+}
 
 /** One fill of a take as LaMarge's API answered it: its maker's recipient, what it pays and delivers, and its windows. */
 type LaMargeTakeFill = {
@@ -36,6 +45,7 @@ type LaMargeTakeFill = {
   delivery_to?: string | null | undefined
   /** The taker fee the fill carries, which its `swap_id` says too; absent from a request stored before fees. */
   taker_fee?: string | undefined
+  destination?: TakeDestination | undefined
 }
 
 /**
@@ -112,6 +122,10 @@ type SignaturePayload =
   | {
       kind: SignaturePayloadKind.TRANSACTION
       transaction: { chainId: number; to: `0x${string}`; data: `0x${string}` }
+      /** A LaMarge move's Relay bridge the transaction approves or deposits for, read by the signer's own schema. */
+      bridge?: unknown
+      /** Bybit, where that bridge pays Main's signed Bybit deposit address. */
+      depositVenue?: VenueId | undefined
       step?: SignatureStep | undefined
     }
   | {
@@ -126,6 +140,8 @@ type SignaturePayload =
       attestation?: LaMargeAttestation | undefined
       gmxSubaccountApproval?: GmxSubaccountApprovalFacts | undefined
       gmxUsdcPermit?: GmxUsdcPermitFacts | undefined
+      /** A LaMarge move's Relay bridge the typed data maps a nonce for or sends to, read by the signer's own schema. */
+      bridge?: unknown
     }
   | {
       kind: SignaturePayloadKind.PERSONAL_MESSAGE

@@ -17,9 +17,9 @@ const MAIN_LIGHTER_ACCOUNT_PROOF_TYPES = {
 } as const
 
 /**
- * Main's word for its own USDC deposit address on Bybit, on a chain: what a withdrawal of Main's paid straight into
- * Bybit, as Hyperliquid's, may pay. Main's wallet checks such a withdrawal against it, never against the host's word.
- * The signer doesn't check it: it signs none of those withdrawals.
+ * Main's word for an account's USDC deposit address on Bybit, on a chain, Main's own or a sub-account's: what a payment
+ * straight into that account's Bybit may pay. Main's wallet checks Main's own withdrawals against it; the signer checks
+ * it before it signs one of a sub-account's, or Lighter's fast withdrawal, never taking the host's word.
  */
 const MAIN_BYBIT_DEPOSIT_ADDRESS_PROOF_TYPES = {
   MainBybitDepositAddress: [

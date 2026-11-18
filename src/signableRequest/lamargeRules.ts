@@ -255,11 +255,9 @@ function units({ value, venue }: UnitsProps): string {
  * Whether a take's payment delivers straight to Main's deposit address on a venue LaMarge reaches only on chain
  * (`TAKE_DEPOSIT_VENUES`), as Bybit's: the request names that venue, and the recipient is the address the signing side
  * read itself for Main just now, Bybit's the one Main signed, its `MainBybitDepositAddress` recovered to Main in the
- * browser, as for Hyperliquid's withdrawal straight into Bybit. The request's word alone is never taken.
- *
- * TODO(snowbl-capital/lamarge#395): LaMarge's SDK doesn't deliver to a deposit address yet, so the field that names such
- * a recipient in the taker's signed take isn't known: taken to be the payment's `receiveRecipient`, as Main's own is
- * today. Read the SDK's field, and its own check of it, once it ships.
+ * browser, as for Hyperliquid's withdrawal straight into Bybit. The request's word alone is never taken. A take's wallet
+ * delivery names its recipient in each payment's `receiveRecipient`, which LaMarge's SDK holds to the take's own
+ * (`checkTakeIntent`); a take paid inside Aster or Lighter has no such payment, and delivers to Main alone.
  */
 function deliversToSignedDeposit({ paid, depositVenue, depositAddress }: SignedDepositDeliveryProps): boolean {
   if (depositVenue === undefined || !TAKE_DEPOSIT_VENUES.has(depositVenue)) {

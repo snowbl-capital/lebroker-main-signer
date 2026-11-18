@@ -11,6 +11,10 @@ const SIGN_DOMAIN = { name: "AsterSignTransaction", version: "1", verifyingContr
 
 const MESSAGE_TYPES = { Message: [{ name: "msg", type: "string" }] } as const
 
+/**
+ * The trading agent's name in production, and on every sub-account, whose keys are its deployment's alone; another
+ * deployment's agents on a Main take a name of their own (`agentName`).
+ */
 const AGENT_NAME = "leneutre"
 
 /**
@@ -27,10 +31,6 @@ const AGENT_NAME_SUFFIXES: Record<AsterAgentKind, string> = {
 /** An approval lasts this long; once Aster forgets the agent, the trader approves it again. */
 const AGENT_TTL_MS = 180 * 24 * 60 * 60 * 1000
 
-/**
- * The conversion agent's name: an agent of its own, beside the trading and the withdrawal ones and LaMarge's, whose
- * names it never takes, since Aster keeps one agent per name on an account and an approval under a name replaces it.
- */
 const CONVERT_AGENT_NAME = `${AGENT_NAME}${AGENT_NAME_SUFFIXES[AsterAgentKind.CONVERT]}`
 
 /**

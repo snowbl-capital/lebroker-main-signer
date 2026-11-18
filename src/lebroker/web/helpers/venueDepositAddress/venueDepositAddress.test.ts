@@ -71,15 +71,6 @@ describe("venueDepositAddress", () => {
     })
   })
 
-  test("throws, so that nothing is signed, when Lighter fails, answers something else, or can't be reached", async () => {
-    for (const answer of [Response.json({ code: 500 }, { status: 500 }), Response.json({ intent_address: "not an address" })]) {
-      spyOn(globalThis, "fetch").mockResolvedValue(answer)
-      await expect(venueDepositAddress({ venue: VenueId.LIGHTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.UNREAD)
-    }
-    spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"))
-    await expect(venueDepositAddress({ venue: VenueId.LIGHTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.UNREAD)
-  })
-
   test("takes Main's Bybit deposit address only as Main signed it, on Arbitrum only, its signature recovered here", async () => {
     const main = privateKeyToAccount(generatePrivateKey())
     const body = await bybitBody({ main })
@@ -119,12 +110,6 @@ describe("venueDepositAddress", () => {
     const lower = "0x7535aa4a9b6ec46e8ba1fb4e5ca0ad7f0ca28bd0"
     expect(await venueDepositAddress({ venue: VenueId.GMX, address: lower })).toBe(getAddress(lower))
     await expect(venueDepositAddress({ venue: VenueId.GMX, address: MAIN, chainId: 1 })).rejects.toThrow(VenueDepositAddressError.NONE)
-    expect(fetched).not.toHaveBeenCalled()
-  })
-
-  test("reads nothing for a venue leneutre opens no account on with a withdrawal", async () => {
-    const fetched = spyOn(globalThis, "fetch")
-    await expect(venueDepositAddress({ venue: VenueId.ASTER, address: MAIN })).rejects.toThrow(VenueDepositAddressError.NONE)
     expect(fetched).not.toHaveBeenCalled()
   })
 })

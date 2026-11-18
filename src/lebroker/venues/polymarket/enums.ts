@@ -1,4 +1,3 @@
-/** The commands the trader signs, by the name Polymarket gives them in a command's body and in what is signed. */
 enum PolymarketOp {
   CREATE_PROXY = "createProxy",
   /** A proxy the owner no longer wants: signed by the owner's own key, as a command. */

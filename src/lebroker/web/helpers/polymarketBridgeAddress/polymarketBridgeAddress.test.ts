@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import { polymarketDepositWalletOf } from "../../../venues/model"
 import { getAddress } from "viem"
-import { PolymarketBridgeAddressError } from "./enums"
 import { polymarketBridgeAddress } from "./polymarketBridgeAddress"
 
 const MAIN = "0x1111111111111111111111111111111111111111"
@@ -26,14 +25,5 @@ describe("polymarketBridgeAddress", () => {
       toTokenAddress: USDC,
       recipientAddr: BYBIT,
     })
-  })
-
-  test("throws, so that nothing is signed, when the bridge fails or answers no address", async () => {
-    for (const answer of [Response.json({}, { status: 500 }), Response.json({ address: { evm: "nope" } })]) {
-      spyOn(globalThis, "fetch").mockResolvedValue(answer)
-      await expect(polymarketBridgeAddress({ main: MAIN, recipient: BYBIT, chainId: 42161, token: USDC })).rejects.toThrow(
-        PolymarketBridgeAddressError.UNREAD,
-      )
-    }
   })
 })

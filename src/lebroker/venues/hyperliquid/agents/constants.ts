@@ -1,4 +1,7 @@
-/** leneutre's agent's name on every Main, production's: it never changes, so each renewal replaces it and takes no second slot. */
+/**
+ * leneutre's agent's name on a Main, production's: it never changes, so each renewal replaces it and takes no second
+ * slot. Every agent approved before each deployment had a name of its own holds it, so production keeps it as it is.
+ */
 const LENEUTRE_AGENT_NAME = "leneutre"
 
 /** The longest an agent may last: 180 days was accepted, 181 refused (tested on mainnet, 18 October 2026). */
