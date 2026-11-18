@@ -23,6 +23,14 @@ enum VenueId {
   LIGHTER = "lighter",
   BYBIT = "bybit",
   GMX = "gmx",
+  BINANCE = "binance",
+  COINBASE_GLOBAL = "coinbase-global",
+  COINBASE_US = "coinbase-us",
+  KRAKEN = "kraken",
+  DYDX = "dydx",
+  ONDO = "ondo",
+  JUPITER = "jupiter",
+  PARADEX = "paradex",
 }
 
 export { Network, VenueId, DeploymentEnvironment }

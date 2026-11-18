@@ -1,6 +1,7 @@
 import { MAX_FEE_BPS } from "@lamarge/sdk/protocol"
 import { z } from "zod"
 import { VenueId } from "../../core/model"
+import { TakeDestination } from "../../signer/model"
 import { SignaturePayloadKind } from "../enums"
 
 const typedDataPayload = z.object({
@@ -19,6 +20,8 @@ const laMargeTake = z.object({
     min_out: z.string(),
     /** The most taker fee the take accepts, in basis points: never above LaMarge's most (`MAX_FEE_BPS`). */
     max_fee_bps: z.number().int().nonnegative().max(MAX_FEE_BPS).optional(),
+    destination: z.enum(TakeDestination).optional(),
+    recipient: z.string().optional(),
   }),
   fills: z.array(
     z.object({
@@ -40,6 +43,7 @@ const laMargeTake = z.object({
       t2: z.string(),
       delivery_to: z.string().nullable().optional(),
       taker_fee: z.string().optional(),
+      destination: z.enum(TakeDestination).optional(),
     }),
   ),
   lighter: z.object({ from_account_index: z.number().int().nonnegative(), to_account_index: z.number().int().nonnegative() }).optional(),
@@ -93,6 +97,9 @@ const signaturePayload = z.discriminatedUnion("kind", [
       to: z.templateLiteral(["0x", z.string()]),
       data: z.templateLiteral(["0x", z.string()]),
     }),
+    /** A LaMarge move's Relay bridge the transaction approves or deposits for, as the signer's schema reads it. */
+    bridge: z.unknown().optional(),
+    depositVenue: z.enum(VenueId).optional(),
     step: signatureStep.optional(),
   }),
   z.object({
@@ -107,6 +114,8 @@ const signaturePayload = z.discriminatedUnion("kind", [
     attestation: laMargeAttestation.optional(),
     gmxSubaccountApproval: gmxSubaccountApproval.optional(),
     gmxUsdcPermit: gmxUsdcPermit.optional(),
+    /** A LaMarge move's Relay bridge the typed data maps a nonce for or sends to, as the signer's schema reads it. */
+    bridge: z.unknown().optional(),
   }),
   z.object({
     kind: z.literal(SignaturePayloadKind.PERSONAL_MESSAGE),

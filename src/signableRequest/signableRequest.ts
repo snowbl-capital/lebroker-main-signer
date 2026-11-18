@@ -8,6 +8,7 @@ import { HYPERLIQUID_CCTP_TYPE, OP_TYPE, POLYMARKET_PERPS_WITHDRAW_TYPE, SIGNATU
 import { SignableRefusal } from "./enums"
 import { NotSignable } from "./errors"
 import { laMargeMessage, laMargeTyped } from "./lamargeRules"
+import { relayCallRule, relayTypedRule } from "./relayRules"
 import { LIGHTER_REGISTRATION_MESSAGE } from "../lebroker/signer/model"
 import {
   asterApproval,
@@ -158,6 +159,10 @@ function laMargeSummary(props: RuleProps): SignSummary {
   if (payload.kind === SignaturePayloadKind.TRANSACTION) {
     return refuse({ refusal: SignableRefusal.OPAQUE })
   }
+  // A move's Relay bridge out of Main's HyperCore account: held to the checks the signer holds a sub-account's to.
+  if (payload.kind === SignaturePayloadKind.TYPED_DATA && payload.bridge !== undefined) {
+    return relayTypedRule({ ...props, typedData: payload.typedData, bridge: payload.bridge })
+  }
   return payload.kind === SignaturePayloadKind.TYPED_DATA
     ? laMargeTyped({
         ...props,
@@ -176,6 +181,10 @@ function summaryOf(props: RuleProps): SignSummary {
   if (props.request.payload.kind === SignaturePayloadKind.TRANSACTION) {
     if (props.request.kind !== SignatureRequestKind.LAMARGE_MOVE) {
       return refuse({ refusal: SignableRefusal.OPAQUE })
+    }
+    // A move's Relay bridge from Main's wallet: its `approve` or its deposit, exactly as Relay's order asks.
+    if (props.request.payload.bridge !== undefined) {
+      return relayCallRule({ ...props, transaction: props.request.payload.transaction, bridge: props.request.payload.bridge })
     }
     const terms = inspectDirectTransaction(props.request.payload.transaction, props.user.address, props.now)
     // GMX withdrawals have no application nonce; browser prompts need a server-wide claim before exposing them.

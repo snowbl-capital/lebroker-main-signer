@@ -40,6 +40,8 @@ enum ApiPath {
   MARGIN_MOVES = "/v1/margin-moves",
   /** The session's wallet's venue setups for margin moves through LaMarge; a venue's id after it runs one. */
   LAMARGE_SETUPS = "/v1/lamarge/setups",
+  /** An account's average value over a window, read-only. */
+  ACCOUNT_VALUE = "/v1/account-value",
   /** The session's wallet's accounts on the venues it trades: whether each is ready, and its own switches. */
   VENUE_ACCOUNTS = "/v1/venue-accounts",
   SETTINGS = "/v1/settings",
@@ -55,6 +57,8 @@ enum ApiPath {
   /** Whom the user shares their sub-accounts with: listed, granted or changed here, on Main's approval. */
   GRANTS = "/v1/grants",
   GRANTS_REVOKE = "/v1/grants/revoke",
+  /** A grantee's name, set by the account's owner with their session alone. */
+  GRANTS_NAME = "/v1/grants/name",
   /** The recipients Main approved in its wallet for its Main signer's transfers: listed, and an entry added. */
   ADDRESS_BOOK = "/v1/address-book",
   /** Main's referral on its venues whose code only its own key binds: its answers read, and one reported. */

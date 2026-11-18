@@ -36,6 +36,8 @@ enum SignableRefusal {
   DEPOSIT_VENUE = "This withdrawal pays a venue leneutre never opens Main's account on with a withdrawal.",
   DEPOSIT_TOO_SMALL = "This withdrawal is less than the venue opens an account from once Hyperliquid's fee is out.",
   DEPOSIT_UNREAD = "The venue's deposit address for your Main couldn't be read just now: nothing was signed.",
+  /** A LaMarge move's Relay bridge, held to the same checks the signer holds a sub-account's to. */
+  RELAY_BRIDGE = "This bridge isn't part of a LaMarge move paying you or your signed Bybit deposit address, or Relay's order doesn't match it: nothing was signed.",
   NOT_DEPOSIT_ADDRESS = "This withdrawal pays an address that isn't the venue's deposit address for your Main.",
   /** Lighter's fast withdrawal is a transfer to its pool, which leneutre pins. */
   /** Main's Deposit Wallet batch for Polymarket's bridge: one pUSD transfer, to the address the browser asked the bridge for. */
@@ -114,6 +116,10 @@ enum SignSummaryLabel {
   DEPOSIT_ADDRESS = "Deposit address, read from the venue",
   /** The chain a send out of a venue pays on, by its EVM id. */
   DESTINATION_CHAIN = "Paid on chain",
+  /** A LaMarge move's ends, as LaMarge recorded the move. */
+  FROM = "From",
+  RECIPIENT = "Recipient",
+  MINIMUM = "Least the move delivers",
 }
 
 /** Who started the move a request signs for, as the request says it. */
@@ -143,4 +149,11 @@ enum LaMargeWord {
   EXPIRES_PREFIX = "Expiration Time: ",
 }
 
-export { LaMargeWord, SignStarter, SignSummaryLabel, SignSummaryText, SignableRefusal }
+/** What Main's wallet is asked for a LaMarge move's Relay bridge, as its prompt names it. */
+enum RelayAction {
+  MAPPING = "Relay bridge: nonce mapping",
+  SEND = "Relay bridge: send from Hyperliquid",
+  CALL = "Relay bridge: approve or deposit",
+}
+
+export { LaMargeWord, SignStarter, SignSummaryLabel, SignSummaryText, SignableRefusal, RelayAction }

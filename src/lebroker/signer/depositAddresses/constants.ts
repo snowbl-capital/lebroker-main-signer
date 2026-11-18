@@ -9,8 +9,9 @@ const DEPOSIT_ADDRESS_TIMEOUT_MS = 5_000
 /**
  * The least a Hyperliquid withdrawal paid straight into a venue's deposit address carries, in USDC, by venue:
  * Hyperliquid's $1 fee comes out of it, then the venue credits the rest only from its own least. Lighter's intent
- * address takes 5 USDC at least. A venue not listed is paid no such withdrawal. The signer holds a sub-account's to it,
- * and Main's wallet Main's own, which opens Main's Lighter from inside.
+ * address takes 5 USDC at least; Bybit credits from 0.005 USDC, and 2 keeps a dollar arriving. A venue not listed is
+ * paid no such withdrawal. The signer holds a sub-account's to it, and Main's wallet Main's own, which opens Main's
+ * Lighter from inside or refills Main's Bybit.
  */
 const WITHDRAWAL_DEPOSIT_MIN_USD: Partial<Record<VenueId, number>> = { [VenueId.LIGHTER]: 6, [VenueId.BYBIT]: 2 }
 

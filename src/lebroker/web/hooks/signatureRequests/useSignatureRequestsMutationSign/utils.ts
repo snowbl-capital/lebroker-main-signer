@@ -18,7 +18,7 @@ import type { AttestedOfProps, AttestedRequestProps, AttestedTakeProps, DepositA
  * Polymarket's bridge, the address the bridge answers the browser as paying it; nothing for any other request. A read that fails, or a wallet that shows no address, throws: nothing is signed.
  */
 async function depositAddressOf({ request, address }: DepositAddressOfProps): Promise<ReadDepositAddress | undefined> {
-  const venue = request.payload.kind === SignaturePayloadKind.TRANSACTION ? undefined : request.payload.depositVenue
+  const venue = request.payload.depositVenue
   // Main's Perps margin withdrawn to its own Deposit Wallet first: no deposit address of the venue's in it.
   const toWallet =
     request.payload.kind === SignaturePayloadKind.TYPED_DATA && request.payload.typedData.primaryType === POLYMARKET_PERPS_WITHDRAW_TYPE

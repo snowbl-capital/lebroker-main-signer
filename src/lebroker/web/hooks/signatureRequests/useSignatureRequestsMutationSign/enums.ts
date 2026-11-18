@@ -9,13 +9,15 @@ enum SignRequestError {
   /** The typed data names another chain than its allowlist's: the wallet is never switched to it. */
   NOT_ALLOWED_CHAIN = "This request names a chain leneutre never signs on: nothing was signed.",
   SWITCH_DECLINED = "Switch your wallet to the chain this request names to sign it: it's a signature, with no transaction and no gas. Nothing was sent.",
-  /** The wallet couldn't add a network only to sign on: the network's name and chain id follow, then `SIGNING_NETWORK_HINT`. */
-  SIGNING_NETWORK_REFUSED = "Your wallet couldn't add the network this request is signed on,",
   /** LaMarge's attestation the request carries doesn't verify against its deployment's attester, for Main, over this request. */
   NOT_ATTESTED = "LaMarge's attestation of this request doesn't hold: nothing was signed.",
   /** A take's payment LaMarge sent without its attestation, which both its deployments give every take. */
   UNATTESTED = "LaMarge didn't attest this take: nothing is signed without LaMarge's attestation.",
-  SIGNING_NETWORK_HINT = "which only signs, with no transaction and no gas: sign it in a wallet that adds networks, such as MetaMask. Nothing was sent.",
 }
 
-export { SignRequestError }
+enum SignatureMutationError {
+  COMPLETED = "This request has already been completed.",
+  PENDING = "This request is already open in your wallet.",
+}
+
+export { SignRequestError, SignatureMutationError }
